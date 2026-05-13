@@ -4,6 +4,7 @@ import Icon from '@/components/ui/Icon'
 import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
 import { adminusersService } from '@/services/adminusers.service'
+import { toast } from '@/store/toast'
 
 type FormData = {
   firstName: string
@@ -79,7 +80,7 @@ export default function AdminUserForm({ id, onClose }: Props) {
           if (data.twoFA !== undefined) setTwoFA(data.twoFA)
           if (data.modSel)  setModSel(data.modSel)
         })
-        .catch(() => setServerError('Failed to load user data'))
+        .catch(() => { setServerError('Failed to load user data'); toast.error('Failed to load record') })
     }
   }, [id])
 
@@ -94,12 +95,18 @@ export default function AdminUserForm({ id, onClose }: Props) {
         setServerError('Password is required when creating a user')
         return
       }
-      if (isEdit) await adminusersService.update(id!, payload)
-      else await adminusersService.create(payload)
+      if (isEdit) {
+        await adminusersService.update(id!, payload)
+        toast.success('Updated successfully')
+      } else {
+        await adminusersService.create(payload)
+        toast.success('Created successfully')
+      }
       if (onClose) onClose()
       else setRoute('admin-users')
     } catch (err: any) {
       setServerError(err.response?.data?.message || 'Save failed')
+      toast.error(err.response?.data?.message || 'Save failed')
     }
   }
 

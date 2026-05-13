@@ -3,8 +3,11 @@ import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Badge, { PatientTagBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
+import Pagination from '@/components/ui/Pagination'
 import { useAppStore } from '@/store/app'
 import { patientsService } from '@/services/patients.service'
+
+const PAGE_SIZE = 12
 
 const TAG_FILTERS = [
   { key: 'all',       label: 'All' },
@@ -35,12 +38,13 @@ function LoadingSkeleton() {
 }
 
 export default function PatientList() {
-  const { setRoute } = useAppStore()
+  const { setRoute, setSelectedId } = useAppStore()
   const [search, setSearch] = useState('')
   const [tagFilter, setTagFilter] = useState('all')
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   const load = async (q?: string, tag?: string) => {
     try {
@@ -50,7 +54,7 @@ export default function PatientList() {
       if (q) params.search = q
       if (tag && tag !== 'all') params.tag = tag
       const data = await patientsService.list(params)
-      setItems(data)
+      setItems(data.data || [])
     } catch {
       setError('Failed to load patients')
     } finally {
@@ -61,12 +65,14 @@ export default function PatientList() {
   useEffect(() => { load() }, [])
 
   useEffect(() => {
+    setPage(1)
     const timer = setTimeout(() => load(search, tagFilter), 300)
     return () => clearTimeout(timer)
   }, [search, tagFilter])
 
   const countOf = (t: string) => items.filter(p => p.tag === t).length
-  const filtered = items
+  const filtered  = items
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div className="main">
@@ -134,8 +140,8 @@ export default function PatientList() {
             {loading ? (
               <LoadingSkeleton />
             ) : (
-              filtered.map(p => (
-                <tr key={p.id}>
+              paginated.map(p => (
+                <tr key={p._id || p.id}>
                   <td>
                     <div className="cell-person">
                       <div className={`av ${p.tone}`}>{p.name.split(' ').map((w: string) => w[0]).join('').slice(0,2)}</div>
@@ -145,7 +151,7 @@ export default function PatientList() {
                       </div>
                     </div>
                   </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{p.id}</td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{p._id || p.id}</td>
                   <td>{p.age} · {p.gender}</td>
                   <td><Badge variant={(BG_VARIANTS[p.bg]??'muted') as any}>{p.bg}</Badge></td>
                   <td style={{fontSize:12}}>{p.phone}</td>
@@ -154,8 +160,8 @@ export default function PatientList() {
                   <td><PatientTagBadge tag={p.tag}/></td>
                   <td>
                     <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>setRoute('patient-view')}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>setRoute('patient-edit')}><Icon name="edit" size={14}/></button>
+                      <button className="act" title="View" onClick={() => { setSelectedId(p._id || p.id); setRoute('patient-view') }}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={() => { setSelectedId(p._id || p.id); setRoute('patient-edit') }}><Icon name="edit" size={14}/></button>
                       <button className="act" title="More"><Icon name="more" size={14}/></button>
                     </div>
                   </td>
@@ -167,6 +173,7 @@ export default function PatientList() {
             )}
           </tbody>
         </table>
+        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
     </div>
   )

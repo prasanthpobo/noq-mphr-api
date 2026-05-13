@@ -1,55 +1,86 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import StatCard from '@/components/ui/StatCard'
 import { useAppStore } from '@/store/app'
-import { PATIENTS, DOCTORS } from '@/data'
-import type { Patient } from '@/types'
+import { pharmacyService } from '@/services/pharmacy.service'
+import { toast } from '@/store/toast'
 
-type RxStatus = 'Pending' | 'Dispensed' | 'Partial'
+const FILTERS = ['All', 'pending', 'dispensed', 'partial', 'cancelled']
 
-const RX_STATUSES: RxStatus[] = ['Pending', 'Dispensed', 'Partial', 'Pending', 'Dispensed', 'Pending', 'Partial', 'Dispensed', 'Pending', 'Dispensed']
-const FILTERS = ['All', 'Pending', 'Dispensed', 'Partial']
-
-function rxBadgeVariant(s: RxStatus) {
-  if (s === 'Dispensed') return 'success' as const
-  if (s === 'Partial') return 'warning' as const
+function rxBadgeVariant(s: string) {
+  if (s === 'dispensed') return 'success' as const
+  if (s === 'partial')   return 'warning' as const
   return 'info' as const
 }
 
-function tokenFor(i: number): string {
-  const letters = ['A', 'A', 'E', 'A', 'B', 'A', 'C', 'A', 'A', 'B']
-  const nums = ['024', '025', '002', '026', '013', '027', '008', '022', '023', '011']
-  return `${letters[i]}-${nums[i]}`
+function statusLabel(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function SkeletonRow() {
+  return (
+    <tr>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <td key={i}>
+          <div style={{
+            height: 14,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg, var(--bg-section) 25%, var(--border-light) 50%, var(--bg-section) 75%)',
+            backgroundSize: '200% 100%',
+            animation: 'shimmer 1.4s infinite',
+            width: '85%',
+          }} />
+        </td>
+      ))}
+    </tr>
+  )
 }
 
 export default function PharmacyPage() {
   const { setRoute } = useAppStore()
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('All')
+  const [search, setSearch]   = useState('')
+  const [filter, setFilter]   = useState('All')
+  const [items, setItems]     = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const doctorName = (idx: number) => DOCTORS[idx % DOCTORS.length].name
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params: Record<string, string> = {}
+      if (filter !== 'All') params.status = filter
+      if (search.trim())    params.search  = search.trim()
+      const res = await pharmacyService.list(params)
+      setItems(res.data ?? [])
+    } catch {
+      toast.error('Failed to load pharmacy orders')
+    } finally {
+      setLoading(false)
+    }
+  }, [filter, search])
 
-  const rows = PATIENTS.map((p, i) => ({
-    patient: p,
-    doctor: doctorName(i),
-    token: tokenFor(i),
-    status: RX_STATUSES[i],
-  }))
+  useEffect(() => { load() }, [load])
 
-  const filtered = rows.filter(r => {
+  const handleDispense = async (id: string) => {
+    try {
+      await pharmacyService.dispense(id)
+      toast.success('Prescription dispensed')
+      load()
+    } catch {
+      toast.error('Failed to dispense prescription')
+    }
+  }
+
+  const pending   = items.filter(r => r.status === 'pending').length
+  const dispensed = items.filter(r => r.status === 'dispensed').length
+  const revenue   = items.filter(r => r.status === 'dispensed').reduce((sum, r) => sum + (r.finalAmount ?? 0), 0)
+
+  const filtered = items.filter(r => {
     const q = search.toLowerCase()
-    const matchSearch = !q ||
-      r.patient.name.toLowerCase().includes(q) ||
-      r.patient.id.toLowerCase().includes(q) ||
-      r.patient.phone.includes(q)
-    const matchFilter = filter === 'All' || r.status === filter
-    return matchSearch && matchFilter
+    const matchSearch = !q || (r.patientId?.name ?? '').toLowerCase().includes(q) || (r.orderId ?? '').toLowerCase().includes(q)
+    return matchSearch
   })
-
-  const pending = rows.filter(r => r.status === 'Pending').length
-  const dispensed = rows.filter(r => r.status === 'Dispensed').length
 
   return (
     <>
@@ -58,9 +89,12 @@ export default function PharmacyPage() {
       <div className="main">
         {/* KPI Stats */}
         <div className="stats-grid" style={{ marginBottom: 20 }}>
-          <StatCard ic="pill" tone="blue" label="Pending Rx" value={String(pending)} foot="Awaiting dispensing" />
-          <StatCard ic="check" tone="mint" label="Dispensed today" value={String(dispensed)} foot="Successfully filled" />
-          <StatCard ic="receipt" tone="amber" label="Revenue" value="₹12,480" delta="+8%" up foot="Today's pharmacy revenue" />
+          <StatCard ic="pill"    tone="blue"  label="Pending Rx"       value={String(pending)}   foot="Awaiting dispensing" />
+          <StatCard ic="check"   tone="mint"  label="Dispensed today"  value={String(dispensed)} foot="Successfully filled" />
+          <StatCard ic="receipt" tone="amber" label="Revenue"
+            value={`₹${revenue.toLocaleString('en-IN')}`}
+            delta="+8%" up foot="Today's pharmacy revenue"
+          />
         </div>
 
         {/* Hero search */}
@@ -101,8 +135,8 @@ export default function PharmacyPage() {
               className={`chip ${filter === f ? 'active' : ''}`}
               onClick={() => setFilter(f)}
             >
-              {f}
-              <span className="count">{f === 'All' ? rows.length : rows.filter(r => r.status === f).length}</span>
+              {f === 'All' ? 'All' : statusLabel(f)}
+              <span className="count">{f === 'All' ? items.length : items.filter(r => r.status === f).length}</span>
             </button>
           ))}
         </div>
@@ -113,53 +147,67 @@ export default function PharmacyPage() {
             <thead>
               <tr>
                 <th>Patient</th>
-                <th>Patient ID</th>
+                <th>Order ID</th>
                 <th>Doctor</th>
-                <th>Token</th>
+                <th>Medicines</th>
                 <th>Rx Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6}>
                     <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--fg-muted)' }}>
                       <Icon name="pill" size={32} />
-                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No patients found</div>
+                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No pharmacy orders found</div>
                       <div style={{ marginTop: 4, fontSize: 12 }}>Try adjusting your search or filter</div>
                     </div>
                   </td>
                 </tr>
-              ) : filtered.map((r, i) => (
-                <tr key={r.patient.id}>
+              ) : filtered.map(r => (
+                <tr key={r._id}>
                   <td>
                     <div className="cell-person">
-                      <div className={`av ${r.patient.tone}`}>
-                        {r.patient.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                      <div className="av blue">
+                        {(r.patientId?.name ?? 'UN').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       <div className="info">
-                        <div className="n">{r.patient.name}</div>
-                        <div className="s">{r.patient.age} · {r.patient.gender}</div>
+                        <div className="n">{r.patientId?.name ?? 'Unknown'}</div>
+                        <div className="s">{r.patientId?._id ?? ''}</div>
                       </div>
                     </div>
                   </td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--fg-secondary)' }}>
-                    {r.patient.id}
+                    {r.orderId ?? '-'}
                   </td>
-                  <td style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>{r.doctor}</td>
-                  <td>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, background: 'var(--bg-section)', padding: '2px 8px', borderRadius: 6, color: 'var(--fg-primary)', fontWeight: 600 }}>
-                      {r.token}
-                    </span>
+                  <td style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>
+                    {r.doctorId?.name ?? '-'}
+                  </td>
+                  <td style={{ fontSize: 13, color: 'var(--fg-secondary)' }}>
+                    {Array.isArray(r.medicines) ? r.medicines.map((m: any) => m.name ?? m).join(', ') : '-'}
                   </td>
                   <td>
-                    <Badge variant={rxBadgeVariant(r.status)} dot>{r.status}</Badge>
+                    <Badge variant={rxBadgeVariant(r.status)} dot>{statusLabel(r.status)}</Badge>
                   </td>
                   <td>
                     <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                      {r.status === 'pending' && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handleDispense(r._id)}
+                        >
+                          Dispense
+                        </button>
+                      )}
                       <button
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-secondary btn-sm"
                         onClick={() => setRoute('pharmacy-detail')}
                       >
                         Open

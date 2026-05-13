@@ -4,6 +4,7 @@ import Icon from '@/components/ui/Icon'
 import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
 import { frontdeskService } from '@/services/frontdesk.service'
+import { toast } from '@/store/toast'
 
 type FormData = {
   firstName: string
@@ -92,7 +93,7 @@ export default function FrontDeskForm({ id, onClose }: Props) {
           if (data.modSel)    setModSel(data.modSel)
           if (data.twoFA !== undefined) setTwoFA(data.twoFA)
         })
-        .catch(() => setServerError('Failed to load staff data'))
+        .catch(() => { setServerError('Failed to load staff data'); toast.error('Failed to load record') })
     }
   }, [id])
 
@@ -103,12 +104,18 @@ export default function FrontDeskForm({ id, onClose }: Props) {
     try {
       setServerError(null)
       const payload = { ...data, gender, status, shiftType, daysSel, modSel, twoFA }
-      if (isEdit) await frontdeskService.update(id!, payload)
-      else await frontdeskService.create(payload)
+      if (isEdit) {
+        await frontdeskService.update(id!, payload)
+        toast.success('Updated successfully')
+      } else {
+        await frontdeskService.create(payload)
+        toast.success('Created successfully')
+      }
       if (onClose) onClose()
       else setRoute('frontdesk')
     } catch (err: any) {
       setServerError(err.response?.data?.message || 'Save failed')
+      toast.error(err.response?.data?.message || 'Save failed')
     }
   }
 

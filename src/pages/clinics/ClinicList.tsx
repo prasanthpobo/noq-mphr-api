@@ -5,6 +5,7 @@ import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
 import { clinicsService } from '@/services/clinics.service'
+import { toast } from '@/store/toast'
 
 const STATUS_FILTERS = [
   { key:'all',      label:'All' },
@@ -34,7 +35,7 @@ function LoadingSkeleton() {
 }
 
 export default function ClinicList() {
-  const { setRoute } = useAppStore()
+  const { setRoute, setSelectedId } = useAppStore()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [items, setItems] = useState<any[]>([])
@@ -49,9 +50,10 @@ export default function ClinicList() {
       if (q) params.search = q
       if (status && status !== 'all') params.status = status
       const data = await clinicsService.list(params)
-      setItems(data)
+      setItems(data.data || [])
     } catch {
       setError('Failed to load clinics')
+      toast.error('Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -69,8 +71,10 @@ export default function ClinicList() {
     try {
       await clinicsService.remove(id)
       load(search, statusFilter)
+      toast.success('Deleted successfully')
     } catch {
       setError('Failed to delete clinic')
+      toast.error('Failed to delete')
     }
   }
 
@@ -136,7 +140,7 @@ export default function ClinicList() {
               <LoadingSkeleton />
             ) : (
               filtered.map(c=>(
-                <tr key={c.id}>
+                <tr key={c._id || c.id}>
                   <td>
                     <div className="cell-person">
                       <div className={`av ${c.tone}`}>{c.logo}</div>
@@ -146,7 +150,7 @@ export default function ClinicList() {
                       </div>
                     </div>
                   </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{c.id}</td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{c._id || c.id}</td>
                   <td><Badge variant={(TYPE_VARIANTS[c.type]??'muted') as any}>{c.type}</Badge></td>
                   <td style={{fontSize:12}}>{c.area}, {c.city}</td>
                   <td>{c.doctors}</td>
@@ -155,9 +159,9 @@ export default function ClinicList() {
                   <td><UserStatusBadge status={c.status}/></td>
                   <td>
                     <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>setRoute('clinic-view')}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>setRoute('clinic-edit')}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(c.id)}><Icon name="trash" size={14}/></button>
+                      <button className="act" title="View" onClick={()=>{ setSelectedId(c._id || c.id); setRoute('clinic-view') }}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(c._id || c.id); setRoute('clinic-edit') }}><Icon name="edit" size={14}/></button>
+                      <button className="act danger" title="Delete" onClick={() => handleDelete(c._id || c.id)}><Icon name="trash" size={14}/></button>
                     </div>
                   </td>
                 </tr>

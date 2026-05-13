@@ -1,58 +1,82 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import StatCard from '@/components/ui/StatCard'
 import { useAppStore } from '@/store/app'
-import { PATIENTS, DOCTORS } from '@/data'
+import { billingService } from '@/services/billing.service'
+import { toast } from '@/store/toast'
 
-type BillStatus = 'Pending' | 'Paid' | 'Partial'
+const FILTERS = ['All', 'pending', 'paid', 'partial', 'cancelled']
 
-const BILL_STATUSES: BillStatus[] = ['Pending', 'Paid', 'Partial', 'Paid', 'Pending', 'Partial', 'Paid', 'Pending', 'Paid', 'Partial']
-const FILTERS = ['All', 'Pending', 'Paid', 'Partial']
-
-function statusVariant(s: BillStatus) {
-  if (s === 'Paid') return 'success' as const
-  if (s === 'Partial') return 'warning' as const
+function statusVariant(s: string) {
+  if (s === 'paid')    return 'success' as const
+  if (s === 'partial') return 'warning' as const
   return 'danger' as const
 }
 
-function tokenFor(i: number): string {
-  const letters = ['A', 'A', 'E', 'A', 'B', 'A', 'C', 'A', 'A', 'B']
-  const nums = ['024', '025', '002', '026', '013', '027', '008', '022', '023', '011']
-  return `${letters[i]}-${nums[i]}`
+function statusLabel(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-const AMOUNTS = ['₹1,200', '₹800', '₹3,400', '₹600', '₹2,100', '₹950', '₹1,600', '₹700', '₹1,800', '₹4,200']
+function SkeletonRow() {
+  return (
+    <tr>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <td key={i}>
+          <div style={{
+            height: 14,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg, var(--bg-section) 25%, var(--border-light) 50%, var(--bg-section) 75%)',
+            backgroundSize: '200% 100%',
+            animation: 'shimmer 1.4s infinite',
+            width: '85%',
+          }} />
+        </td>
+      ))}
+    </tr>
+  )
+}
 
 export default function BillingPage() {
   const { setRoute } = useAppStore()
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('All')
+  const [search, setSearch]   = useState('')
+  const [filter, setFilter]   = useState('All')
+  const [items, setItems]     = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const debounceRef           = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const doctorName = (idx: number) => DOCTORS[idx % DOCTORS.length].name
+  const load = useCallback(async (searchVal: string, filterVal: string) => {
+    setLoading(true)
+    try {
+      const params: Record<string, string> = {}
+      if (searchVal.trim()) params.search = searchVal.trim()
+      if (filterVal !== 'All') params.status = filterVal
+      const res = await billingService.list(params)
+      setItems(res.data ?? [])
+    } catch {
+      toast.error('Failed to load billing records')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  const rows = PATIENTS.map((p, i) => ({
-    patient: p,
-    doctor: doctorName(i),
-    token: tokenFor(i),
-    status: BILL_STATUSES[i],
-    amount: AMOUNTS[i],
-  }))
+  useEffect(() => { load(search, filter) }, [filter, load])
 
-  const filtered = rows.filter(r => {
-    const q = search.toLowerCase()
-    const matchSearch = !q ||
-      r.patient.name.toLowerCase().includes(q) ||
-      r.patient.id.toLowerCase().includes(q) ||
-      r.patient.phone.includes(q)
-    const matchFilter = filter === 'All' || r.status === filter
-    return matchSearch && matchFilter
+  const handleSearch = (v: string) => {
+    setSearch(v)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => load(v, filter), 300)
+  }
+
+  const pending  = items.filter(r => r.status === 'pending').length
+  const paid     = items.filter(r => r.status === 'paid').length
+  const partial  = items.filter(r => r.status === 'partial').length
+  const revenue  = items.filter(r => r.status === 'paid').reduce((sum, r) => sum + (r.total ?? 0), 0)
+
+  const filtered = items.filter(r => {
+    return filter === 'All' || r.status === filter
   })
-
-  const pending = rows.filter(r => r.status === 'Pending').length
-  const paid = rows.filter(r => r.status === 'Paid').length
-  const partial = rows.filter(r => r.status === 'Partial').length
 
   return (
     <>
@@ -61,10 +85,13 @@ export default function BillingPage() {
       <div className="main">
         {/* KPI Stats */}
         <div className="stats-grid" style={{ marginBottom: 20 }}>
-          <StatCard ic="receipt" tone="amber" label="Pending Bills" value={String(pending)} foot="Awaiting payment" />
-          <StatCard ic="check" tone="mint" label="Paid Today" value={String(paid)} foot="Successfully collected" />
-          <StatCard ic="activity" tone="blue" label="Partial Payments" value={String(partial)} foot="Partially settled" />
-          <StatCard ic="receipt" tone="plum" label="Revenue" value="₹24,600" delta="+15%" up foot="Today's collections" />
+          <StatCard ic="receipt"  tone="amber" label="Pending Bills"      value={String(pending)} foot="Awaiting payment" />
+          <StatCard ic="check"    tone="mint"  label="Paid Today"         value={String(paid)}    foot="Successfully collected" />
+          <StatCard ic="activity" tone="blue"  label="Partial Payments"   value={String(partial)} foot="Partially settled" />
+          <StatCard ic="receipt"  tone="plum"  label="Revenue"
+            value={`₹${revenue.toLocaleString('en-IN')}`}
+            delta="+15%" up foot="Today's collections"
+          />
         </div>
 
         {/* Hero search */}
@@ -81,7 +108,7 @@ export default function BillingPage() {
             />
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => handleSearch(e.target.value)}
               placeholder="Search patient by name, ID or phone..."
               style={{
                 width: '100%',
@@ -105,8 +132,8 @@ export default function BillingPage() {
               className={`chip ${filter === f ? 'active' : ''}`}
               onClick={() => setFilter(f)}
             >
-              {f}
-              <span className="count">{f === 'All' ? rows.length : rows.filter(r => r.status === f).length}</span>
+              {f === 'All' ? 'All' : statusLabel(f)}
+              <span className="count">{f === 'All' ? items.length : items.filter(r => r.status === f).length}</span>
             </button>
           ))}
         </div>
@@ -117,50 +144,58 @@ export default function BillingPage() {
             <thead>
               <tr>
                 <th>Patient</th>
-                <th>Patient ID</th>
+                <th>Invoice #</th>
                 <th>Doctor</th>
-                <th>Token</th>
                 <th>Amount</th>
+                <th>Paid</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7}>
                     <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--fg-muted)' }}>
                       <Icon name="receipt" size={32} />
-                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No patients found</div>
+                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No billing records found</div>
                       <div style={{ marginTop: 4, fontSize: 12 }}>Try adjusting your search or filter</div>
                     </div>
                   </td>
                 </tr>
               ) : filtered.map(r => (
-                <tr key={r.patient.id}>
+                <tr key={r._id}>
                   <td>
                     <div className="cell-person">
-                      <div className={`av ${r.patient.tone}`}>
-                        {r.patient.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                      <div className="av blue">
+                        {(r.patientId?.name ?? 'UN').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       <div className="info">
-                        <div className="n">{r.patient.name}</div>
-                        <div className="s">{r.patient.age} · {r.patient.gender}</div>
+                        <div className="n">{r.patientId?.name ?? 'Unknown'}</div>
+                        <div className="s">{r.patientId?._id ?? ''}</div>
                       </div>
                     </div>
                   </td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--fg-secondary)' }}>
-                    {r.patient.id}
+                    {r.invoiceNumber ?? '-'}
                   </td>
-                  <td style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>{r.doctor}</td>
-                  <td>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, background: 'var(--bg-section)', padding: '2px 8px', borderRadius: 6, color: 'var(--fg-primary)', fontWeight: 600 }}>
-                      {r.token}
-                    </span>
+                  <td style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>
+                    {r.doctorId?.name ?? '-'}
                   </td>
-                  <td style={{ fontWeight: 700, color: 'var(--teal-800)', fontSize: 13.5 }}>{r.amount}</td>
+                  <td style={{ fontWeight: 700, color: 'var(--teal-800)', fontSize: 13.5 }}>
+                    ₹{(r.total ?? 0).toLocaleString('en-IN')}
+                  </td>
+                  <td style={{ fontSize: 13, color: 'var(--fg-secondary)' }}>
+                    ₹{(r.paidAmount ?? 0).toLocaleString('en-IN')}
+                  </td>
                   <td>
-                    <Badge variant={statusVariant(r.status)} dot>{r.status}</Badge>
+                    <Badge variant={statusVariant(r.status)} dot>{statusLabel(r.status)}</Badge>
                   </td>
                   <td>
                     <div className="row-actions" style={{ justifyContent: 'flex-end' }}>

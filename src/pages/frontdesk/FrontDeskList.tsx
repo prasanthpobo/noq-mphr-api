@@ -5,6 +5,7 @@ import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
 import { frontdeskService } from '@/services/frontdesk.service'
+import { toast } from '@/store/toast'
 
 const ROLE_VARIANTS: Record<string,string> = {
   'Lead receptionist':'indigo','Front desk admin':'brand','Senior receptionist':'blue',
@@ -28,7 +29,7 @@ function LoadingSkeleton() {
 }
 
 export default function FrontDeskList() {
-  const { setRoute } = useAppStore()
+  const { setRoute, setSelectedId } = useAppStore()
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,9 +42,10 @@ export default function FrontDeskList() {
       const params: Record<string, string> = {}
       if (q) params.search = q
       const data = await frontdeskService.list(params)
-      setItems(data)
+      setItems(data.data || [])
     } catch {
       setError('Failed to load front desk staff')
+      toast.error('Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -61,8 +63,10 @@ export default function FrontDeskList() {
     try {
       await frontdeskService.remove(id)
       load(search)
+      toast.success('Deleted successfully')
     } catch {
       setError('Failed to delete staff member')
+      toast.error('Failed to delete')
     }
   }
 
@@ -118,7 +122,7 @@ export default function FrontDeskList() {
               <LoadingSkeleton />
             ) : (
               filtered.map(fd=>(
-                <tr key={fd.id}>
+                <tr key={fd._id || fd.id}>
                   <td>
                     <div className="cell-person">
                       <div className={`av ${fd.tone}`}>{fd.av}</div>
@@ -128,7 +132,7 @@ export default function FrontDeskList() {
                       </div>
                     </div>
                   </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{fd.id}</td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{fd._id || fd.id}</td>
                   <td><Badge variant={(ROLE_VARIANTS[fd.role]??'muted') as any}>{fd.role}</Badge></td>
                   <td style={{fontSize:12}}>{fd.clinic}</td>
                   <td style={{fontSize:12}}>{fd.shift}</td>
@@ -136,9 +140,9 @@ export default function FrontDeskList() {
                   <td><UserStatusBadge status={fd.status}/></td>
                   <td>
                     <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>setRoute('fd-view')}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>setRoute('fd-edit')}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(fd.id)}><Icon name="trash" size={14}/></button>
+                      <button className="act" title="View" onClick={()=>{ setSelectedId(fd._id || fd.id); setRoute('fd-view') }}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(fd._id || fd.id); setRoute('fd-edit') }}><Icon name="edit" size={14}/></button>
+                      <button className="act danger" title="Delete" onClick={() => handleDelete(fd._id || fd.id)}><Icon name="trash" size={14}/></button>
                     </div>
                   </td>
                 </tr>

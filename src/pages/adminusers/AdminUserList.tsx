@@ -5,6 +5,7 @@ import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
 import { adminusersService } from '@/services/adminusers.service'
+import { toast } from '@/store/toast'
 
 const ROLE_VARIANTS: Record<string,string> = {
   'Super admin':'danger','Clinic admin':'blue','Billing admin':'amber',
@@ -29,7 +30,7 @@ function LoadingSkeleton() {
 }
 
 export default function AdminUserList() {
-  const { setRoute } = useAppStore()
+  const { setRoute, setSelectedId } = useAppStore()
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,9 +43,10 @@ export default function AdminUserList() {
       const params: Record<string, string> = {}
       if (q) params.search = q
       const data = await adminusersService.list(params)
-      setItems(data)
+      setItems(data.data || [])
     } catch {
       setError('Failed to load admin users')
+      toast.error('Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -62,8 +64,10 @@ export default function AdminUserList() {
     try {
       await adminusersService.remove(id)
       load(search)
+      toast.success('Deleted successfully')
     } catch {
       setError('Failed to delete user')
+      toast.error('Failed to delete')
     }
   }
 
@@ -119,7 +123,7 @@ export default function AdminUserList() {
               <LoadingSkeleton />
             ) : (
               filtered.map(u=>(
-                <tr key={u.id}>
+                <tr key={u._id || u.id}>
                   <td>
                     <div className="cell-person">
                       <div className={`av ${u.tone}`}>{u.av}</div>
@@ -129,7 +133,7 @@ export default function AdminUserList() {
                       </div>
                     </div>
                   </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{u.id}</td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{u._id || u.id}</td>
                   <td><Badge variant={(ROLE_VARIANTS[u.role]??'muted') as any}>{u.role}</Badge></td>
                   <td style={{fontSize:12}}>{u.scope}</td>
                   <td style={{fontSize:12}}>{u.lastLogin}</td>
@@ -142,9 +146,9 @@ export default function AdminUserList() {
                   <td><UserStatusBadge status={u.status}/></td>
                   <td>
                     <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>setRoute('admin-view')}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>setRoute('admin-edit')}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(u.id)}><Icon name="trash" size={14}/></button>
+                      <button className="act" title="View" onClick={()=>{ setSelectedId(u._id || u.id); setRoute('admin-view') }}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(u._id || u.id); setRoute('admin-edit') }}><Icon name="edit" size={14}/></button>
+                      <button className="act danger" title="Delete" onClick={() => handleDelete(u._id || u.id)}><Icon name="trash" size={14}/></button>
                     </div>
                   </td>
                 </tr>

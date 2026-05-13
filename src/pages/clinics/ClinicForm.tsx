@@ -4,6 +4,7 @@ import Icon from '@/components/ui/Icon'
 import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
 import { clinicsService } from '@/services/clinics.service'
+import { toast } from '@/store/toast'
 
 type FormData = {
   name: string
@@ -92,7 +93,7 @@ export default function ClinicForm({ id, onClose }: Props) {
           if (data.facilSel) setFacilSel(data.facilSel)
           if (data.insurSel) setInsurSel(data.insurSel)
         })
-        .catch(() => setServerError('Failed to load clinic data'))
+        .catch(() => { setServerError('Failed to load clinic data'); toast.error('Failed to load record') })
     }
   }, [id])
 
@@ -104,12 +105,18 @@ export default function ClinicForm({ id, onClose }: Props) {
     try {
       setServerError(null)
       const payload = { ...data, status, all24, daysSel, facilSel, insurSel }
-      if (isEdit) await clinicsService.update(id!, payload)
-      else await clinicsService.create(payload)
+      if (isEdit) {
+        await clinicsService.update(id!, payload)
+        toast.success('Updated successfully')
+      } else {
+        await clinicsService.create(payload)
+        toast.success('Created successfully')
+      }
       if (onClose) onClose()
       else setRoute('clinics')
     } catch (err: any) {
       setServerError(err.response?.data?.message || 'Save failed')
+      toast.error(err.response?.data?.message || 'Save failed')
     }
   }
 

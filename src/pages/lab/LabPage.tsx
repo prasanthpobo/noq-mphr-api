@@ -1,55 +1,80 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import StatCard from '@/components/ui/StatCard'
 import { useAppStore } from '@/store/app'
-import { PATIENTS, DOCTORS } from '@/data'
+import { labService } from '@/services/lab.service'
+import { toast } from '@/store/toast'
 
-type TestStatus = 'Pending' | 'In Progress' | 'Results Ready'
+const FILTERS = ['All', 'pending', 'in-progress', 'completed', 'cancelled']
 
-const TEST_STATUSES: TestStatus[] = ['Pending', 'In Progress', 'Results Ready', 'Pending', 'Results Ready', 'In Progress', 'Pending', 'Results Ready', 'Pending', 'In Progress']
-const FILTERS = ['All', 'Pending', 'In Progress', 'Results Ready']
-
-function statusVariant(s: TestStatus) {
-  if (s === 'Results Ready') return 'success' as const
-  if (s === 'In Progress') return 'blue' as const
+function statusVariant(s: string) {
+  if (s === 'completed')  return 'success' as const
+  if (s === 'in-progress') return 'blue' as const
   return 'warning' as const
 }
 
-function tokenFor(i: number): string {
-  const letters = ['A', 'A', 'E', 'A', 'B', 'A', 'C', 'A', 'A', 'B']
-  const nums = ['024', '025', '002', '026', '013', '027', '008', '022', '023', '011']
-  return `${letters[i]}-${nums[i]}`
+function statusLabel(s: string) {
+  if (s === 'in-progress') return 'In Progress'
+  if (s === 'completed')   return 'Completed'
+  if (s === 'pending')     return 'Pending'
+  if (s === 'cancelled')   return 'Cancelled'
+  return s
+}
+
+function SkeletonRow() {
+  return (
+    <tr>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <td key={i}>
+          <div style={{
+            height: 14,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg, var(--bg-section) 25%, var(--border-light) 50%, var(--bg-section) 75%)',
+            backgroundSize: '200% 100%',
+            animation: 'shimmer 1.4s infinite',
+            width: '85%',
+          }} />
+        </td>
+      ))}
+    </tr>
+  )
 }
 
 export default function LabPage() {
   const { setRoute } = useAppStore()
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('All')
+  const [search, setSearch]   = useState('')
+  const [filter, setFilter]   = useState('All')
+  const [items, setItems]     = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const doctorName = (idx: number) => DOCTORS[idx % DOCTORS.length].name
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params: Record<string, string> = {}
+      if (filter !== 'All') params.status = filter
+      if (search.trim())    params.search  = search.trim()
+      const res = await labService.list(params)
+      setItems(res.data ?? [])
+    } catch {
+      toast.error('Failed to load lab orders')
+    } finally {
+      setLoading(false)
+    }
+  }, [filter, search])
 
-  const rows = PATIENTS.map((p, i) => ({
-    patient: p,
-    doctor: doctorName(i),
-    token: tokenFor(i),
-    status: TEST_STATUSES[i],
-  }))
+  useEffect(() => { load() }, [load])
 
-  const filtered = rows.filter(r => {
+  const pending    = items.filter(r => r.status === 'pending').length
+  const inProgress = items.filter(r => r.status === 'in-progress').length
+  const completed  = items.filter(r => r.status === 'completed').length
+
+  const filtered = items.filter(r => {
     const q = search.toLowerCase()
-    const matchSearch = !q ||
-      r.patient.name.toLowerCase().includes(q) ||
-      r.patient.id.toLowerCase().includes(q) ||
-      r.patient.phone.includes(q)
-    const matchFilter = filter === 'All' || r.status === filter
-    return matchSearch && matchFilter
+    const matchSearch = !q || (r.patientId?.name ?? '').toLowerCase().includes(q) || (r.orderId ?? '').toLowerCase().includes(q)
+    return matchSearch
   })
-
-  const pending = rows.filter(r => r.status === 'Pending').length
-  const inProgress = rows.filter(r => r.status === 'In Progress').length
-  const ready = rows.filter(r => r.status === 'Results Ready').length
 
   return (
     <>
@@ -58,9 +83,9 @@ export default function LabPage() {
       <div className="main">
         {/* KPI Stats */}
         <div className="stats-grid" style={{ marginBottom: 20 }}>
-          <StatCard ic="flask" tone="amber" label="Pending Tests" value={String(pending)} foot="Awaiting collection" />
-          <StatCard ic="activity" tone="blue" label="In Progress" value={String(inProgress)} foot="Being processed" />
-          <StatCard ic="check" tone="mint" label="Results Ready" value={String(ready)} foot="Ready for review" />
+          <StatCard ic="flask"    tone="amber" label="Pending Tests"  value={String(pending)}    foot="Awaiting collection" />
+          <StatCard ic="activity" tone="blue"  label="In Progress"    value={String(inProgress)} foot="Being processed" />
+          <StatCard ic="check"    tone="mint"  label="Results Ready"  value={String(completed)}  foot="Ready for review" />
         </div>
 
         {/* Hero search */}
@@ -101,8 +126,8 @@ export default function LabPage() {
               className={`chip ${filter === f ? 'active' : ''}`}
               onClick={() => setFilter(f)}
             >
-              {f}
-              <span className="count">{f === 'All' ? rows.length : rows.filter(r => r.status === f).length}</span>
+              {f === 'All' ? 'All' : statusLabel(f)}
+              <span className="count">{f === 'All' ? items.length : items.filter(r => r.status === f).length}</span>
             </button>
           ))}
         </div>
@@ -113,48 +138,54 @@ export default function LabPage() {
             <thead>
               <tr>
                 <th>Patient</th>
-                <th>Patient ID</th>
+                <th>Order ID</th>
                 <th>Doctor</th>
-                <th>Token</th>
+                <th>Tests</th>
                 <th>Test Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6}>
                     <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--fg-muted)' }}>
                       <Icon name="flask" size={32} />
-                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No patients found</div>
+                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No lab orders found</div>
                       <div style={{ marginTop: 4, fontSize: 12 }}>Try adjusting your search or filter</div>
                     </div>
                   </td>
                 </tr>
               ) : filtered.map(r => (
-                <tr key={r.patient.id}>
+                <tr key={r._id}>
                   <td>
                     <div className="cell-person">
-                      <div className={`av ${r.patient.tone}`}>
-                        {r.patient.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                      <div className="av blue">
+                        {(r.patientId?.name ?? 'UN').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       <div className="info">
-                        <div className="n">{r.patient.name}</div>
-                        <div className="s">{r.patient.age} · {r.patient.gender}</div>
+                        <div className="n">{r.patientId?.name ?? 'Unknown'}</div>
+                        <div className="s">{r.patientId?._id ?? ''}</div>
                       </div>
                     </div>
                   </td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--fg-secondary)' }}>
-                    {r.patient.id}
+                    {r.orderId ?? '-'}
                   </td>
-                  <td style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>{r.doctor}</td>
-                  <td>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, background: 'var(--bg-section)', padding: '2px 8px', borderRadius: 6, color: 'var(--fg-primary)', fontWeight: 600 }}>
-                      {r.token}
-                    </span>
+                  <td style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>
+                    {r.doctorId?.name ?? '-'}
+                  </td>
+                  <td style={{ fontSize: 13, color: 'var(--fg-secondary)' }}>
+                    {Array.isArray(r.tests) ? r.tests.map((t: any) => t.name ?? t).join(', ') : '-'}
                   </td>
                   <td>
-                    <Badge variant={statusVariant(r.status)} dot>{r.status}</Badge>
+                    <Badge variant={statusVariant(r.status)} dot>{statusLabel(r.status)}</Badge>
                   </td>
                   <td>
                     <div className="row-actions" style={{ justifyContent: 'flex-end' }}>

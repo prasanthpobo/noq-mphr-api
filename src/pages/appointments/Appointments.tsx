@@ -1,58 +1,84 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import dayjs from 'dayjs'
 import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import { StatusBadge } from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
-import { TOKENS, TOKEN_FILTERS } from '@/data'
-import type { Token } from '@/types'
+import { appointmentsService } from '@/services/appointments.service'
+import { toast } from '@/store/toast'
 
 const PAGE_SIZE = 8
 
-function filterStatus(t: Token, chip: string): boolean {
-  if (chip === 'All') return true
-  if (chip === 'Waiting') return t.status === 'waiting'
-  if (chip === 'In room') return t.status === 'in-room'
-  if (chip === 'Completed') return t.status === 'completed'
-  if (chip === 'Cancelled') return t.status === 'cancelled'
-  if (chip === 'Emergency') return t.emergency
-  return true
+const STATUS_FILTERS = ['All', 'Scheduled', 'In progress', 'Completed', 'Cancelled', 'No-show']
+
+const CHIP_TO_API: Record<string, string> = {
+  'Scheduled':   'scheduled',
+  'In progress': 'in-progress',
+  'Completed':   'completed',
+  'Cancelled':   'cancelled',
+  'No-show':     'no-show',
 }
 
-function chipCount(tokens: Token[], chip: string): number {
-  return tokens.filter(t => filterStatus(t, chip)).length
+function SkeletonRow() {
+  return (
+    <tr>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <td key={i}>
+          <div style={{
+            height: 14,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg, var(--bg-section) 25%, var(--border-light) 50%, var(--bg-section) 75%)',
+            backgroundSize: '200% 100%',
+            animation: 'shimmer 1.4s infinite',
+            width: i === 0 ? '60%' : i === 6 ? '80%' : '90%',
+          }} />
+        </td>
+      ))}
+    </tr>
+  )
 }
 
 export default function Appointments() {
   const { setRoute } = useAppStore()
   const [activeFilter, setActiveFilter] = useState('All')
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [search, setSearch]             = useState('')
+  const [page, setPage]                 = useState(1)
+  const [items, setItems]               = useState<any[]>([])
+  const [total, setTotal]               = useState(0)
+  const [loading, setLoading]           = useState(true)
 
-  const filtered = TOKENS.filter(t => {
-    const matchFilter = filterStatus(t, activeFilter)
-    const q = search.toLowerCase()
-    const matchSearch = !q || t.patient.toLowerCase().includes(q) || t.token.toLowerCase().includes(q)
-    return matchFilter && matchSearch
-  })
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params: Record<string, string> = {
+        page:  String(page),
+        limit: String(PAGE_SIZE),
+      }
+      if (activeFilter !== 'All') params.status = CHIP_TO_API[activeFilter] ?? activeFilter
+      if (search.trim())          params.search = search.trim()
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+      const res = await appointmentsService.list(params)
+      setItems(res.data ?? [])
+      setTotal(res.count ?? 0)
+    } catch (err) {
+      toast.error('Failed to load appointments')
+    } finally {
+      setLoading(false)
+    }
+  }, [activeFilter, search, page])
 
-  const handleFilterChange = (f: string) => {
-    setActiveFilter(f)
-    setPage(1)
-  }
+  useEffect(() => { load() }, [load])
 
-  const handleSearch = (v: string) => {
-    setSearch(v)
-    setPage(1)
-  }
+  const handleFilterChange = (f: string) => { setActiveFilter(f); setPage(1) }
+  const handleSearch       = (v: string) => { setSearch(v);        setPage(1) }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <>
       <Header
         title="Appointments & tokens"
-        crumbs={`${TOKENS.length} total tokens today`}
+        crumbs={`${total} total tokens today`}
         onAdd={() => setRoute('book')}
         addLabel="Book appointment"
       />
@@ -70,14 +96,13 @@ export default function Appointments() {
               />
             </div>
             <div className="filters">
-              {TOKEN_FILTERS.map(f => (
+              {STATUS_FILTERS.map(f => (
                 <button
                   key={f}
                   className={`chip ${activeFilter === f ? 'active' : ''}`}
                   onClick={() => handleFilterChange(f)}
                 >
                   {f}
-                  <span className="count">{chipCount(TOKENS, f)}</span>
                 </button>
               ))}
             </div>
@@ -87,53 +112,62 @@ export default function Appointments() {
           <table className="data">
             <thead>
               <tr>
-                <th>Token</th>
+                <th>Token / ID</th>
                 <th>Patient</th>
-                <th>Doctor / Dept</th>
+                <th>Doctor</th>
                 <th>Time</th>
+                <th>Type</th>
                 <th>Status</th>
-                <th>Wait</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={7}>
                     <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--fg-muted)' }}>
                       <Icon name="ticket" size={32} />
-                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No tokens found</div>
+                      <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No appointments found</div>
                       <div style={{ marginTop: 4, fontSize: 12 }}>Try adjusting your search or filter</div>
                     </div>
                   </td>
                 </tr>
               ) : (
-                paginated.map(t => (
-                  <tr key={t.token}>
+                items.map(item => (
+                  <tr key={item._id}>
                     <td>
-                      <span className={`cell-token ${t.emergency ? 'emergency' : ''}`}>{t.token}</span>
+                      <span className="cell-token">{item._id?.slice(-6).toUpperCase()}</span>
                     </td>
                     <td>
                       <div className="cell-person">
-                        <div className={`av ${t.tone}`}>{t.av}</div>
+                        <div className="av blue">
+                          {(item.patientId?.name ?? 'UN').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
                         <div className="info">
-                          <div className="n">{t.patient}</div>
-                          <div className="s">{t.age}</div>
+                          <div className="n">{item.patientId?.name ?? 'Unknown'}</div>
+                          <div className="s">{dayjs(item.date).format('DD MMM YYYY')}</div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg-primary)' }}>{t.doctor}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--fg-secondary)', marginTop: 2 }}>{t.dept}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                        {item.doctorId?.name ?? '-'}
+                      </div>
                     </td>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-secondary)' }}>
-                      {t.time}
+                      {item.time ?? '-'}
+                    </td>
+                    <td style={{ fontSize: 13, color: 'var(--fg-secondary)' }}>
+                      {item.type ?? '-'}
                     </td>
                     <td>
-                      <StatusBadge status={t.status} emergency={t.emergency} />
-                    </td>
-                    <td style={{ fontSize: 13, color: 'var(--fg-secondary)', fontWeight: 500 }}>
-                      {t.wait}
+                      <StatusBadge status={item.status} />
                     </td>
                     <td>
                       <div className="row-actions">
@@ -165,7 +199,7 @@ export default function Appointments() {
             color: 'var(--fg-secondary)',
           }}>
             <span>
-              Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} tokens
+              Showing {total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total} appointments
             </span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <button

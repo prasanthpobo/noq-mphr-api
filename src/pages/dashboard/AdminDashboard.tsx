@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { CHART_DAYS, TOKENS, ALERTS } from '@/data'
-import type { ChartDay, Token, Alert } from '@/types'
+import { CHART_DAYS, ALERTS } from '@/data'
+import { reportsService } from '@/services/reports.service'
+import type { ChartDay, Alert } from '@/types'
 
 const DEPT_LOAD: { dept: string; pct: number; color: string }[] = [
   { dept: 'General OPD',  pct: 92, color: 'var(--brand-gradient)' },
@@ -26,14 +28,17 @@ function alertToBadge(kind: string): string {
   return 'info'
 }
 
-const queueTokens: Token[] = TOKENS.filter(
-  t => t.status === 'in-room' || t.status === 'waiting' || t.status === 'priority'
-).slice(0, 5)
-
 const maxTokens = Math.max(...CHART_DAYS.map((d: ChartDay) => d.tokens))
 
 export default function AdminDashboard() {
   const { setRoute } = useAppStore()
+  const [summary, setSummary] = useState<any>(null)
+
+  useEffect(() => {
+    reportsService.summary()
+      .then(data => setSummary(data))
+      .catch(() => { /* silent — dashboard renders with '...' placeholders */ })
+  }, [])
 
   return (
     <div className="main">
@@ -50,7 +55,7 @@ export default function AdminDashboard() {
           ic="users"
           tone="blue"
           label="Total patients"
-          value="1,284"
+          value={summary?.totalPatients != null ? String(summary.totalPatients) : '...'}
           delta="+12%"
           up
           foot="Registered this clinic"
@@ -58,7 +63,7 @@ export default function AdminDashboard() {
         <StatCard
           ic="ticket"
           label="Today's tokens"
-          value="184"
+          value={summary?.todayTokens != null ? String(summary.todayTokens) : '...'}
           accent
           foot="Issued today"
         />
@@ -66,14 +71,14 @@ export default function AdminDashboard() {
           ic="stethoscope"
           tone="green"
           label="Active doctors"
-          value="14/16"
-          foot="2 on leave today"
+          value={summary?.totalDoctors != null ? String(summary.totalDoctors) : '...'}
+          foot="On duty today"
         />
         <StatCard
           ic="receipt"
           tone="amber"
           label="Revenue today"
-          value="₹86,400"
+          value={summary?.totalRevenue != null ? `₹${Number(summary.totalRevenue).toLocaleString('en-IN')}` : '...'}
           delta="+8%"
           up
           foot="Consultations + procedures"
@@ -131,45 +136,36 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Live queue */}
+        {/* Pending bills summary */}
         <div className="card">
           <div className="card-h">
             <div>
-              <h2>Live queue</h2>
-              <div className="sub">{queueTokens.length} active · updating live</div>
+              <h2>Billing overview</h2>
+              <div className="sub">Pending collections</div>
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('live-tokens')}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('billing')}>
               View all
             </button>
           </div>
-          <div className="live-queue">
-            {queueTokens.map((t: Token, i: number) => {
-              const isEmg   = t.emergency || t.status === 'priority'
-              const isFirst = i === 0
-              const rowCls  = isFirst ? 'queue-row now' : isEmg ? 'queue-row emergency' : 'queue-row'
-              const badge   = t.status === 'in-room'  ? 'blue'
-                            : t.status === 'priority' ? 'danger'
-                            : 'muted'
-              const badgeLabel = t.status === 'in-room'  ? 'In room'
-                               : t.status === 'priority' ? 'Priority'
-                               : 'Waiting'
-              return (
-                <div key={t.token} className={rowCls}>
-                  <div className="token-pill">
-                    <span className="l">{isEmg ? 'EMG' : 'TKN'}</span>
-                    <span className="n">{t.token}</span>
-                  </div>
-                  <div className="body">
-                    <div className="n">{t.patient}</div>
-                    <div className="s">{t.doctor} · {t.time}</div>
-                  </div>
-                  <span className={`badge ${badge}`}>
-                    <span className="d" />
-                    {badgeLabel}
-                  </span>
-                </div>
-              )
-            })}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--bg-section)', borderRadius: 12, border: '1px solid var(--border-light)' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>Pending bills</div>
+                <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>Awaiting payment</div>
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--amber-600)' }}>
+                {summary?.pendingBills != null ? summary.pendingBills : '...'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--bg-section)', borderRadius: 12, border: '1px solid var(--border-light)' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>Total appointments</div>
+                <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>All time</div>
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--teal-600)' }}>
+                {summary?.totalAppointments != null ? summary.totalAppointments : '...'}
+              </div>
+            </div>
           </div>
         </div>
       </div>

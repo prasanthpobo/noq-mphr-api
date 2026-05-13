@@ -5,6 +5,7 @@ import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
 import { nursesService } from '@/services/nurses.service'
+import { toast } from '@/store/toast'
 
 const ROLE_VARIANTS: Record<string,string> = {
   'Head nurse':'pink','Charge nurse':'plum','Senior nurse':'blue',
@@ -28,7 +29,7 @@ function LoadingSkeleton() {
 }
 
 export default function NurseList() {
-  const { setRoute } = useAppStore()
+  const { setRoute, setSelectedId } = useAppStore()
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,9 +42,10 @@ export default function NurseList() {
       const params: Record<string, string> = {}
       if (q) params.search = q
       const data = await nursesService.list(params)
-      setItems(data)
+      setItems(data.data || [])
     } catch {
       setError('Failed to load nurses')
+      toast.error('Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -61,8 +63,10 @@ export default function NurseList() {
     try {
       await nursesService.remove(id)
       load(search)
+      toast.success('Deleted successfully')
     } catch {
       setError('Failed to delete nurse')
+      toast.error('Failed to delete')
     }
   }
 
@@ -119,7 +123,7 @@ export default function NurseList() {
               <LoadingSkeleton />
             ) : (
               filtered.map(n=>(
-                <tr key={n.id}>
+                <tr key={n._id || n.id}>
                   <td>
                     <div className="cell-person">
                       <div className={`av ${n.tone}`}>{n.av}</div>
@@ -129,7 +133,7 @@ export default function NurseList() {
                       </div>
                     </div>
                   </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.id}</td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n._id || n.id}</td>
                   <td><Badge variant={(ROLE_VARIANTS[n.role]??'muted') as any}>{n.role}</Badge></td>
                   <td style={{fontSize:12}}>{n.dept}</td>
                   <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.ward}</td>
@@ -138,9 +142,9 @@ export default function NurseList() {
                   <td><UserStatusBadge status={n.status}/></td>
                   <td>
                     <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>setRoute('nurse-view')}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>setRoute('nurse-edit')}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(n.id)}><Icon name="trash" size={14}/></button>
+                      <button className="act" title="View" onClick={()=>{ setSelectedId(n._id || n.id); setRoute('nurse-view') }}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(n._id || n.id); setRoute('nurse-edit') }}><Icon name="edit" size={14}/></button>
+                      <button className="act danger" title="Delete" onClick={() => handleDelete(n._id || n.id)}><Icon name="trash" size={14}/></button>
                     </div>
                   </td>
                 </tr>

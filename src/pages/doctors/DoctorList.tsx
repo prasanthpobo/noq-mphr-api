@@ -3,9 +3,13 @@ import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
+import Pagination from '@/components/ui/Pagination'
 import { useAppStore } from '@/store/app'
 import { doctorsService } from '@/services/doctors.service'
 import type { Doctor } from '@/types'
+import { toast } from '@/store/toast'
+
+const PAGE_SIZE = 12
 
 type DocStatus = 'on' | 'busy' | 'leave'
 
@@ -34,13 +38,14 @@ function LoadingSkeleton() {
 }
 
 export default function DoctorList() {
-  const { setRoute } = useAppStore()
+  const { setRoute, setSelectedId } = useAppStore()
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'card' | 'table'>('card')
   const [dept, setDept] = useState('All')
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   const load = async (q?: string, d?: string) => {
     try {
@@ -50,9 +55,10 @@ export default function DoctorList() {
       if (q) params.search = q
       if (d && d !== 'All') params.dept = d
       const data = await doctorsService.list(params)
-      setItems(data)
+      setItems(data.data || [])
     } catch {
       setError('Failed to load doctors')
+      toast.error('Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -61,6 +67,7 @@ export default function DoctorList() {
   useEffect(() => { load() }, [])
 
   useEffect(() => {
+    setPage(1)
     const timer = setTimeout(() => load(search, dept), 300)
     return () => clearTimeout(timer)
   }, [search, dept])
@@ -70,12 +77,15 @@ export default function DoctorList() {
     try {
       await doctorsService.remove(id)
       load(search, dept)
+      toast.success('Deleted successfully')
     } catch {
       setError('Failed to delete doctor')
+      toast.error('Failed to delete')
     }
   }
 
-  const filtered = items
+  const filtered  = items
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const total   = items.length
   const active  = items.filter(d => d.status === 'on').length
   const onLeave = items.filter(d => d.status === 'leave').length
@@ -137,12 +147,12 @@ export default function DoctorList() {
                     <div style={{ height: 12, background: 'var(--bg-section)', borderRadius: 4, width: '60%', animation: 'pulse 1.5s infinite' }} />
                   </div>
                 ))
-              : filtered.map(doc => (
+              : paginated.map(doc => (
                   <DoctorCard
-                    key={doc.id}
+                    key={doc._id || doc.id}
                     doc={doc}
-                    onView={() => setRoute('doctor-view')}
-                    onEdit={() => setRoute('doctor-edit')}
+                    onView={() => { setSelectedId(doc._id || doc.id); setRoute('doctor-view') }}
+                    onEdit={() => { setSelectedId(doc._id || doc.id); setRoute('doctor-edit') }}
                   />
                 ))
             }
@@ -167,8 +177,8 @@ export default function DoctorList() {
               {loading ? (
                 <LoadingSkeleton />
               ) : (
-                filtered.map(doc => (
-                  <tr key={doc.id}>
+                paginated.map(doc => (
+                  <tr key={doc._id || doc.id}>
                     <td>
                       <div className="cell-person">
                         <div className={`av ${doc.tone}`}>{doc.av}</div>
@@ -185,9 +195,9 @@ export default function DoctorList() {
                     <td><DocStatusBadge status={doc.status} /></td>
                     <td>
                       <div className="row-actions">
-                        <button className="act" title="View" onClick={() => setRoute('doctor-view')}><Icon name="eye" size={14} /></button>
-                        <button className="act" title="Edit" onClick={() => setRoute('doctor-edit')}><Icon name="edit" size={14} /></button>
-                        <button className="act danger" title="Delete" onClick={() => handleDelete(doc.id)}><Icon name="trash" size={14} /></button>
+                        <button className="act" title="View" onClick={() => { setSelectedId(doc._id || doc.id); setRoute('doctor-view') }}><Icon name="eye" size={14} /></button>
+                        <button className="act" title="Edit" onClick={() => { setSelectedId(doc._id || doc.id); setRoute('doctor-edit') }}><Icon name="edit" size={14} /></button>
+                        <button className="act danger" title="Delete" onClick={() => handleDelete(doc._id || doc.id)}><Icon name="trash" size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -199,6 +209,7 @@ export default function DoctorList() {
             </tbody>
           </table>
         )}
+        <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
     </div>
   )
