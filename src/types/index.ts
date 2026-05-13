@@ -1,4 +1,4 @@
-export type Tone = 'blue' | 'indigo' | 'pink' | 'amber' | 'mint' | 'plum' | 'rose' | 'teal' | 'brand' | 'red' | 'green'
+export type Tone = 'blue' | 'indigo' | 'pink' | 'amber' | 'mint' | 'plum' | 'rose' | 'teal' | 'brand' | 'red' | 'green' | 'purple'
 
 export type Status = 'active' | 'inactive' | 'on-leave' | 'pending'
 export type TokenStatus = 'in-consultation' | 'waiting' | 'not-visited' | 'completed' | 'cancelled' | 'in-room' | 'priority'

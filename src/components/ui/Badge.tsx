@@ -6,11 +6,12 @@ interface BadgeProps {
   dot?: boolean
   children: React.ReactNode
   className?: string
+  style?: React.CSSProperties
 }
 
-export default function Badge({ variant = 'muted', dot, children, className }: BadgeProps) {
+export default function Badge({ variant = 'muted', dot, children, className, style }: BadgeProps) {
   return (
-    <span className={clsx('badge', variant, className)}>
+    <span className={clsx('badge', variant, className)} style={style}>
       {dot && <span className="d" />}
       {children}
     </span>
