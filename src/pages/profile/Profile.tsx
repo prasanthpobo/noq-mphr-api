@@ -546,22 +546,36 @@ export default function ProfilePage() {
       </div>
 
       {/* Hero banner */}
-      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-soft)', flexShrink: 0 }}>
-        {/* Gradient cover */}
+      <div style={{
+        position: 'relative',
+        background: 'var(--bg-surface)',
+        borderBottom: '1px solid var(--border-soft)',
+        flexShrink: 0,
+      }}>
+        {/* Gradient — absolute so it never creates a stacking conflict */}
         <div style={{
-          height: 110,
+          position: 'absolute',
+          top: 0, left: 0, right: 0,
+          height: 112,
           background: 'var(--brand-gradient-dark)',
-          position: 'relative',
+          zIndex: 0,
+          overflow: 'hidden',
         }}>
-          {/* Subtle pattern overlay */}
           <div style={{
             position: 'absolute', inset: 0,
-            backgroundImage: 'radial-gradient(circle at 80% 50%, rgba(31,163,168,0.35) 0%, transparent 60%), radial-gradient(circle at 20% 80%, rgba(44,110,213,0.25) 0%, transparent 50%)',
+            backgroundImage: 'radial-gradient(ellipse at 75% 50%, rgba(31,163,168,0.4) 0%, transparent 55%), radial-gradient(ellipse at 15% 80%, rgba(44,110,213,0.3) 0%, transparent 50%)',
           }} />
         </div>
 
-        {/* Avatar + info row */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, padding: '0 28px 20px', marginTop: -44 }}>
+        {/* Avatar + info — sits in normal flow above the gradient via z-index */}
+        <div style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 20,
+          padding: '68px 28px 22px',   /* top = gradient_height(112) - avatar_overlap(44) = 68 */
+        }}>
           {/* Avatar */}
           <div style={{
             width: 88, height: 88,
@@ -574,8 +588,8 @@ export default function ProfilePage() {
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            border: '4px solid var(--bg-surface)',
-            boxShadow: '0 6px 20px rgba(30,79,163,0.22)',
+            border: '4px solid #fff',
+            boxShadow: '0 6px 24px rgba(30,79,163,0.25)',
             letterSpacing: '-0.02em',
           }}>
             {initials}
@@ -583,7 +597,7 @@ export default function ProfilePage() {
 
           {/* User info */}
           <div style={{ flex: 1, minWidth: 0, paddingBottom: 2 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg-primary)', letterSpacing: '-0.02em', marginBottom: 2 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg-primary)', letterSpacing: '-0.02em', marginBottom: 3 }}>
               {fullName}
             </h2>
             <div style={{ fontSize: 13, color: 'var(--fg-secondary)', fontWeight: 500, marginBottom: 10 }}>
@@ -591,7 +605,7 @@ export default function ProfilePage() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <span className="badge brand" style={{ fontSize: 11, padding: '3px 9px' }}>
-                <Icon name="shield" size={10} /> {roleLabel}
+                {roleLabel}
               </span>
               {user?.phone && (
                 <span className="badge muted" style={{ fontSize: 11 }}>
