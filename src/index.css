@@ -208,6 +208,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--brand-gradient-soft);
   color: var(--teal-800);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--teal-600);
 }
 
 .nav-item .nav-ic {
@@ -1355,6 +1356,187 @@ table.data td {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* ─── Profile page ─── */
+
+/* Hero */
+.profile-hero {
+  position: relative;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+
+.profile-hero-banner {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 80px;
+  background: var(--brand-gradient-dark);
+  overflow: hidden;
+  z-index: 0;
+}
+
+.profile-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse at 80% 50%, rgba(31,163,168,0.45) 0%, transparent 55%),
+    radial-gradient(ellipse at 10% 80%, rgba(44,110,213,0.3) 0%, transparent 50%);
+}
+
+/* Content row — 44px top padding = banner(80) - overlap(36) */
+.profile-hero-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 44px 28px 20px;
+}
+
+.profile-hero-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: var(--brand-gradient);
+  color: white;
+  font-size: 26px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 16px rgba(30,79,163,0.22);
+  letter-spacing: -0.02em;
+}
+
+.profile-hero-info {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.profile-hero-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 3px;
+  flex-wrap: wrap;
+}
+
+.profile-hero-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--fg-primary);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.profile-hero-email {
+  font-size: 12.5px;
+  color: var(--fg-secondary);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.profile-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Tabs */
+.profile-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 20px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.profile-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 15px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  position: relative;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all var(--dur-fast);
+  border-radius: 0;
+}
+
+.profile-tab:hover {
+  color: var(--fg-primary);
+  background: var(--bg-section);
+}
+
+.profile-tab.active {
+  color: var(--teal-800);
+  font-weight: 600;
+  border-bottom-color: var(--teal-600);
+}
+
+/* Field rows */
+.profile-tab-content {
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-field-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.profile-field-row:last-child { border-bottom: none; }
+
+.profile-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-secondary);
+  padding-top: 6px;
+  letter-spacing: 0.02em;
+}
+
+/* Section title */
+.profile-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.profile-section-bar {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--brand-gradient);
+  flex-shrink: 0;
+}
+
+.profile-section-title span {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg-secondary);
 }
 
 /* ─── Responsive ─── */
