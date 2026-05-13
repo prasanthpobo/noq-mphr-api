@@ -1,0 +1,271 @@
+import Header from '@/components/layout/Header'
+import StatCard from '@/components/ui/StatCard'
+import Icon from '@/components/ui/Icon'
+import { useAppStore } from '@/store/app'
+import { CHART_DAYS, TOKENS, ALERTS } from '@/data'
+import type { ChartDay, Token, Alert } from '@/types'
+
+const DEPT_LOAD: { dept: string; pct: number; color: string }[] = [
+  { dept: 'General OPD',  pct: 92, color: 'var(--brand-gradient)' },
+  { dept: 'Cardiology',   pct: 78, color: 'linear-gradient(90deg,#7C3AED,#A78BFA)' },
+  { dept: 'Dermatology',  pct: 65, color: 'linear-gradient(90deg,#EC4899,#F9A8D4)' },
+  { dept: 'Pediatrics',   pct: 40, color: 'linear-gradient(90deg,#059669,#6EE7B7)' },
+  { dept: 'Gynecology',   pct: 55, color: 'linear-gradient(90deg,#B45309,#FCD34D)' },
+  { dept: 'Orthopedics',  pct: 70, color: 'linear-gradient(90deg,#0369A1,#7DD3FC)' },
+]
+
+const ALERT_ICONS: Record<string, { ic: string; cls: string }> = {
+  warn:   { ic: 'alert', cls: 'amber' },
+  danger: { ic: 'siren', cls: 'red'   },
+  info:   { ic: 'info',  cls: 'blue'  },
+}
+
+function alertToBadge(kind: string): string {
+  if (kind === 'danger') return 'danger'
+  if (kind === 'warn')   return 'warning'
+  return 'info'
+}
+
+const queueTokens: Token[] = TOKENS.filter(
+  t => t.status === 'in-room' || t.status === 'waiting' || t.status === 'priority'
+).slice(0, 5)
+
+const maxTokens = Math.max(...CHART_DAYS.map((d: ChartDay) => d.tokens))
+
+export default function AdminDashboard() {
+  const { setRoute } = useAppStore()
+
+  return (
+    <div className="main">
+      <Header
+        title="Good morning, Reception"
+        crumbs="Today · Saturday, 9 May 2026 · Sunshine Clinic"
+        onAdd={() => setRoute('book')}
+        addLabel="Book appointment"
+      />
+
+      {/* Stat cards */}
+      <div className="stats-grid">
+        <StatCard
+          ic="users"
+          tone="blue"
+          label="Total patients"
+          value="1,284"
+          delta="+12%"
+          up
+          foot="Registered this clinic"
+        />
+        <StatCard
+          ic="ticket"
+          label="Today's tokens"
+          value="184"
+          accent
+          foot="Issued today"
+        />
+        <StatCard
+          ic="stethoscope"
+          tone="green"
+          label="Active doctors"
+          value="14/16"
+          foot="2 on leave today"
+        />
+        <StatCard
+          ic="receipt"
+          tone="amber"
+          label="Revenue today"
+          value="₹86,400"
+          delta="+8%"
+          up
+          foot="Consultations + procedures"
+        />
+      </div>
+
+      {/* Chart + Queue row */}
+      <div className="dash-grid">
+        {/* Tokens this week bar chart */}
+        <div className="card">
+          <div className="card-h">
+            <div>
+              <h2>Tokens this week</h2>
+              <div className="sub">Daily token vs visit volume</div>
+            </div>
+            <div className="chart-legend">
+              <span>
+                <span
+                  className="swatch"
+                  style={{ background: 'var(--brand-gradient)' }}
+                />
+                Tokens
+              </span>
+              <span>
+                <span
+                  className="swatch"
+                  style={{ background: 'var(--teal-100)' }}
+                />
+                Visits
+              </span>
+            </div>
+          </div>
+          <div className="bars">
+            {CHART_DAYS.map((day: ChartDay) => {
+              const tokH = Math.round((day.tokens / maxTokens) * 100)
+              const visH = Math.round((day.visits / maxTokens) * 100)
+              return (
+                <div key={day.d} className="bar-col">
+                  <div className="bar-stack">
+                    <div
+                      className="bar"
+                      style={{ height: `${tokH}%` }}
+                      title={`${day.tokens} tokens`}
+                    />
+                    <div
+                      className="bar alt"
+                      style={{ height: `${visH}%` }}
+                      title={`${day.visits} visits`}
+                    />
+                  </div>
+                  <div className="bar-lbl">{day.d}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Live queue */}
+        <div className="card">
+          <div className="card-h">
+            <div>
+              <h2>Live queue</h2>
+              <div className="sub">{queueTokens.length} active · updating live</div>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('live-tokens')}>
+              View all
+            </button>
+          </div>
+          <div className="live-queue">
+            {queueTokens.map((t: Token, i: number) => {
+              const isEmg   = t.emergency || t.status === 'priority'
+              const isFirst = i === 0
+              const rowCls  = isFirst ? 'queue-row now' : isEmg ? 'queue-row emergency' : 'queue-row'
+              const badge   = t.status === 'in-room'  ? 'blue'
+                            : t.status === 'priority' ? 'danger'
+                            : 'muted'
+              const badgeLabel = t.status === 'in-room'  ? 'In room'
+                               : t.status === 'priority' ? 'Priority'
+                               : 'Waiting'
+              return (
+                <div key={t.token} className={rowCls}>
+                  <div className="token-pill">
+                    <span className="l">{isEmg ? 'EMG' : 'TKN'}</span>
+                    <span className="n">{t.token}</span>
+                  </div>
+                  <div className="body">
+                    <div className="n">{t.patient}</div>
+                    <div className="s">{t.doctor} · {t.time}</div>
+                  </div>
+                  <span className={`badge ${badge}`}>
+                    <span className="d" />
+                    {badgeLabel}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Alerts + Dept load */}
+      <div className="dash-grid">
+        {/* Alerts */}
+        <div className="card">
+          <div className="card-h">
+            <div>
+              <h2>Alerts</h2>
+              <div className="sub">{ALERTS.length} active alerts</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {ALERTS.map((a: Alert, i: number) => {
+              const cfg = ALERT_ICONS[a.kind] ?? ALERT_ICONS.info
+              return (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 12,
+                    padding: '10px 12px',
+                    background: 'var(--bg-section)',
+                    borderRadius: 12,
+                    border: '1px solid var(--border-light)',
+                  }}
+                >
+                  <div className={`av ${cfg.cls}`} style={{ flexShrink: 0 }}>
+                    <Icon name={cfg.ic} size={15} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                      {a.t}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>
+                      {a.s}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {a.when}
+                  </div>
+                  <span className={`badge ${alertToBadge(a.kind)}`}>
+                    {a.kind === 'danger' ? 'Critical' : a.kind === 'warn' ? 'Warning' : 'Info'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Department load */}
+        <div className="card">
+          <div className="card-h">
+            <div>
+              <h2>Department load</h2>
+              <div className="sub">Current capacity utilization</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {DEPT_LOAD.map(d => (
+              <div key={d.dept}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 6,
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                    {d.dept}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-secondary)' }}>
+                    {d.pct}%
+                  </span>
+                </div>
+                <div style={{
+                  height: 7,
+                  background: 'var(--bg-section)',
+                  borderRadius: 99,
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${d.pct}%`,
+                    background: d.color,
+                    borderRadius: 99,
+                    transition: 'width 0.6s var(--ease-out)',
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
