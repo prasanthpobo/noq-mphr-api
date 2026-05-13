@@ -1,31 +1,55 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
 import Icon from '@/components/ui/Icon'
 import Badge, { PatientTagBadge } from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
-import type { Patient } from '@/types'
+import { patientsService } from '@/services/patients.service'
 
-type Mode = 'create' | 'view' | 'edit'
-interface Props { mode: Mode; existing?: Partial<Patient> }
+type FormData = {
+  firstName: string
+  lastName: string
+  gender: string
+  dob: string
+  bg: string
+  marital: string
+  occ: string
+  ptag: string
+  mobile: string
+  altPhone: string
+  email: string
+  street: string
+  city: string
+  state: string
+  pin: string
+  emgName: string
+  emgRel: string
+  emgPhone: string
+  govType: string
+  govNum: string
+  meds: string
+  surgeries: string
+  medNotes: string
+  insurer: string
+  policy: string
+  validTill: string
+  cashless: boolean
+}
+
+interface Props { id?: string; onClose?: () => void }
 
 const ALLERGIES  = ['Penicillin','Sulfa','Aspirin','Ibuprofen','Latex','Peanuts','Shellfish','Dust','Pollen','Mold']
 const CONDITIONS = ['Hypertension','Diabetes','Asthma','Hypothyroid','COPD','Arthritis','Anemia','Depression','Obesity','CAD']
 const BG_OPTS    = ['A+','A-','B+','B-','AB+','AB-','O+','O-']
 const GOV_IDS    = ['Aadhaar','PAN','Passport','Voter ID','Driving Licence']
 
-function seg(opts: string[], val: string, set: (v:string)=>void, ro: boolean) {
-  if (ro) return <span className="ro-val">{val||'—'}</span>
-  return <div className="seg-ctrl">{opts.map(o=><button key={o} className={val===o?'active':''} onClick={()=>set(o)}>{o}</button>)}</div>
+function seg(opts: string[], val: string, set: (v:string)=>void) {
+  return <div className="seg-ctrl">{opts.map(o=><button key={o} type="button" className={val===o?'active':''} onClick={()=>set(o)}>{o}</button>)}</div>
 }
 
-function chipSet(opts: string[], sel: string[], toggle:(v:string)=>void, ro: boolean, danger=false) {
-  if (ro) return (
-    <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-      {sel.length ? sel.map(s=><span key={s} className={`badge ${danger?'red':'brand'}`} style={{fontSize:11}}>{s}</span>) : <span className="ro-val">None</span>}
-    </div>
-  )
+function chipSet(opts: string[], sel: string[], toggle:(v:string)=>void, danger=false) {
   return (
     <div className="chip-lib">
-      {opts.map(o=><button key={o} className={`tag${sel.includes(o)?' selected':''}`} onClick={()=>toggle(o)}>{o}</button>)}
+      {opts.map(o=><button key={o} type="button" className={`tag${sel.includes(o)?' selected':''}`} onClick={()=>toggle(o)}>{o}</button>)}
     </div>
   )
 }
@@ -36,77 +60,83 @@ function calcAge(dob: string) {
   return String(Math.floor(diff / (365.25*24*3600*1000)))
 }
 
-export default function PatientForm({ mode, existing }: Props) {
+export default function PatientForm({ id, onClose }: Props) {
   const { setRoute } = useAppStore()
-  const ro = mode === 'view'
-  const isCreate = mode === 'create'
+  const isEdit = Boolean(id)
 
   const [tab, setTab] = useState(0)
-  const [firstName, setFirstName] = useState(isCreate?'':'Aarav')
-  const [lastName,  setLastName]  = useState(isCreate?'':'Sharma')
-  const [gender,    setGender]    = useState('M')
-  const [dob,       setDob]       = useState(isCreate?'':'1990-04-15')
-  const [bg,        setBg]        = useState(isCreate?'O+':'O+')
-  const [marital,   setMarital]   = useState('Single')
-  const [occ,       setOcc]       = useState(isCreate?'':'Software Engineer')
-  const [ptag,      setPtag]      = useState('active')
-  // contact
-  const [mobile,    setMobile]    = useState(isCreate?'':'+91 98765 11001')
-  const [altPhone,  setAltPhone]  = useState('')
-  const [email,     setEmail]     = useState(isCreate?'':'aarav.s@email.com')
-  const [street,    setStreet]    = useState(isCreate?'':'12, MG Road')
-  const [city,      setCity]      = useState(isCreate?'':'Bengaluru')
-  const [state,     setState]     = useState(isCreate?'':'Karnataka')
-  const [pin,       setPin]       = useState(isCreate?'':'560001')
-  const [emgName,   setEmgName]   = useState('')
-  const [emgRel,    setEmgRel]    = useState('')
-  const [emgPhone,  setEmgPhone]  = useState('')
-  const [govType,   setGovType]   = useState('Aadhaar')
-  const [govNum,    setGovNum]    = useState('')
-  // medical
+  const [gender, setGender] = useState('M')
+  const [marital, setMarital] = useState('Single')
+  const [ptag, setPtag] = useState('active')
   const [allergies, setAllergies] = useState<string[]>([])
-  const [conditions,setConditions]= useState<string[]>([])
-  const [meds,      setMeds]      = useState('')
-  const [surgeries, setSurgeries] = useState('')
-  const [medNotes,  setMedNotes]  = useState('')
-  // insurance
-  const [insurer,   setInsurer]   = useState('')
-  const [policy,    setPolicy]    = useState('')
-  const [validTill, setValidTill] = useState('')
-  const [cashless,  setCashless]  = useState(false)
+  const [conditions, setConditions] = useState<string[]>([])
+  const [serverError, setServerError] = useState<string | null>(null)
+
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+    defaultValues: { bg: 'O+', govType: 'Aadhaar', cashless: false }
+  })
+
+  const firstName = watch('firstName') || ''
+  const lastName  = watch('lastName')  || ''
+  const dob = watch('dob') || ''
+  const bg = watch('bg') || 'O+'
+  const mobile = watch('mobile') || ''
+  const email = watch('email') || ''
+  const insurer = watch('insurer') || ''
+  const policy = watch('policy') || ''
+  const cashless = watch('cashless')
+  const age = calcAge(dob)
+  const name = `${firstName} ${lastName}`.trim() || 'New Patient'
+  const av   = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
+
+  useEffect(() => {
+    if (isEdit && id) {
+      patientsService.get(id)
+        .then(data => {
+          reset(data)
+          if (data.gender)     setGender(data.gender)
+          if (data.marital)    setMarital(data.marital)
+          if (data.ptag)       setPtag(data.ptag)
+          if (data.allergies)  setAllergies(data.allergies)
+          if (data.conditions) setConditions(data.conditions)
+        })
+        .catch(() => setServerError('Failed to load patient data'))
+    }
+  }, [id])
 
   const toggleA = (v:string) => setAllergies(s=>s.includes(v)?s.filter(x=>x!==v):[...s,v])
   const toggleC = (v:string) => setConditions(s=>s.includes(v)?s.filter(x=>x!==v):[...s,v])
 
-  const age = dob ? calcAge(dob) : ''
+  const onSubmit = async (data: FormData) => {
+    try {
+      setServerError(null)
+      const payload = { ...data, gender, marital, ptag, allergies, conditions }
+      if (isEdit) await patientsService.update(id!, payload)
+      else await patientsService.create(payload)
+      if (onClose) onClose()
+      else setRoute('patients')
+    } catch (err: any) {
+      setServerError(err.response?.data?.message || 'Save failed')
+    }
+  }
 
-  const errors: string[] = []
-  if (!firstName.trim()) errors.push('First name')
-  if (!lastName.trim())  errors.push('Last name')
-  if (!mobile.trim())    errors.push('Mobile')
-
-  const name = `${firstName} ${lastName}`.trim() || 'New Patient'
-  const av   = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
   const TABS = ['Profile','Contact & ID','Medical history','Insurance']
 
   return (
-    <div className="df-shell">
+    <form className="df-shell" onSubmit={handleSubmit(onSubmit)}>
       <div className="df-tabs" style={{borderBottom:'1px solid var(--border)',padding:'0 20px',display:'flex',alignItems:'center',gap:12,minHeight:52}}>
-        <button className="btn btn-ghost btn-sm" onClick={()=>setRoute('patients')}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setRoute('patients')}>
           <Icon name="chevL" size={14}/> Back
         </button>
         <div style={{fontWeight:700,fontSize:15}}>
-          {isCreate ? 'Create patient' : mode==='edit' ? `Editing ${name}` : name}
+          {!isEdit ? 'Create patient' : `Editing ${name}`}
         </div>
-        {!isCreate && <PatientTagBadge tag={ptag}/>}
-        <div style={{marginLeft:'auto',display:'flex',gap:8}}>
-          {mode==='view' && <button className="btn btn-primary btn-sm" onClick={()=>setRoute('patient-edit')}><Icon name="edit" size={13}/>Edit</button>}
-        </div>
+        {isEdit && <PatientTagBadge tag={ptag}/>}
       </div>
 
       <div className="df-tabs">
         {TABS.map((t,i)=>(
-          <button key={t} className={`df-tab${tab===i?' active':''}`} onClick={()=>setTab(i)}>{t}</button>
+          <button key={t} type="button" className={`df-tab${tab===i?' active':''}`} onClick={()=>setTab(i)}>{t}</button>
         ))}
       </div>
 
@@ -116,45 +146,48 @@ export default function PatientForm({ mode, existing }: Props) {
             <div className="grid-2" style={{gap:16}}>
               <div className="form-group">
                 <label className="form-label">First name *</label>
-                {ro?<span className="ro-val">{firstName}</span>:<input className="form-input" value={firstName} onChange={e=>setFirstName(e.target.value)} placeholder="First name"/>}
+                <input className="form-input" placeholder="First name" {...register('firstName', { required: 'First name is required' })}/>
+                {errors.firstName && <span className="form-error">{errors.firstName.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Last name *</label>
-                {ro?<span className="ro-val">{lastName}</span>:<input className="form-input" value={lastName} onChange={e=>setLastName(e.target.value)} placeholder="Last name"/>}
+                <input className="form-input" placeholder="Last name" {...register('lastName', { required: 'Last name is required' })}/>
+                {errors.lastName && <span className="form-error">{errors.lastName.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Gender</label>
-                {seg(['M','F','Other'],gender,setGender,ro)}
+                {seg(['M','F','Other'],gender,setGender)}
               </div>
               <div className="form-group">
                 <label className="form-label">Date of birth{age?` · ${age} yrs`:''}</label>
-                {ro?<span className="ro-val">{dob||'—'}</span>:<input className="form-input" type="date" value={dob} onChange={e=>setDob(e.target.value)}/>}
+                <input className="form-input" type="date" {...register('dob')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Blood group</label>
-                {ro?<span className="ro-val">{bg}</span>:(
-                  <select className="form-select" value={bg} onChange={e=>setBg(e.target.value)}>
-                    {BG_OPTS.map(o=><option key={o}>{o}</option>)}
-                  </select>
-                )}
+                <select className="form-select" {...register('bg')}>
+                  {BG_OPTS.map(o=><option key={o}>{o}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Marital status</label>
-                {seg(['Single','Married','Other'],marital,setMarital,ro)}
+                {seg(['Single','Married','Other'],marital,setMarital)}
               </div>
               <div className="form-group">
                 <label className="form-label">Occupation</label>
-                {ro?<span className="ro-val">{occ||'—'}</span>:<input className="form-input" value={occ} onChange={e=>setOcc(e.target.value)} placeholder="Occupation"/>}
+                <input className="form-input" placeholder="Occupation" {...register('occ')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Patient tag</label>
-                {seg(['active','new','follow-up','critical'],ptag,setPtag,ro)}
+                {seg(['active','new','follow-up','critical'],ptag,setPtag)}
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Photo upload</label>
                 <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',border:'1px dashed var(--border)',borderRadius:8}}>
                   <div className="av xl blue">{av}</div>
-                  <div>{ro?<span className="ro-val">Photo on file</span>:<><button className="btn btn-secondary btn-sm"><Icon name="plus" size={12}/>Upload photo</button><div style={{fontSize:11,color:'var(--fg-muted)',marginTop:4}}>JPG, PNG up to 2 MB</div></>}</div>
+                  <div>
+                    <button type="button" className="btn btn-secondary btn-sm"><Icon name="plus" size={12}/>Upload photo</button>
+                    <div style={{fontSize:11,color:'var(--fg-muted)',marginTop:4}}>JPG, PNG up to 2 MB</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -164,57 +197,56 @@ export default function PatientForm({ mode, existing }: Props) {
             <div className="grid-2" style={{gap:16}}>
               <div className="form-group">
                 <label className="form-label">Mobile *</label>
-                {ro?<span className="ro-val">{mobile}</span>:<input className="form-input" value={mobile} onChange={e=>setMobile(e.target.value)} placeholder="+91 XXXXX XXXXX"/>}
+                <input className="form-input" placeholder="+91 XXXXX XXXXX" {...register('mobile', { required: 'Mobile is required' })}/>
+                {errors.mobile && <span className="form-error">{errors.mobile.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Alt phone</label>
-                {ro?<span className="ro-val">{altPhone||'—'}</span>:<input className="form-input" value={altPhone} onChange={e=>setAltPhone(e.target.value)} placeholder="Alternate number"/>}
+                <input className="form-input" placeholder="Alternate number" {...register('altPhone')}/>
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Email</label>
-                {ro?<span className="ro-val">{email||'—'}</span>:<input className="form-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="patient@email.com"/>}
+                <input className="form-input" type="email" placeholder="patient@email.com" {...register('email')}/>
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Street</label>
-                {ro?<span className="ro-val">{street||'—'}</span>:<input className="form-input" value={street} onChange={e=>setStreet(e.target.value)} placeholder="Street address"/>}
+                <input className="form-input" placeholder="Street address" {...register('street')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">City</label>
-                {ro?<span className="ro-val">{city||'—'}</span>:<input className="form-input" value={city} onChange={e=>setCity(e.target.value)} placeholder="City"/>}
+                <input className="form-input" placeholder="City" {...register('city')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">State</label>
-                {ro?<span className="ro-val">{state||'—'}</span>:<input className="form-input" value={state} onChange={e=>setState(e.target.value)} placeholder="State"/>}
+                <input className="form-input" placeholder="State" {...register('state')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">PIN code</label>
-                {ro?<span className="ro-val">{pin||'—'}</span>:<input className="form-input" value={pin} onChange={e=>setPin(e.target.value)} placeholder="6-digit PIN"/>}
+                <input className="form-input" placeholder="6-digit PIN" {...register('pin')}/>
               </div>
               <div className="section-divider" style={{gridColumn:'1/-1'}}>Emergency contact</div>
               <div className="form-group">
                 <label className="form-label">Name</label>
-                {ro?<span className="ro-val">{emgName||'—'}</span>:<input className="form-input" value={emgName} onChange={e=>setEmgName(e.target.value)} placeholder="Contact name"/>}
+                <input className="form-input" placeholder="Contact name" {...register('emgName')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Relation</label>
-                {ro?<span className="ro-val">{emgRel||'—'}</span>:<input className="form-input" value={emgRel} onChange={e=>setEmgRel(e.target.value)} placeholder="e.g. Spouse"/>}
+                <input className="form-input" placeholder="e.g. Spouse" {...register('emgRel')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Phone</label>
-                {ro?<span className="ro-val">{emgPhone||'—'}</span>:<input className="form-input" value={emgPhone} onChange={e=>setEmgPhone(e.target.value)} placeholder="+91 XXXXX XXXXX"/>}
+                <input className="form-input" placeholder="+91 XXXXX XXXXX" {...register('emgPhone')}/>
               </div>
               <div className="section-divider" style={{gridColumn:'1/-1'}}>Government ID</div>
               <div className="form-group">
                 <label className="form-label">ID type</label>
-                {ro?<span className="ro-val">{govType}</span>:(
-                  <select className="form-select" value={govType} onChange={e=>setGovType(e.target.value)}>
-                    {GOV_IDS.map(g=><option key={g}>{g}</option>)}
-                  </select>
-                )}
+                <select className="form-select" {...register('govType')}>
+                  {GOV_IDS.map(g=><option key={g}>{g}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">ID number</label>
-                {ro?<span className="ro-val">{govNum||'—'}</span>:<input className="form-input" value={govNum} onChange={e=>setGovNum(e.target.value)} placeholder="ID number"/>}
+                <input className="form-input" placeholder="ID number" {...register('govNum')}/>
               </div>
             </div>
           )}
@@ -223,23 +255,23 @@ export default function PatientForm({ mode, existing }: Props) {
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
               <div className="form-group">
                 <label className="form-label">Drug allergies</label>
-                {chipSet(ALLERGIES,allergies,toggleA,ro,true)}
+                {chipSet(ALLERGIES, allergies, toggleA, true)}
               </div>
               <div className="form-group">
                 <label className="form-label">Chronic conditions</label>
-                {chipSet(CONDITIONS,conditions,toggleC,ro)}
+                {chipSet(CONDITIONS, conditions, toggleC)}
               </div>
               <div className="form-group">
                 <label className="form-label">Current medications</label>
-                {ro?<span className="ro-val">{meds||'—'}</span>:<textarea className="form-textarea" value={meds} onChange={e=>setMeds(e.target.value)} rows={3} placeholder="List medications and dosage…"/>}
+                <textarea className="form-textarea" rows={3} placeholder="List medications and dosage…" {...register('meds')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Past surgeries</label>
-                {ro?<span className="ro-val">{surgeries||'—'}</span>:<textarea className="form-textarea" value={surgeries} onChange={e=>setSurgeries(e.target.value)} rows={3} placeholder="Surgical history…"/>}
+                <textarea className="form-textarea" rows={3} placeholder="Surgical history…" {...register('surgeries')}/>
               </div>
               <div className="form-group">
-                <label className="form-label">Internal notes <span style={{color:'var(--fg-muted)',fontWeight:400}}>({medNotes.length}/500)</span></label>
-                {ro?<span className="ro-val">{medNotes||'—'}</span>:<textarea className="form-textarea" value={medNotes} maxLength={500} onChange={e=>setMedNotes(e.target.value)} rows={3} placeholder="Notes visible only to staff…"/>}
+                <label className="form-label">Internal notes</label>
+                <textarea className="form-textarea" rows={3} maxLength={500} placeholder="Notes visible only to staff…" {...register('medNotes')}/>
               </div>
             </div>
           )}
@@ -248,24 +280,22 @@ export default function PatientForm({ mode, existing }: Props) {
             <div className="grid-2" style={{gap:16}}>
               <div className="form-group">
                 <label className="form-label">Insurer</label>
-                {ro?<span className="ro-val">{insurer||'—'}</span>:<input className="form-input" value={insurer} onChange={e=>setInsurer(e.target.value)} placeholder="Insurance company"/>}
+                <input className="form-input" placeholder="Insurance company" {...register('insurer')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Policy number</label>
-                {ro?<span className="ro-val">{policy||'—'}</span>:<input className="form-input" value={policy} onChange={e=>setPolicy(e.target.value)} placeholder="Policy number"/>}
+                <input className="form-input" placeholder="Policy number" {...register('policy')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Valid till</label>
-                {ro?<span className="ro-val">{validTill||'—'}</span>:<input className="form-input" type="date" value={validTill} onChange={e=>setValidTill(e.target.value)}/>}
+                <input className="form-input" type="date" {...register('validTill')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Cashless billing</label>
-                {ro?<span className="ro-val">{cashless?'Yes':'No'}</span>:(
-                  <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
-                    <input type="checkbox" checked={cashless} onChange={e=>setCashless(e.target.checked)} style={{width:16,height:16}}/>
-                    <span style={{fontSize:13}}>Enabled</span>
-                  </label>
-                )}
+                <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
+                  <input type="checkbox" style={{width:16,height:16}} {...register('cashless')}/>
+                  <span style={{fontSize:13}}>Enabled</span>
+                </label>
               </div>
             </div>
           )}
@@ -284,7 +314,7 @@ export default function PatientForm({ mode, existing }: Props) {
               </div>
               <div style={{marginTop:8}}><PatientTagBadge tag={ptag}/></div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginTop:10}}>
-                {[{l:'Visits',v:'4'},{l:'Last',v:'Today'},{l:'Allergy',v:String(allergies.length)}].map(k=>(
+                {[{l:'Allergy',v:String(allergies.length)},{l:'Condition',v:String(conditions.length)},{l:'Tag',v:ptag}].map(k=>(
                   <div key={k.l} style={{background:'var(--bg-section)',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
                     <div style={{fontSize:13,fontWeight:800}}>{k.v}</div>
                     <div style={{fontSize:10,color:'var(--fg-secondary)'}}>{k.l}</div>
@@ -334,18 +364,21 @@ export default function PatientForm({ mode, existing }: Props) {
       </div>
 
       <div className="df-footer">
-        <div style={{fontSize:12,color:errors.length>0?'var(--danger)':'var(--success)',display:'flex',alignItems:'center',gap:6}}>
-          <Icon name={errors.length>0?'alert':'check'} size={14}/>
-          {errors.length>0?`${errors.length} field${errors.length>1?'s':''} need attention`:'All required fields filled'}
-        </div>
+        {serverError && (
+          <div style={{fontSize:12,color:'var(--danger)',display:'flex',alignItems:'center',gap:6}}>
+            <Icon name="alert" size={14}/> {serverError}
+          </div>
+        )}
         <div style={{marginLeft:'auto',display:'flex',gap:8}}>
-          <button className="btn btn-secondary" onClick={()=>setRoute('patients')}>Cancel</button>
-          {isCreate && <button className="btn btn-secondary" disabled={errors.length>0}>Save &amp; add another</button>}
-          <button className="btn btn-primary" disabled={isCreate&&errors.length>0}>
-            {isCreate?'Create patient':'Update patient'}
+          <button type="button" className="btn btn-secondary" onClick={()=>setRoute('patients')}>Cancel</button>
+          {!isEdit && (
+            <button type="button" className="btn btn-secondary" disabled={isSubmitting}>Save &amp; add another</button>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : isEdit ? 'Update patient' : 'Create patient'}
           </button>
         </div>
       </div>
-    </div>
+    </form>
   )
 }

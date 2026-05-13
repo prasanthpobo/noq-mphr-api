@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { DOCTORS } from '@/data'
+import { doctorsService } from '@/services/doctors.service'
 import type { Doctor } from '@/types'
 
 type DocStatus = 'on' | 'busy' | 'leave'
@@ -17,23 +17,69 @@ function DocStatusBadge({ status }: { status: DocStatus }) {
 
 const DEPTS = ['All', 'OPD', 'Cardio', 'Derm', 'Peds', 'Gyn', 'Ortho']
 
+function LoadingSkeleton() {
+  return (
+    <>
+      {[1, 2, 3].map(i => (
+        <tr key={i}>
+          {[1, 2, 3, 4, 5, 6, 7].map(j => (
+            <td key={j}>
+              <div style={{ height: 16, background: 'var(--bg-section)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
 export default function DoctorList() {
   const { setRoute } = useAppStore()
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'card' | 'table'>('card')
   const [dept, setDept] = useState('All')
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = DOCTORS.filter(d => {
-    const q = search.toLowerCase()
-    const matchQ = !q || d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
-    const matchD = dept === 'All' || d.dept === dept
-    return matchQ && matchD
-  })
+  const load = async (q?: string, d?: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const params: Record<string, string> = {}
+      if (q) params.search = q
+      if (d && d !== 'All') params.dept = d
+      const data = await doctorsService.list(params)
+      setItems(data)
+    } catch {
+      setError('Failed to load doctors')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const total   = DOCTORS.length
-  const active  = DOCTORS.filter(d => d.status === 'on').length
-  const onLeave = DOCTORS.filter(d => d.status === 'leave').length
-  const specs   = new Set(DOCTORS.map(d => d.spec)).size
+  useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => load(search, dept), 300)
+    return () => clearTimeout(timer)
+  }, [search, dept])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this doctor?')) return
+    try {
+      await doctorsService.remove(id)
+      load(search, dept)
+    } catch {
+      setError('Failed to delete doctor')
+    }
+  }
+
+  const filtered = items
+  const total   = items.length
+  const active  = items.filter(d => d.status === 'on').length
+  const onLeave = items.filter(d => d.status === 'leave').length
+  const specs   = new Set(items.map(d => d.spec)).size
 
   return (
     <div className="main">
@@ -45,10 +91,10 @@ export default function DoctorList() {
       />
 
       <div className="stats-grid">
-        <StatCard ic="stethoscope" tone="blue"  label="Total doctors"   value={String(total)}  foot="Registered doctors" />
-        <StatCard ic="check"       tone="green" label="Active"          value={String(active)} foot="Currently on duty" accent />
-        <StatCard ic="hourglass"   tone="amber" label="On leave"        value={String(onLeave)} foot="Unavailable today" />
-        <StatCard ic="activity"    tone="pink"  label="Specialties"     value={String(specs)}  foot="Unique specializations" />
+        <StatCard ic="stethoscope" tone="blue"  label="Total doctors"   value={`${total}`}  foot="Registered doctors" />
+        <StatCard ic="check"       tone="green" label="Active"          value={`${active}`} foot="Currently on duty" accent />
+        <StatCard ic="hourglass"   tone="amber" label="On leave"        value={`${onLeave}`} foot="Unavailable today" />
+        <StatCard ic="activity"    tone="pink"  label="Specialties"     value={`${specs}`}  foot="Unique specializations" />
       </div>
 
       <div className="table-card">
@@ -78,10 +124,31 @@ export default function DoctorList() {
           </div>
         </div>
 
+        {error && (
+          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+        )}
+
         {view === 'card' ? (
           <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-            {filtered.map(doc => <DoctorCard key={doc.id} doc={doc} onView={() => setRoute('doctor-view')} onEdit={() => setRoute('doctor-edit')} />)}
-            {filtered.length === 0 && <div style={{ gridColumn: '1/-1', padding: 32, textAlign: 'center', color: 'var(--fg-muted)' }}>No doctors found</div>}
+            {loading
+              ? [1, 2, 3].map(i => (
+                  <div key={i} className="card" style={{ padding: 16, minHeight: 160 }}>
+                    <div style={{ height: 16, background: 'var(--bg-section)', borderRadius: 4, marginBottom: 8, animation: 'pulse 1.5s infinite' }} />
+                    <div style={{ height: 12, background: 'var(--bg-section)', borderRadius: 4, width: '60%', animation: 'pulse 1.5s infinite' }} />
+                  </div>
+                ))
+              : filtered.map(doc => (
+                  <DoctorCard
+                    key={doc.id}
+                    doc={doc}
+                    onView={() => setRoute('doctor-view')}
+                    onEdit={() => setRoute('doctor-edit')}
+                  />
+                ))
+            }
+            {!loading && filtered.length === 0 && (
+              <div style={{ gridColumn: '1/-1', padding: 32, textAlign: 'center', color: 'var(--fg-muted)' }}>No doctors found</div>
+            )}
           </div>
         ) : (
           <table className="data">
@@ -97,31 +164,38 @@ export default function DoctorList() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(doc => (
-                <tr key={doc.id}>
-                  <td>
-                    <div className="cell-person">
-                      <div className={`av ${doc.tone}`}>{doc.av}</div>
-                      <div className="info">
-                        <div className="n">{doc.name}</div>
-                        <div className="s">{doc.exp} · {doc.dept}</div>
+              {loading ? (
+                <LoadingSkeleton />
+              ) : (
+                filtered.map(doc => (
+                  <tr key={doc.id}>
+                    <td>
+                      <div className="cell-person">
+                        <div className={`av ${doc.tone}`}>{doc.av}</div>
+                        <div className="info">
+                          <div className="n">{doc.name}</div>
+                          <div className="s">{doc.exp} · {doc.dept}</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>{doc.spec}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{doc.room}</td>
-                  <td>{doc.today}</td>
-                  <td>₹{doc.fee}</td>
-                  <td><DocStatusBadge status={doc.status} /></td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="act" title="View" onClick={() => setRoute('doctor-view')}><Icon name="eye" size={14} /></button>
-                      <button className="act" title="Edit" onClick={() => setRoute('doctor-edit')}><Icon name="edit" size={14} /></button>
-                      <button className="act danger" title="Delete"><Icon name="trash" size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>{doc.spec}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{doc.room}</td>
+                    <td>{doc.today}</td>
+                    <td>₹{doc.fee}</td>
+                    <td><DocStatusBadge status={doc.status} /></td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="act" title="View" onClick={() => setRoute('doctor-view')}><Icon name="eye" size={14} /></button>
+                        <button className="act" title="Edit" onClick={() => setRoute('doctor-edit')}><Icon name="edit" size={14} /></button>
+                        <button className="act danger" title="Delete" onClick={() => handleDelete(doc.id)}><Icon name="trash" size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--fg-muted)' }}>No doctors found</td></tr>
+              )}
             </tbody>
           </table>
         )}
@@ -140,7 +214,6 @@ function DoctorCard({ doc, onView, onEdit }: { doc: Doctor; onView: () => void; 
           <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>{doc.spec}</div>
           <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>{doc.exp} · {doc.room}</div>
         </div>
-        <DocStatusBadge status={doc.status} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
         {[

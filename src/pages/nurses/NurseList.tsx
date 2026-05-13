@@ -1,29 +1,76 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { NURSES } from '@/data'
+import { nursesService } from '@/services/nurses.service'
 
 const ROLE_VARIANTS: Record<string,string> = {
   'Head nurse':'pink','Charge nurse':'plum','Senior nurse':'blue',
   'Staff nurse':'muted','Trainee nurse':'amber'
 }
 
+function LoadingSkeleton() {
+  return (
+    <>
+      {[1, 2, 3].map(i => (
+        <tr key={i}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(j => (
+            <td key={j}>
+              <div style={{ height: 16, background: 'var(--bg-section)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
 export default function NurseList() {
   const { setRoute } = useAppStore()
   const [search, setSearch] = useState('')
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = NURSES.filter(n=>{
-    const q = search.toLowerCase()
-    return !q||n.name.toLowerCase().includes(q)||n.id.toLowerCase().includes(q)||n.dept.toLowerCase().includes(q)
-  })
+  const load = async (q?: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const params: Record<string, string> = {}
+      if (q) params.search = q
+      const data = await nursesService.list(params)
+      setItems(data)
+    } catch {
+      setError('Failed to load nurses')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const total   = NURSES.length
-  const active  = NURSES.filter(n=>n.status==='active').length
-  const onLeave = NURSES.filter(n=>n.status==='on-leave').length
-  const depts   = new Set(NURSES.map(n=>n.dept)).size
+  useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => load(search), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this nurse?')) return
+    try {
+      await nursesService.remove(id)
+      load(search)
+    } catch {
+      setError('Failed to delete nurse')
+    }
+  }
+
+  const filtered = items
+  const total   = items.length
+  const active  = items.filter(n => n.status === 'active').length
+  const onLeave = items.filter(n => n.status === 'on-leave').length
+  const depts   = new Set(items.map(n => n.dept)).size
 
   return (
     <div className="main">
@@ -49,6 +96,10 @@ export default function NurseList() {
           </div>
         </div>
 
+        {error && (
+          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+        )}
+
         <table className="data">
           <thead>
             <tr>
@@ -64,34 +115,40 @@ export default function NurseList() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(n=>(
-              <tr key={n.id}>
-                <td>
-                  <div className="cell-person">
-                    <div className={`av ${n.tone}`}>{n.av}</div>
-                    <div className="info">
-                      <div className="n">{n.name}</div>
-                      <div className="s">{n.email}</div>
+            {loading ? (
+              <LoadingSkeleton />
+            ) : (
+              filtered.map(n=>(
+                <tr key={n.id}>
+                  <td>
+                    <div className="cell-person">
+                      <div className={`av ${n.tone}`}>{n.av}</div>
+                      <div className="info">
+                        <div className="n">{n.name}</div>
+                        <div className="s">{n.email}</div>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.id}</td>
-                <td><Badge variant={(ROLE_VARIANTS[n.role]??'muted') as any}>{n.role}</Badge></td>
-                <td style={{fontSize:12}}>{n.dept}</td>
-                <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.ward}</td>
-                <td style={{fontSize:12}}>{n.clinic}</td>
-                <td style={{fontSize:12}}>{n.shift}</td>
-                <td><UserStatusBadge status={n.status}/></td>
-                <td>
-                  <div className="row-actions">
-                    <button className="act" title="View" onClick={()=>setRoute('nurse-view')}><Icon name="eye" size={14}/></button>
-                    <button className="act" title="Edit" onClick={()=>setRoute('nurse-edit')}><Icon name="edit" size={14}/></button>
-                    <button className="act" title="More"><Icon name="more" size={14}/></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filtered.length===0&&<tr><td colSpan={9} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No nurses found</td></tr>}
+                  </td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.id}</td>
+                  <td><Badge variant={(ROLE_VARIANTS[n.role]??'muted') as any}>{n.role}</Badge></td>
+                  <td style={{fontSize:12}}>{n.dept}</td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.ward}</td>
+                  <td style={{fontSize:12}}>{n.clinic}</td>
+                  <td style={{fontSize:12}}>{n.shift}</td>
+                  <td><UserStatusBadge status={n.status}/></td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="act" title="View" onClick={()=>setRoute('nurse-view')}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={()=>setRoute('nurse-edit')}><Icon name="edit" size={14}/></button>
+                      <button className="act danger" title="Delete" onClick={() => handleDelete(n.id)}><Icon name="trash" size={14}/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+            {!loading && filtered.length===0 && (
+              <tr><td colSpan={9} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No nurses found</td></tr>
+            )}
           </tbody>
         </table>
       </div>

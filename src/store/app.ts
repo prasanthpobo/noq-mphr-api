@@ -15,12 +15,12 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       route: 'dashboard',
-      authed: true,
+      authed: false,
       logoutOpen: false,
       setRoute: (route) => set({ route }),
       setAuthed: (authed) => set({ authed }),
       setLogoutOpen: (logoutOpen) => set({ logoutOpen }),
-      confirmLogout: () => set({ logoutOpen: false, authed: false, route: 'dashboard' }),
+      confirmLogout: () => set({ logoutOpen: false, authed: false, route: 'login' }),
     }),
     {
       name: 'noq-web-store',
@@ -28,3 +28,9 @@ export const useAppStore = create<AppState>()(
     }
   )
 )
+
+// Listen for 401 auth:logout events dispatched by the axios interceptor
+window.addEventListener('auth:logout', () => {
+  useAppStore.getState().setAuthed(false)
+  useAppStore.getState().setRoute('login')
+})

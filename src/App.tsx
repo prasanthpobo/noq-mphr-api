@@ -94,35 +94,35 @@ function resolveScreen(route: string): React.ReactNode {
     case 'tokens-mgr':      return <TokensManager />
     case 'tokens':          return <TokenDisplay />
 
-    case 'doctor-new':      return <DoctorForm mode="create" />
-    case 'doctor-view':     return <DoctorForm mode="view" />
-    case 'doctor-edit':     return <DoctorForm mode="edit" />
+    case 'doctor-new':      return <DoctorForm />
+    case 'doctor-view':     return <DoctorForm />
+    case 'doctor-edit':     return <DoctorForm />
     case 'doctors':         return <DoctorList />
 
-    case 'patient-new':     return <PatientForm mode="create" />
-    case 'patient-view':    return <PatientForm mode="view" />
-    case 'patient-edit':    return <PatientForm mode="edit" />
+    case 'patient-new':     return <PatientForm />
+    case 'patient-view':    return <PatientForm />
+    case 'patient-edit':    return <PatientForm />
     case 'patients':        return <PatientList />
 
-    case 'clinic-new':      return <ClinicForm mode="create" />
-    case 'clinic-view':     return <ClinicForm mode="view" />
-    case 'clinic-edit':     return <ClinicForm mode="edit" />
+    case 'clinic-new':      return <ClinicForm />
+    case 'clinic-view':     return <ClinicForm />
+    case 'clinic-edit':     return <ClinicForm />
     case 'clinics':         return <ClinicList />
 
     case 'frontdesk':       return <FrontDeskList />
-    case 'fd-new':          return <FrontDeskForm mode="create" />
-    case 'fd-view':         return <FrontDeskForm mode="view" />
-    case 'fd-edit':         return <FrontDeskForm mode="edit" />
+    case 'fd-new':          return <FrontDeskForm />
+    case 'fd-view':         return <FrontDeskForm />
+    case 'fd-edit':         return <FrontDeskForm />
 
     case 'nurses':          return <NurseList />
-    case 'nurse-new':       return <NurseForm mode="create" />
-    case 'nurse-view':      return <NurseForm mode="view" />
-    case 'nurse-edit':      return <NurseForm mode="edit" />
+    case 'nurse-new':       return <NurseForm />
+    case 'nurse-view':      return <NurseForm />
+    case 'nurse-edit':      return <NurseForm />
 
     case 'admin-users':     return <AdminUserList />
-    case 'admin-new':       return <AdminUserForm mode="create" />
-    case 'admin-view':      return <AdminUserForm mode="view" />
-    case 'admin-edit':      return <AdminUserForm mode="edit" />
+    case 'admin-new':       return <AdminUserForm />
+    case 'admin-view':      return <AdminUserForm />
+    case 'admin-edit':      return <AdminUserForm />
 
     case 'pharmacy':        return <PharmacyPage />
     case 'pharmacy-detail': return <PharmacyDetail />

@@ -39,7 +39,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        <button className="sidebar-user" onClick={() => setRoute('profile')}>
+        <div className="sidebar-user" onClick={() => setRoute('profile')} style={{ cursor: 'pointer' }}>
           <div className="av blue">RA</div>
           <div className="who">
             <div className="n">Reena Aggarwal</div>
@@ -52,7 +52,7 @@ export default function Sidebar() {
           >
             <Icon name="log" size={14} />
           </button>
-        </button>
+        </div>
       </div>
     </aside>
   )

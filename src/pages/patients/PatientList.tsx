@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Badge, { PatientTagBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { PATIENTS } from '@/data'
+import { patientsService } from '@/services/patients.service'
 
 const TAG_FILTERS = [
   { key: 'all',       label: 'All' },
@@ -18,34 +18,70 @@ const BG_VARIANTS: Record<string, string> = {
   'O+':'success','O-':'green','A+':'blue','A-':'blue','B+':'amber','B-':'amber','AB+':'brand','AB-':'brand'
 }
 
+function LoadingSkeleton() {
+  return (
+    <>
+      {[1, 2, 3].map(i => (
+        <tr key={i}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(j => (
+            <td key={j}>
+              <div style={{ height: 16, background: 'var(--bg-section)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
 export default function PatientList() {
   const { setRoute } = useAppStore()
   const [search, setSearch] = useState('')
   const [tagFilter, setTagFilter] = useState('all')
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = PATIENTS.filter(p => {
-    const q = search.toLowerCase()
-    const matchQ = !q || p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)
-    const matchT = tagFilter === 'all' || p.tag === tagFilter
-    return matchQ && matchT
-  })
+  const load = async (q?: string, tag?: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const params: Record<string, string> = {}
+      if (q) params.search = q
+      if (tag && tag !== 'all') params.tag = tag
+      const data = await patientsService.list(params)
+      setItems(data)
+    } catch {
+      setError('Failed to load patients')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const countOf = (t: string) => PATIENTS.filter(p => p.tag === t).length
+  useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => load(search, tagFilter), 300)
+    return () => clearTimeout(timer)
+  }, [search, tagFilter])
+
+  const countOf = (t: string) => items.filter(p => p.tag === t).length
+  const filtered = items
 
   return (
     <div className="main">
       <Header
         title="Patient management"
-        crumbs="1,284 total · 7 visited today"
+        crumbs={`${items.length} total`}
         onAdd={() => setRoute('patient-new')}
         addLabel="Add patient"
       />
 
       <div className="stats-grid">
-        <StatCard ic="users"    tone="blue"  label="Total patients"       value="1,284" foot="All registered patients" />
-        <StatCard ic="activity" tone="green" label="Active this month"    value="412"   foot="Had visits in 30 days" accent />
-        <StatCard ic="calendar" tone="amber" label="Follow-ups due"       value="38"    foot="Pending this week" />
-        <StatCard ic="alert"    tone="red"   label="Critical watch"       value="7"     foot="Needs monitoring" />
+        <StatCard ic="users"    tone="blue"  label="Total patients"       value={String(items.length)} foot="All registered patients" />
+        <StatCard ic="activity" tone="green" label="Active this month"    value={String(items.filter(p => p.tag === 'active').length)}   foot="Had visits in 30 days" accent />
+        <StatCard ic="calendar" tone="amber" label="Follow-ups due"       value={String(countOf('follow-up'))}    foot="Pending this week" />
+        <StatCard ic="alert"    tone="red"   label="Critical watch"       value={String(countOf('critical'))}     foot="Needs monitoring" />
       </div>
 
       <div className="table-card">
@@ -76,6 +112,10 @@ export default function PatientList() {
           </div>
         </div>
 
+        {error && (
+          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+        )}
+
         <table className="data">
           <thead>
             <tr>
@@ -91,34 +131,38 @@ export default function PatientList() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(p => (
-              <tr key={p.id}>
-                <td>
-                  <div className="cell-person">
-                    <div className={`av ${p.tone}`}>{p.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
-                    <div className="info">
-                      <div className="n">{p.name}</div>
-                      <div className="s">{p.email}</div>
+            {loading ? (
+              <LoadingSkeleton />
+            ) : (
+              filtered.map(p => (
+                <tr key={p.id}>
+                  <td>
+                    <div className="cell-person">
+                      <div className={`av ${p.tone}`}>{p.name.split(' ').map((w: string) => w[0]).join('').slice(0,2)}</div>
+                      <div className="info">
+                        <div className="n">{p.name}</div>
+                        <div className="s">{p.email}</div>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{p.id}</td>
-                <td>{p.age} · {p.gender}</td>
-                <td><Badge variant={(BG_VARIANTS[p.bg]??'muted') as any}>{p.bg}</Badge></td>
-                <td style={{fontSize:12}}>{p.phone}</td>
-                <td style={{fontSize:12}}>{p.last}</td>
-                <td>{p.visits}</td>
-                <td><PatientTagBadge tag={p.tag}/></td>
-                <td>
-                  <div className="row-actions">
-                    <button className="act" title="View" onClick={()=>setRoute('patient-view')}><Icon name="eye" size={14}/></button>
-                    <button className="act" title="Edit" onClick={()=>setRoute('patient-edit')}><Icon name="edit" size={14}/></button>
-                    <button className="act" title="More"><Icon name="more" size={14}/></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
+                  </td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{p.id}</td>
+                  <td>{p.age} · {p.gender}</td>
+                  <td><Badge variant={(BG_VARIANTS[p.bg]??'muted') as any}>{p.bg}</Badge></td>
+                  <td style={{fontSize:12}}>{p.phone}</td>
+                  <td style={{fontSize:12}}>{p.last}</td>
+                  <td>{p.visits}</td>
+                  <td><PatientTagBadge tag={p.tag}/></td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="act" title="View" onClick={()=>setRoute('patient-view')}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={()=>setRoute('patient-edit')}><Icon name="edit" size={14}/></button>
+                      <button className="act" title="More"><Icon name="more" size={14}/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+            {!loading && filtered.length === 0 && (
               <tr><td colSpan={9} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No patients found</td></tr>
             )}
           </tbody>

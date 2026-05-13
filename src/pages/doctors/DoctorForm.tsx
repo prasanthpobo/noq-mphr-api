@@ -1,28 +1,52 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
-import { CLINICS } from '@/data'
+import { doctorsService } from '@/services/doctors.service'
 
-type Mode = 'create' | 'view' | 'edit'
+type FormData = {
+  firstName: string
+  lastName: string
+  gender: string
+  dob: string
+  qual: string
+  exp: string
+  consultFee: string
+  followFee: string
+  mobile: string
+  email: string
+  clinic: string
+  address: string
+  bio: string
+  achieve: string
+  notes: string
+  // schedule fields
+  startTime: string
+  endTime: string
+  slotDur: string
+  maxTokens: string
+  breakStart: string
+  breakEnd: string
+}
 
-interface Props { mode: Mode }
+interface Props { id?: string; onClose?: () => void }
 
 const SPECS = ['General medicine','Cardiology','Dermatology','Pediatrics','Gynecology','Orthopedics','Neurology','Psychiatry','ENT','Ophthalmology','Dentistry','Oncology']
 const LANGS = ['English','Hindi','Tamil','Telugu','Kannada','Malayalam','Bengali']
 const DAYS  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 const SLOTS = ['5','10','15','20']
 
-function seg(label: string, opts: string[], val: string, set: (v:string)=>void, ro: boolean) {
+function seg(opts: string[], val: string, set: (v:string)=>void, ro: boolean) {
   if (ro) return <span className="ro-val">{val}</span>
   return (
     <div className="seg-ctrl">
-      {opts.map(o => <button key={o} className={val===o?'active':''} onClick={()=>set(o)}>{o}</button>)}
+      {opts.map(o => <button key={o} type="button" className={val===o?'active':''} onClick={()=>set(o)}>{o}</button>)}
     </div>
   )
 }
 
-function chips(label: string, opts: string[], sel: string[], toggle: (v:string)=>void, ro: boolean) {
+function chips(opts: string[], sel: string[], toggle: (v:string)=>void, ro: boolean) {
   if (ro) return (
     <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
       {sel.map(s=><span key={s} className="badge brand">{s}</span>)}
@@ -32,82 +56,96 @@ function chips(label: string, opts: string[], sel: string[], toggle: (v:string)=
   return (
     <div className="chip-lib">
       {opts.map(o=>(
-        <button key={o} className={`tag${sel.includes(o)?' selected':''}`} onClick={()=>toggle(o)}>{o}</button>
+        <button key={o} type="button" className={`tag${sel.includes(o)?' selected':''}`} onClick={()=>toggle(o)}>{o}</button>
       ))}
     </div>
   )
 }
 
-export default function DoctorForm({ mode }: Props) {
+export default function DoctorForm({ id, onClose }: Props) {
   const { setRoute } = useAppStore()
-  const ro = mode === 'view'
-  const isCreate = mode === 'create'
+  const isEdit = Boolean(id)
+  const ro = false
 
   const [tab, setTab] = useState(0)
-  const [firstName, setFirstName]   = useState(isCreate ? '' : 'Ananya')
-  const [lastName,  setLastName]    = useState(isCreate ? '' : 'Rao')
-  const [gender,    setGender]      = useState('F')
-  const [dob,       setDob]         = useState(isCreate ? '' : '1985-03-12')
-  const [qual,      setQual]        = useState(isCreate ? '' : 'MBBS, MD (General Medicine)')
-  const [specSel,   setSpecSel]     = useState<string[]>(isCreate ? [] : ['General medicine'])
-  const [exp,       setExp]         = useState(isCreate ? '' : '12')
-  const [consultFee,setConsultFee]  = useState(isCreate ? '' : '400')
-  const [followFee, setFollowFee]   = useState(isCreate ? '' : '250')
-  const [langSel,   setLangSel]     = useState<string[]>(isCreate ? [] : ['English','Hindi','Tamil'])
-  // schedule
+  const [gender, setGender] = useState('F')
+  const [specSel, setSpecSel] = useState<string[]>([])
+  const [langSel, setLangSel] = useState<string[]>([])
+  const [daysSel, setDaysSel] = useState<string[]>(['Mon','Tue','Wed','Thu','Fri'])
   const [schedActive, setSchedActive] = useState(true)
-  const [daysSel,   setDaysSel]     = useState<string[]>(['Mon','Tue','Wed','Thu','Fri'])
-  const [startTime, setStartTime]   = useState('09:00')
-  const [endTime,   setEndTime]     = useState('18:00')
-  const [slotDur,   setSlotDur]     = useState('15')
-  const [maxTokens, setMaxTokens]   = useState('30')
-  const [breakStart,setBreakStart]  = useState('13:00')
-  const [breakEnd,  setBreakEnd]    = useState('14:00')
-  // contact
-  const [mobile,    setMobile]      = useState(isCreate ? '' : '+91 98765 43210')
-  const [email,     setEmail]       = useState(isCreate ? '' : 'ananya.rao@noq.health')
-  const [clinic,    setClinic]      = useState(isCreate ? '' : 'Sunshine Clinic')
-  const [address,   setAddress]     = useState(isCreate ? '' : 'Koramangala, Bengaluru')
-  // about
-  const [bio,       setBio]         = useState(isCreate ? '' : 'Dr. Ananya Rao is a general physician with 12 years of clinical experience.')
-  const [achieve,   setAchieve]     = useState(isCreate ? '' : '')
-  const [notes,     setNotes]       = useState('')
+  const [slotDur, setSlotDur] = useState('15')
+  const [serverError, setServerError] = useState<string | null>(null)
+
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+    defaultValues: {
+      gender: 'F',
+      startTime: '09:00',
+      endTime: '18:00',
+      slotDur: '15',
+      maxTokens: '30',
+      breakStart: '13:00',
+      breakEnd: '14:00',
+    }
+  })
+
+  const firstName = watch('firstName') || ''
+  const lastName  = watch('lastName')  || ''
+  const consultFee = watch('consultFee') || ''
+  const exp = watch('exp') || ''
+  const clinic = watch('clinic') || ''
+  const startTime = watch('startTime') || '09:00'
+  const endTime = watch('endTime') || '18:00'
+
+  useEffect(() => {
+    if (isEdit && id) {
+      doctorsService.get(id)
+        .then(data => {
+          reset(data)
+          if (data.specSel)  setSpecSel(data.specSel)
+          if (data.langSel)  setLangSel(data.langSel)
+          if (data.daysSel)  setDaysSel(data.daysSel)
+          if (data.gender)   setGender(data.gender)
+        })
+        .catch(() => setServerError('Failed to load doctor data'))
+    }
+  }, [id])
 
   const toggleSpec = (v: string) => setSpecSel(s => s.includes(v) ? s.filter(x=>x!==v) : [...s,v])
   const toggleLang = (v: string) => setLangSel(s => s.includes(v) ? s.filter(x=>x!==v) : [...s,v])
   const toggleDay  = (v: string) => setDaysSel(s => s.includes(v) ? s.filter(x=>x!==v) : [...s,v])
 
-  const errors: string[] = []
-  if (!firstName.trim()) errors.push('First name')
-  if (!lastName.trim())  errors.push('Last name')
-  if (!qual.trim())      errors.push('Qualification')
-  if (specSel.length===0) errors.push('Specialization')
-  if (!exp.trim())       errors.push('Experience')
-  if (!consultFee.trim()) errors.push('Consultation fee')
+  const onSubmit = async (data: FormData) => {
+    try {
+      setServerError(null)
+      const payload = { ...data, gender, specSel, langSel, daysSel, schedActive }
+      if (isEdit) await doctorsService.update(id!, payload)
+      else await doctorsService.create(payload)
+      if (onClose) onClose()
+      else setRoute('doctors')
+    } catch (err: any) {
+      setServerError(err.response?.data?.message || 'Save failed')
+    }
+  }
 
-  const titleName = isCreate ? 'Create doctor' : mode==='edit' ? `Editing Dr. ${firstName} ${lastName}` : `Dr. ${firstName} ${lastName}`
-
+  const titleName = !isEdit ? 'Create doctor' : `Editing Dr. ${firstName} ${lastName}`
   const TABS = ['Profile','Schedule','Contact info','About doctor']
 
   return (
-    <div className="df-shell">
+    <form className="df-shell" onSubmit={handleSubmit(onSubmit)}>
       {/* Top strip */}
       <div className="df-tabs" style={{borderBottom:'1px solid var(--border)',padding:'0 20px',display:'flex',alignItems:'center',gap:12,minHeight:52}}>
-        <button className="btn btn-ghost btn-sm" onClick={()=>setRoute('doctors')}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setRoute('doctors')}>
           <Icon name="chevL" size={14}/> Back
         </button>
         <div style={{fontWeight:700,fontSize:15}}>{titleName}</div>
-        {!isCreate && <Badge variant={mode==='edit'?'warning':'success'} dot>{mode==='edit'?'Editing':'Active'}</Badge>}
-        <div style={{marginLeft:'auto',display:'flex',gap:8}}>
-          {mode==='view' && <button className="btn btn-primary btn-sm" onClick={()=>setRoute('doctor-edit')}><Icon name="edit" size={13}/>Edit</button>}
-          {mode==='view' && <button className="btn btn-secondary btn-sm"><Icon name="eye" size={13}/>Preview</button>}
-        </div>
+        {isEdit && <Badge variant="warning" dot>Editing</Badge>}
+        <div style={{marginLeft:'auto',display:'flex',gap:8}}/>
       </div>
 
       {/* Tabs */}
       <div className="df-tabs">
         {TABS.map((t,i)=>(
-          <button key={t} className={`df-tab${tab===i?' active':''}`} onClick={()=>setTab(i)}>{t}</button>
+          <button key={t} type="button" className={`df-tab${tab===i?' active':''}`} onClick={()=>setTab(i)}>{t}</button>
         ))}
       </div>
 
@@ -118,52 +156,59 @@ export default function DoctorForm({ mode }: Props) {
             <div className="grid-2" style={{gap:16}}>
               <div className="form-group">
                 <label className="form-label">First name *</label>
-                {ro ? <span className="ro-val">{firstName}</span> : <input className="form-input" value={firstName} onChange={e=>setFirstName(e.target.value)} placeholder="First name"/>}
+                <input className="form-input" placeholder="First name" {...register('firstName', { required: 'First name is required' })}/>
+                {errors.firstName && <span className="form-error">{errors.firstName.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Last name *</label>
-                {ro ? <span className="ro-val">{lastName}</span> : <input className="form-input" value={lastName} onChange={e=>setLastName(e.target.value)} placeholder="Last name"/>}
+                <input className="form-input" placeholder="Last name" {...register('lastName', { required: 'Last name is required' })}/>
+                {errors.lastName && <span className="form-error">{errors.lastName.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Gender</label>
-                {seg('Gender',['M','F','Other'],gender,setGender,ro)}
+                {seg(['M','F','Other'],gender,setGender,ro)}
               </div>
               <div className="form-group">
                 <label className="form-label">Date of birth</label>
-                {ro ? <span className="ro-val">{dob||'—'}</span> : <input className="form-input" type="date" value={dob} onChange={e=>setDob(e.target.value)}/>}
+                <input className="form-input" type="date" {...register('dob')}/>
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Qualification *</label>
-                {ro ? <span className="ro-val">{qual||'—'}</span> : <input className="form-input" value={qual} onChange={e=>setQual(e.target.value)} placeholder="e.g. MBBS, MD"/>}
+                <input className="form-input" placeholder="e.g. MBBS, MD" {...register('qual', { required: 'Qualification is required' })}/>
+                {errors.qual && <span className="form-error">{errors.qual.message}</span>}
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Specialization *</label>
-                {chips('Specialization',SPECS,specSel,toggleSpec,ro)}
+                {chips(SPECS, specSel, toggleSpec, ro)}
+                {specSel.length === 0 && <span className="form-error">Select at least one specialization</span>}
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Photo upload</label>
                 <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',border:'1px dashed var(--border)',borderRadius:8}}>
                   <div className="av xl pink" style={{flexShrink:0}}>{firstName?firstName[0]:'?'}{lastName?lastName[0]:''}</div>
                   <div>
-                    {ro ? <span className="ro-val">Photo on file</span> : <><button className="btn btn-secondary btn-sm"><Icon name="plus" size={12}/>Upload photo</button><div style={{fontSize:11,color:'var(--fg-muted)',marginTop:4}}>JPG, PNG up to 2 MB. Square recommended.</div></>}
+                    <button type="button" className="btn btn-secondary btn-sm"><Icon name="plus" size={12}/>Upload photo</button>
+                    <div style={{fontSize:11,color:'var(--fg-muted)',marginTop:4}}>JPG, PNG up to 2 MB. Square recommended.</div>
                   </div>
                 </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Experience (years) *</label>
-                {ro ? <span className="ro-val">{exp} yrs</span> : <input className="form-input" type="number" value={exp} onChange={e=>setExp(e.target.value)} placeholder="e.g. 12"/>}
+                <input className="form-input" type="number" placeholder="e.g. 12" {...register('exp', { required: 'Experience is required' })}/>
+                {errors.exp && <span className="form-error">{errors.exp.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Consultation fee (₹) *</label>
-                {ro ? <span className="ro-val">₹{consultFee}</span> : <input className="form-input" type="number" value={consultFee} onChange={e=>setConsultFee(e.target.value)} placeholder="e.g. 400"/>}
+                <input className="form-input" type="number" placeholder="e.g. 400" {...register('consultFee', { required: 'Consultation fee is required' })}/>
+                {errors.consultFee && <span className="form-error">{errors.consultFee.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Follow-up fee (₹)</label>
-                {ro ? <span className="ro-val">₹{followFee||'—'}</span> : <input className="form-input" type="number" value={followFee} onChange={e=>setFollowFee(e.target.value)} placeholder="e.g. 250"/>}
+                <input className="form-input" type="number" placeholder="e.g. 250" {...register('followFee')}/>
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Languages spoken</label>
-                {chips('Languages',LANGS,langSel,toggleLang,ro)}
+                {chips(LANGS, langSel, toggleLang, ro)}
               </div>
             </div>
           )}
@@ -172,49 +217,44 @@ export default function DoctorForm({ mode }: Props) {
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
               <div className="form-group">
                 <label className="form-label">Schedule active</label>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  {ro ? <span className="ro-val">{schedActive?'Active':'Inactive'}</span> : (
-                    <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
-                      <input type="checkbox" checked={schedActive} onChange={e=>setSchedActive(e.target.checked)} style={{width:16,height:16}}/>
-                      <span style={{fontSize:13}}>{schedActive?'Active':'Inactive'}</span>
-                    </label>
-                  )}
-                </div>
+                <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
+                  <input type="checkbox" checked={schedActive} onChange={e=>setSchedActive(e.target.checked)} style={{width:16,height:16}}/>
+                  <span style={{fontSize:13}}>{schedActive?'Active':'Inactive'}</span>
+                </label>
               </div>
               <div className="form-group">
                 <label className="form-label">Working days</label>
                 <div className="day-pips">
                   {DAYS.map(d=>(
-                    <button key={d} className={`day-pip${daysSel.includes(d)?' active':''}`}
-                      onClick={()=>!ro&&toggleDay(d)}
-                      style={{cursor:ro?'default':'pointer'}}>{d}</button>
+                    <button key={d} type="button" className={`day-pip${daysSel.includes(d)?' active':''}`}
+                      onClick={()=>toggleDay(d)}>{d}</button>
                   ))}
                 </div>
               </div>
               <div className="grid-2" style={{gap:16}}>
                 <div className="form-group">
                   <label className="form-label">Start time</label>
-                  {ro ? <span className="ro-val">{startTime}</span> : <input className="form-input" type="time" value={startTime} onChange={e=>setStartTime(e.target.value)}/>}
+                  <input className="form-input" type="time" {...register('startTime')}/>
                 </div>
                 <div className="form-group">
                   <label className="form-label">End time</label>
-                  {ro ? <span className="ro-val">{endTime}</span> : <input className="form-input" type="time" value={endTime} onChange={e=>setEndTime(e.target.value)}/>}
+                  <input className="form-input" type="time" {...register('endTime')}/>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Slot duration (min)</label>
-                  {seg('Slot',SLOTS,slotDur,setSlotDur,ro)}
+                  {seg(SLOTS,slotDur,setSlotDur,ro)}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Max tokens</label>
-                  {ro ? <span className="ro-val">{maxTokens}</span> : <input className="form-input" type="number" value={maxTokens} onChange={e=>setMaxTokens(e.target.value)}/>}
+                  <input className="form-input" type="number" {...register('maxTokens')}/>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Break start</label>
-                  {ro ? <span className="ro-val">{breakStart}</span> : <input className="form-input" type="time" value={breakStart} onChange={e=>setBreakStart(e.target.value)}/>}
+                  <input className="form-input" type="time" {...register('breakStart')}/>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Break end</label>
-                  {ro ? <span className="ro-val">{breakEnd}</span> : <input className="form-input" type="time" value={breakEnd} onChange={e=>setBreakEnd(e.target.value)}/>}
+                  <input className="form-input" type="time" {...register('breakEnd')}/>
                 </div>
               </div>
             </div>
@@ -224,24 +264,19 @@ export default function DoctorForm({ mode }: Props) {
             <div className="grid-2" style={{gap:16}}>
               <div className="form-group">
                 <label className="form-label">Mobile</label>
-                {ro ? <span className="ro-val">{mobile||'—'}</span> : <input className="form-input" value={mobile} onChange={e=>setMobile(e.target.value)} placeholder="+91 XXXXX XXXXX"/>}
+                <input className="form-input" placeholder="+91 XXXXX XXXXX" {...register('mobile')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Email</label>
-                {ro ? <span className="ro-val">{email||'—'}</span> : <input className="form-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="doctor@noq.health"/>}
+                <input className="form-input" type="email" placeholder="doctor@noq.health" {...register('email')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Clinic</label>
-                {ro ? <span className="ro-val">{clinic||'—'}</span> : (
-                  <select className="form-select" value={clinic} onChange={e=>setClinic(e.target.value)}>
-                    <option value="">Select clinic</option>
-                    {CLINICS.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
-                  </select>
-                )}
+                <input className="form-input" placeholder="Clinic name" {...register('clinic')}/>
               </div>
               <div className="form-group" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Address</label>
-                {ro ? <span className="ro-val">{address||'—'}</span> : <textarea className="form-textarea" value={address} onChange={e=>setAddress(e.target.value)} rows={3} placeholder="Full address"/>}
+                <textarea className="form-textarea" rows={3} placeholder="Full address" {...register('address')}/>
               </div>
             </div>
           )}
@@ -249,16 +284,16 @@ export default function DoctorForm({ mode }: Props) {
           {tab===3 && (
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
               <div className="form-group">
-                <label className="form-label">Bio <span style={{color:'var(--fg-muted)',fontWeight:400}}>({bio.length}/600)</span></label>
-                {ro ? <span className="ro-val">{bio||'—'}</span> : <textarea className="form-textarea" value={bio} maxLength={600} onChange={e=>setBio(e.target.value)} rows={4} placeholder="Brief professional bio…"/>}
+                <label className="form-label">Bio</label>
+                <textarea className="form-textarea" rows={4} maxLength={600} placeholder="Brief professional bio…" {...register('bio')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Achievements</label>
-                {ro ? <span className="ro-val">{achieve||'—'}</span> : <textarea className="form-textarea" value={achieve} onChange={e=>setAchieve(e.target.value)} rows={3} placeholder="Awards, publications…"/>}
+                <textarea className="form-textarea" rows={3} placeholder="Awards, publications…" {...register('achieve')}/>
               </div>
               <div className="form-group">
                 <label className="form-label">Internal notes</label>
-                {ro ? <span className="ro-val">{notes||'—'}</span> : <textarea className="form-textarea" value={notes} onChange={e=>setNotes(e.target.value)} rows={3} placeholder="Internal staff notes (not visible to patient)"/>}
+                <textarea className="form-textarea" rows={3} placeholder="Internal staff notes (not visible to patient)" {...register('notes')}/>
               </div>
             </div>
           )}
@@ -303,7 +338,7 @@ export default function DoctorForm({ mode }: Props) {
               <div className="day-pips" style={{marginBottom:8}}>
                 {DAYS.map(d=><span key={d} className={`day-pip${daysSel.includes(d)?' active':''}`}>{d}</span>)}
               </div>
-              <div style={{color:'var(--fg-secondary)'}}>{startTime} – {endTime} · {slotDur} min slots · Max {maxTokens}</div>
+              <div style={{color:'var(--fg-secondary)'}}>{startTime} – {endTime} · {slotDur} min slots</div>
             </div>
           </div>
 
@@ -318,17 +353,18 @@ export default function DoctorForm({ mode }: Props) {
 
       {/* Footer */}
       <div className="df-footer">
-        <div style={{fontSize:12,color:errors.length>0?'var(--danger)':'var(--success)',display:'flex',alignItems:'center',gap:6}}>
-          <Icon name={errors.length>0?'alert':'check'} size={14}/>
-          {errors.length>0 ? `${errors.length} field${errors.length>1?'s':''} need attention` : 'All required fields filled'}
-        </div>
+        {serverError && (
+          <div style={{fontSize:12,color:'var(--danger)',display:'flex',alignItems:'center',gap:6}}>
+            <Icon name="alert" size={14}/> {serverError}
+          </div>
+        )}
         <div style={{marginLeft:'auto',display:'flex',gap:8}}>
-          <button className="btn btn-secondary" onClick={()=>setRoute('doctors')}>Cancel</button>
-          <button className="btn btn-primary" disabled={isCreate && errors.length>0}>
-            {isCreate ? 'Create doctor' : 'Update doctor'}
+          <button type="button" className="btn btn-secondary" onClick={()=>setRoute('doctors')}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : isEdit ? 'Update doctor' : 'Create doctor'}
           </button>
         </div>
       </div>
-    </div>
+    </form>
   )
 }

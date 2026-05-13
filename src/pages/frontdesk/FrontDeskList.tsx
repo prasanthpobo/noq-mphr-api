@@ -1,29 +1,76 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Badge, { UserStatusBadge } from '@/components/ui/Badge'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { FRONT_DESK } from '@/data'
+import { frontdeskService } from '@/services/frontdesk.service'
 
 const ROLE_VARIANTS: Record<string,string> = {
   'Lead receptionist':'indigo','Front desk admin':'brand','Senior receptionist':'blue',
   Receptionist:'muted',Trainee:'amber'
 }
 
+function LoadingSkeleton() {
+  return (
+    <>
+      {[1, 2, 3].map(i => (
+        <tr key={i}>
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(j => (
+            <td key={j}>
+              <div style={{ height: 16, background: 'var(--bg-section)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
 export default function FrontDeskList() {
   const { setRoute } = useAppStore()
   const [search, setSearch] = useState('')
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = FRONT_DESK.filter(fd=>{
-    const q = search.toLowerCase()
-    return !q || fd.name.toLowerCase().includes(q) || fd.id.toLowerCase().includes(q) || fd.role.toLowerCase().includes(q)
-  })
+  const load = async (q?: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const params: Record<string, string> = {}
+      if (q) params.search = q
+      const data = await frontdeskService.list(params)
+      setItems(data)
+    } catch {
+      setError('Failed to load front desk staff')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const total   = FRONT_DESK.length
-  const active  = FRONT_DESK.filter(fd=>fd.status==='active').length
-  const onLeave = FRONT_DESK.filter(fd=>fd.status==='on-leave').length
-  const clinics = new Set(FRONT_DESK.map(fd=>fd.clinic)).size
+  useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => load(search), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this staff member?')) return
+    try {
+      await frontdeskService.remove(id)
+      load(search)
+    } catch {
+      setError('Failed to delete staff member')
+    }
+  }
+
+  const filtered = items
+  const total   = items.length
+  const active  = items.filter(fd => fd.status === 'active').length
+  const onLeave = items.filter(fd => fd.status === 'on-leave').length
+  const clinics = new Set(items.map(fd => fd.clinic)).size
 
   return (
     <div className="main">
@@ -49,6 +96,10 @@ export default function FrontDeskList() {
           </div>
         </div>
 
+        {error && (
+          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+        )}
+
         <table className="data">
           <thead>
             <tr>
@@ -63,33 +114,39 @@ export default function FrontDeskList() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(fd=>(
-              <tr key={fd.id}>
-                <td>
-                  <div className="cell-person">
-                    <div className={`av ${fd.tone}`}>{fd.av}</div>
-                    <div className="info">
-                      <div className="n">{fd.name}</div>
-                      <div className="s">{fd.email}</div>
+            {loading ? (
+              <LoadingSkeleton />
+            ) : (
+              filtered.map(fd=>(
+                <tr key={fd.id}>
+                  <td>
+                    <div className="cell-person">
+                      <div className={`av ${fd.tone}`}>{fd.av}</div>
+                      <div className="info">
+                        <div className="n">{fd.name}</div>
+                        <div className="s">{fd.email}</div>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{fd.id}</td>
-                <td><Badge variant={(ROLE_VARIANTS[fd.role]??'muted') as any}>{fd.role}</Badge></td>
-                <td style={{fontSize:12}}>{fd.clinic}</td>
-                <td style={{fontSize:12}}>{fd.shift}</td>
-                <td style={{fontSize:12}}>{fd.phone}</td>
-                <td><UserStatusBadge status={fd.status}/></td>
-                <td>
-                  <div className="row-actions">
-                    <button className="act" title="View" onClick={()=>setRoute('fd-view')}><Icon name="eye" size={14}/></button>
-                    <button className="act" title="Edit" onClick={()=>setRoute('fd-edit')}><Icon name="edit" size={14}/></button>
-                    <button className="act" title="More"><Icon name="more" size={14}/></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filtered.length===0&&<tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No staff found</td></tr>}
+                  </td>
+                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{fd.id}</td>
+                  <td><Badge variant={(ROLE_VARIANTS[fd.role]??'muted') as any}>{fd.role}</Badge></td>
+                  <td style={{fontSize:12}}>{fd.clinic}</td>
+                  <td style={{fontSize:12}}>{fd.shift}</td>
+                  <td style={{fontSize:12}}>{fd.phone}</td>
+                  <td><UserStatusBadge status={fd.status}/></td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="act" title="View" onClick={()=>setRoute('fd-view')}><Icon name="eye" size={14}/></button>
+                      <button className="act" title="Edit" onClick={()=>setRoute('fd-edit')}><Icon name="edit" size={14}/></button>
+                      <button className="act danger" title="Delete" onClick={() => handleDelete(fd.id)}><Icon name="trash" size={14}/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+            {!loading && filtered.length===0 && (
+              <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No staff found</td></tr>
+            )}
           </tbody>
         </table>
       </div>

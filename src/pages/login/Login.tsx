@@ -1,40 +1,43 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import Icon from '@/components/ui/Icon'
 
 export default function LoginPage() {
-  const { setAuthed } = useAppStore()
+  const { setAuthed, setRoute } = useAppStore()
+  const { user, loading, error, login, clearError } = useAuthStore()
 
-  const [email, setEmail]         = useState('')
-  const [password, setPassword]   = useState('')
-  const [showPw, setShowPw]       = useState(false)
-  const [keepMe, setKeepMe]       = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState('')
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [showPw, setShowPw]     = useState(false)
+  const [keepMe, setKeepMe]     = useState(false)
 
-  const handleSignIn = (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    if (!email || !password) {
-      setError('Please enter your email and password.')
-      return
-    }
-
-    setLoading(true)
-    // Simulate network delay then log in
-    setTimeout(() => {
-      setLoading(false)
+  // If already logged in on mount, redirect to dashboard
+  useEffect(() => {
+    if (user) {
       setAuthed(true)
-    }, 600)
+      setRoute('dashboard')
+    }
+  }, [user, setAuthed, setRoute])
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    clearError()
+
+    if (!email || !password) return
+
+    await login(email, password)
+
+    // After login attempt, check if user is now set
+    const currentUser = useAuthStore.getState().user
+    if (currentUser) {
+      setAuthed(true)
+      setRoute('dashboard')
+    }
   }
 
   const handleSso = () => {
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      setAuthed(true)
-    }, 600)
+    // SSO not yet implemented on backend — kept as stub
   }
 
   return (
