@@ -1,5 +1,6 @@
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 
 type NavItem = { k: string; l: string; ic: string; badge?: number }
 type NavGroup = { g: string; items: NavItem[] }
@@ -41,8 +42,29 @@ const NAV: NavGroup[] = [
   ]},
 ]
 
+const ROLE_LABELS: Record<string, string> = {
+  super_admin:  'Super Admin',
+  clinic_admin: 'Clinic Admin',
+  doctor:       'Doctor',
+  nurse:        'Nurse',
+  frontdesk:    'Front Desk',
+  pharmacist:   'Pharmacist',
+  lab_tech:     'Lab Tech',
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
 export default function Sidebar() {
   const { route, setRoute, setLogoutOpen } = useAppStore()
+  const user = useAuthStore(s => s.user)
+
+  const displayName = user?.name ?? 'Unknown User'
+  const displayRole = user ? (ROLE_LABELS[user.role] ?? user.role) : 'Guest'
+  const initials    = user ? getInitials(user.name) : '??'
 
   return (
     <aside className="sidebar">
@@ -79,10 +101,10 @@ export default function Sidebar() {
 
       <div className="sidebar-footer">
         <div className="sidebar-user" onClick={() => setRoute('profile')} style={{ cursor: 'pointer' }}>
-          <div className="av blue">RA</div>
+          <div className="av blue">{initials}</div>
           <div className="who">
-            <div className="n">Reena Aggarwal</div>
-            <div className="r">Reception · Admin</div>
+            <div className="n">{displayName}</div>
+            <div className="r">{displayRole}</div>
           </div>
           <button
             style={{ marginLeft: 'auto', padding: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg-secondary)', borderRadius: 6 }}

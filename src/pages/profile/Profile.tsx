@@ -1,99 +1,58 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import Icon from '@/components/ui/Icon'
+import { toast } from '@/store/toast'
+import api from '@/lib/axios'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'info' | 'contact' | 'preferences' | 'permissions' | 'activity'
-type ThemeOption = 'Light' | 'Dark' | 'System'
+type Tab = 'info' | 'contact' | 'preferences' | 'permissions' | 'security'
+
+type ThemeOption   = 'Light' | 'Dark' | 'System'
 type DensityOption = 'Compact' | 'Default' | 'Comfortable'
 
-interface ProfileData {
-  // Identity
-  firstName: string
-  lastName: string
-  dob: string
-  gender: string
-  bloodGroup: string
-  // Employment
-  employeeId: string
-  designation: string
-  role: string
-  joined: string
-  clinic: string
-  shift: string
-  // About
-  bio: string
-  // Contact
-  email: string
-  mobile: string
-  altPhone: string
-  street: string
-  city: string
-  state: string
-  pin: string
-  emergencyName: string
-  emergencyPhone: string
-  emergencyRel: string
-  // Preferences
-  languages: string[]
-  timezone: string
-  theme: ThemeOption
-  density: DensityOption
-  notifEmail: boolean
-  notifSms: boolean
+interface ProfileForm {
+  firstName:  string
+  lastName:   string
+  phone:      string
+  // Preferences (local only — no backend model for these yet)
+  languages:  string[]
+  timezone:   string
+  theme:      ThemeOption
+  density:    DensityOption
+  notifEmail:   boolean
+  notifSms:     boolean
   notifDesktop: boolean
-  notifDigest: boolean
+  notifDigest:  boolean
 }
 
-interface Permission {
-  module: string
-  granted: boolean
+interface Permission { module: string; granted: boolean }
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const ALL_LANGS: string[] = ['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Marathi', 'Bengali', 'Gujarati']
+const TIMEZONES: string[] = [
+  'Asia/Kolkata (IST, UTC+5:30)',
+  'Asia/Dubai (GST, UTC+4)',
+  'Asia/Singapore (SGT, UTC+8)',
+  'Europe/London (BST, UTC+1)',
+  'America/New_York (EDT, UTC-4)',
+]
+const THEMES:    ThemeOption[]    = ['Light', 'Dark', 'System']
+const DENSITIES: DensityOption[]  = ['Compact', 'Default', 'Comfortable']
+
+const ROLE_LABELS: Record<string, string> = {
+  super_admin:  'Super Admin',
+  clinic_admin: 'Clinic Admin',
+  doctor:       'Doctor',
+  nurse:        'Nurse',
+  frontdesk:    'Front Desk',
+  pharmacist:   'Pharmacist',
+  lab_tech:     'Lab Tech',
 }
 
-interface ActivityRow {
-  time: string
-  event: string
-  device: string
-  ip: string
-}
-
-// ─── Static seed data ─────────────────────────────────────────────────────────
-
-const INITIAL: ProfileData = {
-  firstName: 'Reena',
-  lastName: 'Aggarwal',
-  dob: '1992-03-14',
-  gender: 'F',
-  bloodGroup: 'B+',
-  employeeId: 'FD-001',
-  designation: 'Lead Receptionist',
-  role: 'Reception',
-  joined: '2022-03-01',
-  clinic: 'Sunshine Clinic',
-  shift: 'Morning',
-  bio: 'Experienced front-desk professional with 4+ years in clinic administration. Specialises in patient intake, token management and scheduling.',
-  email: 'reena.aggarwal@sunshine.clinic',
-  mobile: '+91 98765 43210',
-  altPhone: '+91 11 2345 6789',
-  street: '12-B, Sector 18, Noida',
-  city: 'Noida',
-  state: 'Uttar Pradesh',
-  pin: '201301',
-  emergencyName: 'Amit Aggarwal',
-  emergencyPhone: '+91 98100 00001',
-  emergencyRel: 'Spouse',
-  languages: ['English', 'Hindi'],
-  timezone: 'Asia/Kolkata (IST, UTC+5:30)',
-  theme: 'Light',
-  density: 'Default',
-  notifEmail: true,
-  notifSms: true,
-  notifDesktop: false,
-  notifDigest: true,
-}
-
-const INITIAL_PERMS: Permission[] = [
+const DEFAULT_PERMS: Permission[] = [
   { module: 'Bookings',    granted: true  },
   { module: 'Tokens',      granted: true  },
   { module: 'Patients',    granted: true  },
@@ -108,28 +67,30 @@ const INITIAL_PERMS: Permission[] = [
   { module: 'Master Data', granted: false },
 ]
 
-const ACTIVITY: ActivityRow[] = [
-  { time: '13 May 2026, 09:14 AM', event: 'Signed in from Chrome / Windows',          device: 'Chrome 124 · Windows 11',    ip: '103.21.45.200' },
-  { time: '12 May 2026, 05:32 PM', event: 'Updated patient record #PAT-2891',           device: 'Chrome 124 · Windows 11',    ip: '103.21.45.200' },
-  { time: '12 May 2026, 11:00 AM', event: 'Issued token T-042 for Dr Sharma',           device: 'Chrome 124 · Windows 11',    ip: '103.21.45.200' },
-  { time: '10 May 2026, 02:15 PM', event: 'Profile info updated',                       device: 'Safari · iPhone 15 Pro',     ip: '49.36.100.12'  },
-  { time: '09 May 2026, 09:01 AM', event: 'Signed in from Safari / iOS',                device: 'Safari · iPhone 15 Pro',     ip: '49.36.100.12'  },
-  { time: '07 May 2026, 04:44 PM', event: 'Password changed',                           device: 'Chrome 124 · Windows 11',    ip: '103.21.45.200' },
-  { time: '06 May 2026, 10:30 AM', event: 'Billing entry #INV-7821 raised',             device: 'Chrome 124 · Windows 11',    ip: '103.21.45.200' },
-  { time: '01 May 2026, 08:55 AM', event: '2FA enabled for account',                   device: 'Chrome 124 · Windows 11',    ip: '103.21.45.200' },
+const TABS: { k: Tab; l: string; sub: string }[] = [
+  { k: 'info',        l: 'Profile info',    sub: 'Name & identity'            },
+  { k: 'contact',     l: 'Contact',         sub: 'Phone & account details'    },
+  { k: 'preferences', l: 'Preferences',     sub: 'Language, theme & alerts'   },
+  { k: 'permissions', l: 'Permissions',     sub: 'Module access'              },
+  { k: 'security',    l: 'Security',        sub: 'Password & 2FA'             },
 ]
 
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']
-const GENDERS      = [{ v: 'M', l: 'Male' }, { v: 'F', l: 'Female' }, { v: 'Other', l: 'Other' }]
-const SHIFTS       = ['Morning', 'Afternoon', 'Evening', 'Night', 'Rotational']
-const ALL_LANGS    = ['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Marathi', 'Bengali', 'Gujarati']
-const TIMEZONES    = ['Asia/Kolkata (IST, UTC+5:30)', 'Asia/Dubai (GST, UTC+4)', 'Asia/Singapore (SGT, UTC+8)', 'Europe/London (BST, UTC+1)', 'America/New_York (EDT, UTC-4)']
-const THEMES: ThemeOption[]    = ['Light', 'Dark', 'System']
-const DENSITIES: DensityOption[] = ['Compact', 'Default', 'Comfortable']
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ─── Small helpers ────────────────────────────────────────────────────────────
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
 
-function RoVal({ v, muted = false }: { v: string; muted?: boolean }) {
+function splitName(full: string) {
+  const parts = full.trim().split(/\s+/)
+  const first = parts[0] ?? ''
+  const last  = parts.slice(1).join(' ')
+  return { first, last }
+}
+
+function RoVal({ v, muted = false }: { v?: string; muted?: boolean }) {
   return <span className="ro-val" style={muted ? { color: 'var(--fg-muted)' } : undefined}>{v || '—'}</span>
 }
 
@@ -144,25 +105,18 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
-function SectionTitle({ title, action }: { title: string; action?: React.ReactNode }) {
+function SectionTitle({ title }: { title: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, marginTop: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 3, height: 16, borderRadius: 2, background: 'var(--brand-gradient)' }} />
-        <span style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--fg-secondary)' }}>
-          {title}
-        </span>
-      </div>
-      {action}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, marginTop: 4 }}>
+      <div style={{ width: 3, height: 16, borderRadius: 2, background: 'var(--brand-gradient)' }} />
+      <span style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--fg-secondary)' }}>
+        {title}
+      </span>
     </div>
   )
 }
 
-function Divider() {
-  return <hr className="section-divider" />
-}
-
-// ─── Toggle switch ────────────────────────────────────────────────────────────
+function Divider() { return <hr className="section-divider" /> }
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -176,8 +130,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
         style={{
           width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer',
           background: checked ? 'var(--teal-600)' : 'var(--ink-200)',
-          position: 'relative', transition: 'background 140ms',
-          flexShrink: 0,
+          position: 'relative', transition: 'background 140ms', flexShrink: 0,
         }}
       >
         <span style={{
@@ -191,8 +144,6 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
   )
 }
 
-// ─── Segmented control ────────────────────────────────────────────────────────
-
 function Seg<T extends string>({ options, value, onChange }: { options: T[]; value: T; onChange: (v: T) => void }) {
   return (
     <div className="seg-ctrl">
@@ -205,43 +156,80 @@ function Seg<T extends string>({ options, value, onChange }: { options: T[]; val
   )
 }
 
-// ─── Tab definitions ──────────────────────────────────────────────────────────
-
-const TABS: { k: Tab; l: string; sub: string }[] = [
-  { k: 'info',        l: 'Profile info',    sub: 'Identity & employment'  },
-  { k: 'contact',     l: 'Contact',         sub: 'Phone, address & emergency' },
-  { k: 'preferences', l: 'Preferences',     sub: 'Language, theme & notifications' },
-  { k: 'permissions', l: 'Permissions',     sub: 'Module access & 2FA' },
-  { k: 'activity',    l: 'Recent activity', sub: 'Login history & audit' },
-]
-
-// ─── Profile page ─────────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { setRoute } = useAppStore()
-  const [tab, setTab]   = useState<Tab>('info')
+  const { setRoute }             = useAppStore()
+  const { user, fetchMe, updateProfile } = useAuthStore()
+
+  const [tab,  setTab]  = useState<Tab>('info')
   const [edit, setEdit] = useState(false)
-  const [form, setForm] = useState<ProfileData>(INITIAL)
-  const [draft, setDraft] = useState<ProfileData>(INITIAL)
-  const [perms, setPerms] = useState<Permission[]>(INITIAL_PERMS)
-  const [twoFa, setTwoFa] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [perms, setPerms]   = useState<Permission[]>(DEFAULT_PERMS)
+  const [twoFa, setTwoFa]   = useState(false)
 
-  const fullName = `${form.firstName} ${form.lastName}`
+  // Password change
+  const [pwOld, setPwOld] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwCnf, setPwCnf] = useState('')
+  const [pwErr, setPwErr] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
 
-  // Patch a single field in draft
-  const set = <K extends keyof ProfileData>(k: K, v: ProfileData[K]) =>
-    setDraft(d => ({ ...d, [k]: v }))
+  const buildForm = useCallback((): ProfileForm => {
+    const { first, last } = splitName(user?.name ?? '')
+    return {
+      firstName:    first,
+      lastName:     last,
+      phone:        user?.phone ?? '',
+      languages:    ['English'],
+      timezone:     'Asia/Kolkata (IST, UTC+5:30)',
+      theme:        'Light',
+      density:      'Default',
+      notifEmail:   true,
+      notifSms:     true,
+      notifDesktop: false,
+      notifDigest:  true,
+    }
+  }, [user])
 
-  const startEdit = () => { setDraft(form); setEdit(true) }
-  const cancelEdit = () => { setDraft(form); setEdit(false) }
-  const saveEdit = () => { setForm(draft); setEdit(false) }
+  const [form,  setForm]  = useState<ProfileForm>(buildForm)
+  const [draft, setDraft] = useState<ProfileForm>(buildForm)
 
-  // Escape to cancel
+  // Refresh user from server on mount and re-sync form when user changes
+  useEffect(() => { fetchMe() }, [fetchMe])
+  useEffect(() => {
+    const f = buildForm()
+    setForm(f)
+    setDraft(f)
+  }, [buildForm])
+
+  // Escape to cancel edit
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && edit) cancelEdit() }
     document.addEventListener('keydown', h)
     return () => document.removeEventListener('keydown', h)
   }, [edit])
+
+  const set = <K extends keyof ProfileForm>(k: K, v: ProfileForm[K]) =>
+    setDraft(d => ({ ...d, [k]: v }))
+
+  const startEdit  = () => { setDraft(form); setEdit(true) }
+  const cancelEdit = () => { setDraft(form); setEdit(false) }
+
+  const saveEdit = async () => {
+    setSaving(true)
+    try {
+      const fullName = [draft.firstName.trim(), draft.lastName.trim()].filter(Boolean).join(' ')
+      await updateProfile({ name: fullName, phone: draft.phone || undefined })
+      setForm(draft)
+      setEdit(false)
+      toast.success('Profile updated')
+    } catch (err: any) {
+      toast.error(err.message || 'Update failed')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const toggleLang = (lang: string) => {
     const cur = draft.languages
@@ -251,112 +239,73 @@ export default function ProfilePage() {
     }))
   }
 
-  const togglePerm = (module: string) => {
-    setPerms(ps => ps.map(p => p.module === module ? { ...p, granted: !p.granted } : p))
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPwErr('')
+    if (pwNew !== pwCnf) { setPwErr('New passwords do not match'); return }
+    if (pwNew.length < 6) { setPwErr('Password must be at least 6 characters'); return }
+    setPwSaving(true)
+    try {
+      await api.put('/auth/change-password', { oldPassword: pwOld, newPassword: pwNew })
+      setPwOld(''); setPwNew(''); setPwCnf('')
+      toast.success('Password changed successfully')
+    } catch (err: any) {
+      setPwErr(err.response?.data?.message || 'Failed to change password')
+    } finally {
+      setPwSaving(false)
+    }
   }
+
+  const fullName   = user?.name ?? 'Unknown User'
+  const initials   = user ? getInitials(user.name) : '??'
+  const roleLabel  = user ? (ROLE_LABELS[user.role] ?? user.role) : '—'
+  const joinedDate = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—'
 
   // ── Render helpers ──────────────────────────────────────────────────────────
 
-  const inp = (k: keyof ProfileData, placeholder?: string) => (
+  const inp = (k: keyof ProfileForm, placeholder?: string) =>
     edit
       ? <input
           className="form-input"
           value={draft[k] as string}
-          onChange={e => set(k, e.target.value as ProfileData[typeof k])}
+          onChange={e => set(k, e.target.value as any)}
           placeholder={placeholder}
           style={{ fontSize: 13.5 }}
         />
       : <RoVal v={form[k] as string} />
-  )
 
-  const ta = (k: keyof ProfileData) => (
-    edit
-      ? <textarea
-          className="form-input form-textarea"
-          value={draft[k] as string}
-          onChange={e => set(k, e.target.value as ProfileData[typeof k])}
-          style={{ fontSize: 13.5 }}
-        />
-      : <RoVal v={form[k] as string} />
-  )
-
-  // ── Tab content ─────────────────────────────────────────────────────────────
+  // ── Tab panels ──────────────────────────────────────────────────────────────
 
   function TabInfo() {
     return (
       <div style={{ maxWidth: 660, display: 'flex', flexDirection: 'column', gap: 0 }}>
-        {/* Identity */}
         <SectionTitle title="Identity" />
-        <FieldRow label="First name">{inp('firstName')}</FieldRow>
-        <FieldRow label="Last name">{inp('lastName')}</FieldRow>
-        <FieldRow label="Date of birth">{inp('dob', 'YYYY-MM-DD')}</FieldRow>
-        <FieldRow label="Gender">
-          {edit
-            ? (
-              <div style={{ display: 'flex', gap: 8 }}>
-                {GENDERS.map(g => (
-                  <button
-                    key={g.v}
-                    type="button"
-                    className="chip"
-                    style={draft.gender === g.v ? { background: 'var(--brand-gradient)', color: 'white', borderColor: 'transparent' } : {}}
-                    onClick={() => set('gender', g.v)}
-                  >{g.l}</button>
-                ))}
-              </div>
-            )
-            : <RoVal v={GENDERS.find(g => g.v === form.gender)?.l ?? form.gender} />
-          }
-        </FieldRow>
-        <FieldRow label="Blood group">
-          {edit
-            ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {BLOOD_GROUPS.map(bg => (
-                  <button
-                    key={bg}
-                    type="button"
-                    className="chip"
-                    style={draft.bloodGroup === bg ? { background: 'var(--brand-gradient)', color: 'white', borderColor: 'transparent' } : {}}
-                    onClick={() => set('bloodGroup', bg)}
-                  >{bg}</button>
-                ))}
-              </div>
-            )
-            : <span className="badge red"><span className="d" />  {form.bloodGroup}</span>
-          }
-        </FieldRow>
+        <FieldRow label="First name">{inp('firstName', 'First name')}</FieldRow>
+        <FieldRow label="Last name">{inp('lastName', 'Last name')}</FieldRow>
+        <FieldRow label="Full name"><RoVal v={fullName} /></FieldRow>
 
         <Divider />
 
-        {/* Employment */}
-        <SectionTitle title="Employment" />
-        <FieldRow label="Employee ID"><RoVal v={form.employeeId} /></FieldRow>
-        <FieldRow label="Designation">{inp('designation')}</FieldRow>
-        <FieldRow label="Role">{inp('role')}</FieldRow>
+        <SectionTitle title="Account" />
+        <FieldRow label="User ID">
+          <span className="ro-val" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-muted)' }}>
+            {user?.id ?? '—'}
+          </span>
+        </FieldRow>
+        <FieldRow label="Role">
+          <span className="badge info">{roleLabel}</span>
+        </FieldRow>
+        <FieldRow label="Status">
+          <span className={`badge ${user?.status === 'active' ? 'success' : 'warning'}`}>
+            <span className="d" />
+            {user?.status ?? '—'}
+          </span>
+        </FieldRow>
         <FieldRow label="Joined">
-          {edit
-            ? <input className="form-input" type="date" value={draft.joined} onChange={e => set('joined', e.target.value)} style={{ fontSize: 13.5 }} />
-            : <RoVal v={new Date(form.joined).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} />
-          }
+          <RoVal v={joinedDate} />
         </FieldRow>
-        <FieldRow label="Clinic">{inp('clinic')}</FieldRow>
-        <FieldRow label="Shift">
-          {edit
-            ? (
-              <select className="form-select" value={draft.shift} onChange={e => set('shift', e.target.value)} style={{ fontSize: 13.5 }}>
-                {SHIFTS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            )
-            : <span className="badge info">{form.shift}</span>
-          }
-        </FieldRow>
-
-        <Divider />
-
-        {/* About */}
-        <SectionTitle title="About" />
-        <FieldRow label="Bio">{ta('bio')}</FieldRow>
       </div>
     )
   }
@@ -365,24 +314,13 @@ export default function ProfilePage() {
     return (
       <div style={{ maxWidth: 660, display: 'flex', flexDirection: 'column', gap: 0 }}>
         <SectionTitle title="Contact details" />
-        <FieldRow label="Email">{inp('email', 'work@clinic.in')}</FieldRow>
-        <FieldRow label="Mobile">{inp('mobile', '+91 ...')}</FieldRow>
-        <FieldRow label="Alt phone">{inp('altPhone', 'Optional')}</FieldRow>
-
-        <Divider />
-
-        <SectionTitle title="Address" />
-        <FieldRow label="Street">{inp('street')}</FieldRow>
-        <FieldRow label="City">{inp('city')}</FieldRow>
-        <FieldRow label="State">{inp('state')}</FieldRow>
-        <FieldRow label="PIN code">{inp('pin')}</FieldRow>
-
-        <Divider />
-
-        <SectionTitle title="Emergency contact" />
-        <FieldRow label="Full name">{inp('emergencyName')}</FieldRow>
-        <FieldRow label="Phone">{inp('emergencyPhone')}</FieldRow>
-        <FieldRow label="Relation">{inp('emergencyRel')}</FieldRow>
+        <FieldRow label="Email">
+          <RoVal v={user?.email} />
+          <span style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 4, display: 'block' }}>
+            Email cannot be changed here. Contact your administrator.
+          </span>
+        </FieldRow>
+        <FieldRow label="Phone">{inp('phone', '+91 ...')}</FieldRow>
       </div>
     )
   }
@@ -437,27 +375,22 @@ export default function ProfilePage() {
 
         <SectionTitle title="Notifications" />
         <div style={{ borderRadius: 12, border: '1px solid var(--border-light)', overflow: 'hidden' }}>
-          {[
-            { k: 'notifEmail'   as const, l: 'Email notifications' },
-            { k: 'notifSms'     as const, l: 'SMS notifications' },
-            { k: 'notifDesktop' as const, l: 'Desktop push notifications' },
-            { k: 'notifDigest'  as const, l: 'Weekly digest email' },
-          ].map(({ k, l }, i, arr) => (
+          {([
+            ['notifEmail',   'Email notifications'],
+            ['notifSms',     'SMS notifications'],
+            ['notifDesktop', 'Desktop push notifications'],
+            ['notifDigest',  'Weekly digest email'],
+          ] as [keyof ProfileForm, string][]).map(([k, l], i, arr) => (
             <div
               key={k}
-              style={{
-                padding: '0 16px',
-                borderBottom: i < arr.length - 1 ? '1px solid var(--border-light)' : 'none',
-              }}
+              style={{ padding: '0 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--border-light)' : 'none' }}
             >
               {edit
                 ? <Toggle checked={draft[k] as boolean} onChange={v => set(k, v)} label={l} />
                 : (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500 }}>{l}</span>
-                    <span className={`badge ${form[k] ? 'success' : 'muted'}`}>
-                      {form[k] ? 'On' : 'Off'}
-                    </span>
+                    <span className={`badge ${form[k] ? 'success' : 'muted'}`}>{form[k] ? 'On' : 'Off'}</span>
                   </div>
                 )
               }
@@ -472,12 +405,15 @@ export default function ProfilePage() {
     return (
       <div style={{ maxWidth: 660 }}>
         <SectionTitle title="Module access" />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
+        <p style={{ fontSize: 13, color: 'var(--fg-secondary)', marginBottom: 16 }}>
+          Role: <strong>{roleLabel}</strong>. Permissions are managed by your administrator.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           {perms.map(p => (
             <button
               key={p.module}
               type="button"
-              onClick={() => edit && togglePerm(p.module)}
+              onClick={() => edit && setPerms(ps => ps.map(x => x.module === p.module ? { ...x, granted: !x.granted } : x))}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 14px', borderRadius: 12,
@@ -496,86 +432,75 @@ export default function ProfilePage() {
             </button>
           ))}
         </div>
-
-        <Divider />
-
-        <SectionTitle title="Security" />
-        <div style={{ borderRadius: 12, border: '1px solid var(--border-light)', overflow: 'hidden' }}>
-          <div style={{ padding: '0 16px', borderBottom: '1px solid var(--border-light)' }}>
-            {edit
-              ? <Toggle checked={twoFa} onChange={setTwoFa} label="Two-factor authentication (2FA)" />
-              : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 500 }}>Two-factor authentication (2FA)</span>
-                  <span className={`badge ${twoFa ? 'success' : 'warning'}`}>{twoFa ? 'Enabled' : 'Disabled'}</span>
-                </div>
-              )
-            }
-          </div>
-          <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 13.5, fontWeight: 500 }}>Password</div>
-              <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>Last changed 7 May 2026</div>
-            </div>
-            {edit && (
-              <button className="btn btn-secondary btn-sm">
-                <Icon name="lock" size={13} />
-                Change password
-              </button>
-            )}
-          </div>
-        </div>
       </div>
     )
   }
 
-  function TabActivity() {
+  function TabSecurity() {
     return (
-      <div style={{ maxWidth: 740 }}>
-        {/* Current session */}
-        <SectionTitle title="Current session" />
-        <div style={{ background: 'var(--brand-gradient-soft)', border: '1px solid rgba(44,110,213,0.2)', borderRadius: 12, padding: 16, marginBottom: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[
-              { l: 'Last login',  v: '13 May 2026, 09:14 AM' },
-              { l: 'Device',      v: 'Chrome 124 · Windows 11' },
-              { l: 'IP address',  v: '103.21.45.200' },
-              { l: '2FA used',    v: twoFa ? 'Yes — TOTP' : 'No' },
-            ].map(({ l, v }) => (
-              <div key={l}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-secondary)', marginBottom: 3 }}>{l}</div>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg-primary)' }}>{v}</div>
-              </div>
-            ))}
+      <div style={{ maxWidth: 480 }}>
+        <SectionTitle title="Change password" />
+        <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {pwErr && (
+            <div style={{ background: 'var(--danger-100)', color: 'var(--danger-500)', borderRadius: 10, padding: '9px 12px', fontSize: 13, border: '1px solid rgba(239,68,68,0.2)', fontWeight: 500 }}>
+              {pwErr}
+            </div>
+          )}
+          <div className="form-group">
+            <label className="form-label required">Current password</label>
+            <input
+              type="password"
+              className="form-input"
+              value={pwOld}
+              onChange={e => setPwOld(e.target.value)}
+              placeholder="Enter current password"
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label required">New password</label>
+            <input
+              type="password"
+              className="form-input"
+              value={pwNew}
+              onChange={e => setPwNew(e.target.value)}
+              placeholder="Min 6 characters"
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label required">Confirm new password</label>
+            <input
+              type="password"
+              className="form-input"
+              value={pwCnf}
+              onChange={e => setPwCnf(e.target.value)}
+              placeholder="Repeat new password"
+              autoComplete="new-password"
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ alignSelf: 'flex-start' }}
+            disabled={pwSaving || !pwOld || !pwNew || !pwCnf}
+          >
+            <Icon name="lock" size={13} />
+            {pwSaving ? 'Changing…' : 'Change password'}
+          </button>
+        </form>
+
+        <Divider />
+
+        <SectionTitle title="Two-factor authentication" />
+        <div style={{ borderRadius: 12, border: '1px solid var(--border-light)', overflow: 'hidden' }}>
+          <div style={{ padding: '0 16px' }}>
+            <Toggle checked={twoFa} onChange={setTwoFa} label="Two-factor authentication (2FA)" />
           </div>
         </div>
-
-        {/* Audit trail */}
-        <SectionTitle title="Audit trail" />
-        <div className="table-card">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Event</th>
-                <th>Device</th>
-                <th>IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ACTIVITY.map((row, i) => (
-                <tr key={i}>
-                  <td style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-secondary)' }}>
-                    {row.time}
-                  </td>
-                  <td style={{ fontSize: 13, fontWeight: 500 }}>{row.event}</td>
-                  <td style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>{row.device}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-secondary)' }}>{row.ip}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 10 }}>
+          2FA adds an extra layer of security. When enabled, you will be asked for a verification code on login.
+        </p>
       </div>
     )
   }
@@ -584,12 +509,11 @@ export default function ProfilePage() {
 
   return (
     <div className="df-shell">
-      {/* ── Top strip ── */}
+      {/* Top strip */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '10px 24px', background: 'var(--bg-surface)',
-        borderBottom: '1px solid var(--border-soft)', flexShrink: 0,
-        minHeight: 54,
+        borderBottom: '1px solid var(--border-soft)', flexShrink: 0, minHeight: 54,
       }}>
         <button
           className="btn btn-ghost btn-sm"
@@ -600,49 +524,44 @@ export default function ProfilePage() {
           Back
         </button>
 
-        <span className="badge success"><span className="d" />Active</span>
+        <span className={`badge ${user?.status === 'active' ? 'success' : 'warning'}`}>
+          <span className="d" />{user?.status ?? 'unknown'}
+        </span>
 
         <div style={{ flex: 1 }} />
 
-        {edit ? (
-          <>
-            <span className="badge blue" style={{ padding: '5px 12px', fontWeight: 700 }}>
-              Editing
-            </span>
-            <button className="btn btn-ghost btn-sm" onClick={cancelEdit}>
-              Cancel
+        {tab !== 'security' && (
+          edit ? (
+            <>
+              <span className="badge blue" style={{ padding: '5px 12px', fontWeight: 700 }}>Editing</span>
+              <button className="btn btn-ghost btn-sm" onClick={cancelEdit} disabled={saving}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={saveEdit} disabled={saving}>
+                <Icon name="check" size={13} />
+                {saving ? 'Saving…' : 'Update profile'}
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-secondary btn-sm" onClick={startEdit}>
+              <Icon name="edit" size={13} />
+              Edit profile
             </button>
-            <button className="btn btn-primary btn-sm" onClick={saveEdit}>
-              <Icon name="check" size={13} />
-              Update profile
-            </button>
-          </>
-        ) : (
-          <button className="btn btn-secondary btn-sm" onClick={startEdit}>
-            <Icon name="edit" size={13} />
-            Edit profile
-          </button>
+          )
         )}
       </div>
 
-      {/* ── Hero card ── */}
+      {/* Hero card */}
       <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-soft)', flexShrink: 0 }}>
-        {/* Gradient cover */}
         <div style={{ height: 56, background: 'var(--brand-gradient-dark)', position: 'relative' }} />
-
-        {/* Avatar + info strip */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 18, padding: '0 24px 16px', marginTop: -32 }}>
           <div
             className="av blue xxl"
             style={{
               width: 80, height: 80, fontSize: 28, fontWeight: 800,
               border: '3px solid var(--bg-surface)',
-              boxShadow: 'var(--sh-card)',
-              borderRadius: 20,
-              flexShrink: 0,
+              boxShadow: 'var(--sh-card)', borderRadius: 20, flexShrink: 0,
             }}
           >
-            RA
+            {initials}
           </div>
 
           <div style={{ flex: 1, paddingBottom: 4 }}>
@@ -650,35 +569,36 @@ export default function ProfilePage() {
               <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--fg-primary)' }}>{fullName}</h2>
             </div>
             <div style={{ fontSize: 13, color: 'var(--fg-secondary)', marginTop: 2, fontWeight: 500 }}>
-              {form.designation} · {form.clinic}
+              {user?.email}
             </div>
-            {/* Meta badges */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-              <span className="badge muted" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-                <Icon name="user" size={11} /> {form.employeeId}
+              <span className="badge info" style={{ fontSize: 11 }}>
+                <Icon name="shield" size={11} /> {roleLabel}
               </span>
+              {user?.phone && (
+                <span className="badge muted" style={{ fontSize: 11 }}>
+                  <Icon name="user" size={11} /> {user.phone}
+                </span>
+              )}
               <span className="badge muted" style={{ fontSize: 11 }}>
-                <Icon name="calendar" size={11} /> Joined {new Date(form.joined).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                <Icon name="calendar" size={11} /> Joined {joinedDate}
               </span>
               <span className={`badge ${twoFa ? 'success' : 'warning'}`} style={{ fontSize: 11 }}>
                 <Icon name="shield" size={11} /> 2FA {twoFa ? 'Enabled' : 'Disabled'}
-              </span>
-              <span className="badge info" style={{ fontSize: 11 }}>
-                <Icon name="clock" size={11} /> {form.shift} shift
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Tabs ── */}
+      {/* Tabs */}
       <div className="df-tabs">
         {TABS.map(t => (
           <button
             key={t.k}
             type="button"
             className={`df-tab ${tab === t.k ? 'active' : ''}`}
-            onClick={() => setTab(t.k)}
+            onClick={() => { setTab(t.k); if (t.k === 'security') setEdit(false) }}
           >
             <span className="tab-title">{t.l}</span>
             <span className="tab-sub">{t.sub}</span>
@@ -686,27 +606,29 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div className="df-body">
         <div className="df-panel" style={{ maxWidth: '100%' }}>
           {tab === 'info'        && <TabInfo />}
           {tab === 'contact'     && <TabContact />}
           {tab === 'preferences' && <TabPreferences />}
           {tab === 'permissions' && <TabPermissions />}
-          {tab === 'activity'    && <TabActivity />}
+          {tab === 'security'    && <TabSecurity />}
         </div>
       </div>
 
-      {/* ── Sticky footer (edit mode only) ── */}
-      {edit && (
+      {/* Sticky footer (edit mode only) */}
+      {edit && tab !== 'security' && (
         <div className="df-footer">
           <span style={{ flex: 1, fontSize: 12.5, color: 'var(--fg-secondary)' }}>
-            Unsaved changes — press <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 11, background: 'var(--bg-section)', border: '1px solid var(--border-soft)', borderRadius: 4, padding: '1px 5px' }}>Esc</kbd> to discard
+            Unsaved changes — press{' '}
+            <kbd style={{ fontFamily: 'var(--font-mono)', fontSize: 11, background: 'var(--bg-section)', border: '1px solid var(--border-soft)', borderRadius: 4, padding: '1px 5px' }}>Esc</kbd>
+            {' '}to discard
           </span>
-          <button className="btn btn-ghost" onClick={cancelEdit}>Cancel</button>
-          <button className="btn btn-primary" onClick={saveEdit}>
+          <button className="btn btn-ghost" onClick={cancelEdit} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={saveEdit} disabled={saving}>
             <Icon name="check" size={15} />
-            Update profile
+            {saving ? 'Saving…' : 'Update profile'}
           </button>
         </div>
       )}
