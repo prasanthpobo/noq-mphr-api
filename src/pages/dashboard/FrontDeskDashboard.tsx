@@ -84,244 +84,245 @@ export default function FrontDeskDashboard() {
   const DUTY_DOCTORS = doctors.filter((d: any) => d.status !== 'on-leave').slice(0, 4)
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Front desk · Live"
         crumbs="Today · Sunshine Clinic · Morning shift"
         onAdd={() => setRoute('book')}
         addLabel="Book appointment"
       />
-
-      {/* Stat cards */}
-      <div className="stats-grid">
-        <StatCard
-          ic="ticket"
-          label="Tokens today"
-          value={String(stats.total)}
-          accent
-          foot="Issued since 09:00"
-        />
-        <StatCard
-          ic="users"
-          tone="blue"
-          label="Waiting now"
-          value={String(stats.waiting)}
-          foot="In queue across OPD"
-        />
-        <StatCard
-          ic="clock"
-          tone="amber"
-          label="Avg wait time"
-          value="18 min"
-          foot="Across all doctors"
-        />
-        <StatCard
-          ic="check"
-          tone="green"
-          label="Completed"
-          value={String(stats.completed)}
-          foot="Consultations done today"
-        />
-      </div>
-
-      {/* Live queue + Doctors on duty */}
-      <div className="dash-grid">
-        {/* Live token queue */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Live token queue</h2>
-              <div className="sub">{QUEUE_ROWS.length} active tokens</div>
-            </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('live-tokens')}>
-              Full queue
-            </button>
-          </div>
-
-          {/* Column header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '28px 80px 1fr 1fr 90px',
-            gap: 10,
-            padding: '0 12px 8px',
-            borderBottom: '1px solid var(--border-light)',
-          }}>
-            {['#', 'Token', 'Patient', 'Doctor', 'Status'].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {h}
-              </span>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
-            {QUEUE_ROWS.map((t: any, i: number) => {
-              const badge = statusBadgeForToken(t.status, t.priority)
-              const isCurrent = t.status === 'in-consultation'
-              return (
-                <div
-                  key={t._id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '28px 80px 1fr 1fr 90px',
-                    gap: 10,
-                    padding: '9px 12px',
-                    borderRadius: 10,
-                    alignItems: 'center',
-                    background: isCurrent ? 'rgba(44,110,213,0.08)' : 'var(--bg-section)',
-                    border: `1px solid ${isCurrent ? 'rgba(44,110,213,0.25)' : 'var(--border-light)'}`,
-                  }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)' }}>
-                    {i + 1}
-                  </span>
-                  <div className="token-pill">
-                    <span className="l">{t.priority === 'emergency' ? 'EMG' : 'TKN'}</span>
-                    <span className="n">{t.tokenNumber}</span>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {t.patientId?.name || 'Patient'}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--fg-secondary)' }}>{t.slot}</div>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--fg-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {t.doctorId?.name || 'Doctor'}
-                  </div>
-                  <span className={`badge ${badge.cls}`}>
-                    <span className="d" />
-                    {badge.label}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
+      <div className="main">
+        {/* Stat cards */}
+        <div className="stats-grid">
+          <StatCard
+            ic="ticket"
+            label="Tokens today"
+            value={String(stats.total)}
+            accent
+            foot="Issued since 09:00"
+          />
+          <StatCard
+            ic="users"
+            tone="blue"
+            label="Waiting now"
+            value={String(stats.waiting)}
+            foot="In queue across OPD"
+          />
+          <StatCard
+            ic="clock"
+            tone="amber"
+            label="Avg wait time"
+            value="18 min"
+            foot="Across all doctors"
+          />
+          <StatCard
+            ic="check"
+            tone="green"
+            label="Completed"
+            value={String(stats.completed)}
+            foot="Consultations done today"
+          />
         </div>
 
-        {/* Doctors on duty */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Doctors on duty</h2>
-              <div className="sub">{DUTY_DOCTORS.length} available today</div>
+        {/* Live queue + Doctors on duty */}
+        <div className="dash-grid">
+          {/* Live token queue */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Live token queue</h2>
+                <div className="sub">{QUEUE_ROWS.length} active tokens</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setRoute('live-tokens')}>
+                Full queue
+              </button>
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('doctors')}>
-              All doctors
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {DUTY_DOCTORS.map((d: any, idx: number) => {
-              const badge = doctorStatusBadge(d.status)
-              return (
-                <div
-                  key={d._id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 14px',
-                    background: 'var(--bg-section)',
-                    borderRadius: 12,
-                    border: '1px solid var(--border-light)',
-                  }}
-                >
-                  <div className={`av ${['blue','teal','pink','amber'][idx % 4]}`} style={{ flexShrink: 0 }}>
-                    {d.name?.slice(0, 2) || 'DR'}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
-                      {d.name}
+
+            {/* Column header */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '28px 80px 1fr 1fr 90px',
+              gap: 10,
+              padding: '0 12px 8px',
+              borderBottom: '1px solid var(--border-light)',
+            }}>
+              {['#', 'Token', 'Patient', 'Doctor', 'Status'].map(h => (
+                <span key={h} style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {h}
+                </span>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+              {QUEUE_ROWS.map((t: any, i: number) => {
+                const badge = statusBadgeForToken(t.status, t.priority)
+                const isCurrent = t.status === 'in-consultation'
+                return (
+                  <div
+                    key={t._id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '28px 80px 1fr 1fr 90px',
+                      gap: 10,
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      alignItems: 'center',
+                      background: isCurrent ? 'rgba(44,110,213,0.08)' : 'var(--bg-section)',
+                      border: `1px solid ${isCurrent ? 'rgba(44,110,213,0.25)' : 'var(--border-light)'}`,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)' }}>
+                      {i + 1}
+                    </span>
+                    <div className="token-pill">
+                      <span className="l">{t.priority === 'emergency' ? 'EMG' : 'TKN'}</span>
+                      <span className="n">{t.tokenNumber}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 2 }}>
-                      {d.specialization}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {t.patientId?.name || 'Patient'}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-secondary)' }}>{t.slot}</div>
                     </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 12, color: 'var(--fg-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {t.doctorId?.name || 'Doctor'}
+                    </div>
                     <span className={`badge ${badge.cls}`}>
                       <span className="d" />
                       {badge.label}
                     </span>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Hourly trend + Quick actions */}
-      <div className="dash-grid">
-        {/* Hourly walk-in trend */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Hourly walk-in trend</h2>
-              <div className="sub">Token issuance per hour today</div>
+                )
+              })}
             </div>
           </div>
-          <div className="bars">
-            {HOURLY.map((h: HourBar) => {
-              const pct = maxHourly > 0 ? Math.round((h.count / maxHourly) * 100) : 0
-              return (
-                <div key={h.hour} className="bar-col">
-                  <div className="bar-stack">
-                    <div
-                      className="bar"
-                      style={{ height: `${pct}%` }}
-                      title={`${h.count} tokens`}
-                    />
-                  </div>
-                  <div className="bar-lbl">{h.hour}h</div>
-                </div>
-              )
-            })}
-          </div>
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="swatch" style={{ background: 'var(--brand-gradient)' }} />
-            <span style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>Walk-in tokens per hour</span>
-          </div>
-        </div>
 
-        {/* Quick actions */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Quick actions</h2>
-              <div className="sub">Front desk shortcuts</div>
-            </div>
-          </div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            gap: 10,
-          }}>
-            {QUICK_ACTIONS.map((a: QuickAction) => (
-              <button
-                key={a.route}
-                onClick={() => setRoute(a.route)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '16px 12px',
-                  borderRadius: 12,
-                  background: 'var(--bg-section)',
-                  border: '1px solid var(--border-light)',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s',
-                }}
-              >
-                <div className={`av ${a.tone}`} style={{ borderRadius: 12 }}>
-                  <Icon name={a.ic} size={16} />
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-primary)', textAlign: 'center', lineHeight: 1.3 }}>
-                  {a.label}
-                </span>
+          {/* Doctors on duty */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Doctors on duty</h2>
+                <div className="sub">{DUTY_DOCTORS.length} available today</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setRoute('doctors')}>
+                All doctors
               </button>
-            ))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {DUTY_DOCTORS.map((d: any, idx: number) => {
+                const badge = doctorStatusBadge(d.status)
+                return (
+                  <div
+                    key={d._id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '12px 14px',
+                      background: 'var(--bg-section)',
+                      borderRadius: 12,
+                      border: '1px solid var(--border-light)',
+                    }}
+                  >
+                    <div className={`av ${['blue','teal','pink','amber'][idx % 4]}`} style={{ flexShrink: 0 }}>
+                      {d.name?.slice(0, 2) || 'DR'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                        {d.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 2 }}>
+                        {d.specialization}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <span className={`badge ${badge.cls}`}>
+                        <span className="d" />
+                        {badge.label}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Hourly trend + Quick actions */}
+        <div className="dash-grid">
+          {/* Hourly walk-in trend */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Hourly walk-in trend</h2>
+                <div className="sub">Token issuance per hour today</div>
+              </div>
+            </div>
+            <div className="bars">
+              {HOURLY.map((h: HourBar) => {
+                const pct = maxHourly > 0 ? Math.round((h.count / maxHourly) * 100) : 0
+                return (
+                  <div key={h.hour} className="bar-col">
+                    <div className="bar-stack">
+                      <div
+                        className="bar"
+                        style={{ height: `${pct}%` }}
+                        title={`${h.count} tokens`}
+                      />
+                    </div>
+                    <div className="bar-lbl">{h.hour}h</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="swatch" style={{ background: 'var(--brand-gradient)' }} />
+              <span style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>Walk-in tokens per hour</span>
+            </div>
+          </div>
+
+          {/* Quick actions */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Quick actions</h2>
+                <div className="sub">Front desk shortcuts</div>
+              </div>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 10,
+            }}>
+              {QUICK_ACTIONS.map((a: QuickAction) => (
+                <button
+                  key={a.route}
+                  onClick={() => setRoute(a.route)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '16px 12px',
+                    borderRadius: 12,
+                    background: 'var(--bg-section)',
+                    border: '1px solid var(--border-light)',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  <div className={`av ${a.tone}`} style={{ borderRadius: 12 }}>
+                    <Icon name={a.ic} size={16} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-primary)', textAlign: 'center', lineHeight: 1.3 }}>
+                    {a.label}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

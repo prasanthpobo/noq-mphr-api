@@ -78,7 +78,7 @@ export default function AdminUserList() {
   const roles   = new Set(items.map(u => u.role)).size
 
   return (
-    <div className="main">
+    <>
       <Header
         title="User management"
         crumbs={`${active} active · ${total} total`}
@@ -86,6 +86,7 @@ export default function AdminUserList() {
         addLabel="Add user"
       />
 
+      <div className="main">
       <div className="stats-grid">
         <StatCard ic="shield"   tone="blue"   label="Total users"  value={String(total)}   foot="Admin accounts" />
         <StatCard ic="check"    tone="green"  label="Active"       value={String(active)}  foot="Currently active" accent />
@@ -160,6 +161,7 @@ export default function AdminUserList() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

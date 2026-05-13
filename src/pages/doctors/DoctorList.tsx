@@ -92,7 +92,7 @@ export default function DoctorList() {
   const specs   = new Set(items.map(d => d.spec)).size
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Doctor management"
         crumbs={`${active} active · ${total} total · ${onLeave} on leave`}
@@ -100,6 +100,7 @@ export default function DoctorList() {
         addLabel="Add doctor"
       />
 
+      <div className="main">
       <div className="stats-grid">
         <StatCard ic="stethoscope" tone="blue"  label="Total doctors"   value={`${total}`}  foot="Registered doctors" />
         <StatCard ic="check"       tone="green" label="Active"          value={`${active}`} foot="Currently on duty" accent />
@@ -211,7 +212,8 @@ export default function DoctorList() {
         )}
         <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

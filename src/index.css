@@ -905,6 +905,24 @@ table.data td {
 .form-textarea { resize: vertical; min-height: 80px; }
 .form-select { appearance: none; }
 
+/* ─── Form top action bar ─── */
+.df-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  min-height: 52px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+
+.df-topbar .df-topbar-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg-primary);
+}
+
 /* ─── Tabs (df-*) ─── */
 .df-shell {
   display: flex;

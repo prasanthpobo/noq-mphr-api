@@ -124,11 +124,11 @@ export default function ClinicForm({ id, onClose }: Props) {
 
   return (
     <form className="df-shell" onSubmit={handleSubmit(onSubmit)}>
-      <div className="df-tabs" style={{borderBottom:'1px solid var(--border)',padding:'0 20px',display:'flex',alignItems:'center',gap:12,minHeight:52}}>
+      <div className="df-topbar">
         <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setRoute('clinics')}>
           <Icon name="chevL" size={14}/> Back
         </button>
-        <div style={{fontWeight:700,fontSize:15}}>
+        <div className="df-topbar-title">
           {!isEdit?'Create clinic':`Editing ${clinicName}`}
         </div>
         {isEdit && <UserStatusBadge status={status}/>}

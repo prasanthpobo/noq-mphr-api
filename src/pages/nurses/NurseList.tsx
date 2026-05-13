@@ -77,7 +77,7 @@ export default function NurseList() {
   const depts   = new Set(items.map(n => n.dept)).size
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Nurse management"
         crumbs={`${active} active · ${total} total`}
@@ -85,6 +85,7 @@ export default function NurseList() {
         addLabel="Add nurse"
       />
 
+      <div className="main">
       <div className="stats-grid">
         <StatCard ic="heart"    tone="pink"  label="Total nurses"  value={String(total)}   foot="All nursing staff" />
         <StatCard ic="check"    tone="green" label="Active"        value={String(active)}  foot="On duty" accent />
@@ -156,6 +157,7 @@ export default function NurseList() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

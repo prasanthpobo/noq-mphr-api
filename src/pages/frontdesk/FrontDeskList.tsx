@@ -77,7 +77,7 @@ export default function FrontDeskList() {
   const clinics = new Set(items.map(fd => fd.clinic)).size
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Front desk management"
         crumbs={`${active} active · ${total} total`}
@@ -85,6 +85,7 @@ export default function FrontDeskList() {
         addLabel="Add staff"
       />
 
+      <div className="main">
       <div className="stats-grid">
         <StatCard ic="user"     tone="blue"  label="Total staff"   value={String(total)}   foot="All front desk" />
         <StatCard ic="check"    tone="green" label="Active"        value={String(active)}  foot="On duty" accent />
@@ -154,6 +155,7 @@ export default function FrontDeskList() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

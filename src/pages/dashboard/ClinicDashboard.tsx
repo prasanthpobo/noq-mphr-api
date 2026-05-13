@@ -99,222 +99,223 @@ export default function ClinicDashboard() {
   const maxStaff = Math.max(...staffingData.map(d => d.count), 1)
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Clinic dashboard"
         crumbs="Network overview"
       />
+      <div className="main">
+        {/* Stat cards */}
+        <div className="stats-grid">
+          <StatCard
+            ic="building"
+            tone="blue"
+            label="Total clinics"
+            value={loading ? '...' : String(clinics.length)}
+            foot="Across Bengaluru"
+          />
+          <StatCard
+            ic="activity"
+            label="Active right now"
+            value={loading ? '...' : String(activeClinics)}
+            accent
+            foot="Clinics open today"
+          />
+          <StatCard
+            ic="stethoscope"
+            tone="plum"
+            label="Doctors enrolled"
+            value={loading ? '...' : String(totalDoctors)}
+            foot="Across all clinics"
+          />
+          <StatCard
+            ic="clipboard"
+            tone="amber"
+            label="Consult rooms"
+            value="..."
+            foot="Total across network"
+          />
+        </div>
 
-      {/* Stat cards */}
-      <div className="stats-grid">
-        <StatCard
-          ic="building"
-          tone="blue"
-          label="Total clinics"
-          value={loading ? '...' : String(clinics.length)}
-          foot="Across Bengaluru"
-        />
-        <StatCard
-          ic="activity"
-          label="Active right now"
-          value={loading ? '...' : String(activeClinics)}
-          accent
-          foot="Clinics open today"
-        />
-        <StatCard
-          ic="stethoscope"
-          tone="plum"
-          label="Doctors enrolled"
-          value={loading ? '...' : String(totalDoctors)}
-          foot="Across all clinics"
-        />
-        <StatCard
-          ic="clipboard"
-          tone="amber"
-          label="Consult rooms"
-          value="..."
-          foot="Total across network"
-        />
-      </div>
-
-      {/* Utilization + Donut */}
-      <div className="dash-grid">
-        {/* Clinic utilization */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Clinic utilization</h2>
-              <div className="sub">Current capacity %</div>
+        {/* Utilization + Donut */}
+        <div className="dash-grid">
+          {/* Clinic utilization */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Clinic utilization</h2>
+                <div className="sub">Current capacity %</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setRoute('clinics')}>
+                All clinics
+              </button>
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('clinics')}>
-              All clinics
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {loading ? (
-              <>
-                <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
-                <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
-                <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
-              </>
-            ) : clinics.map((c: any, i: number) => {
-              const pct = 50 + (i * 7) % 50
-              const color = UTIL_COLORS[i % UTIL_COLORS.length]
-              return (
-                <div key={c._id}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
-                        {c.name}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--fg-secondary)', marginLeft: 8 }}>
-                        {c.type}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {loading ? (
+                <>
+                  <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
+                  <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
+                  <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
+                </>
+              ) : clinics.map((c: any, i: number) => {
+                const pct = 50 + (i * 7) % 50
+                const color = UTIL_COLORS[i % UTIL_COLORS.length]
+                return (
+                  <div key={c._id}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                          {c.name}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--fg-secondary)', marginLeft: 8 }}>
+                          {c.type}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-secondary)' }}>
+                        {pct}%
                       </span>
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-secondary)' }}>
-                      {pct}%
+                    <div style={{ height: 7, background: 'var(--bg-section)', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${pct}%`,
+                        background: color,
+                        borderRadius: 99,
+                        transition: 'width 0.6s var(--ease-out)',
+                      }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Network mix donut */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Network mix</h2>
+                <div className="sub">Clinic type breakdown</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+              <DonutChart />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {TYPE_DATA.map(d => (
+                  <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-primary)', flex: 1 }}>
+                      {d.label}
+                    </span>
+                    <span style={{
+                      fontSize: 12, fontWeight: 700,
+                      background: 'var(--bg-section)',
+                      borderRadius: 6,
+                      padding: '2px 8px',
+                      color: 'var(--fg-secondary)',
+                    }}>
+                      {d.count}
                     </span>
                   </div>
-                  <div style={{ height: 7, background: 'var(--bg-section)', borderRadius: 99, overflow: 'hidden' }}>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Top clinics + Staffing */}
+        <div className="dash-grid">
+          {/* Top performing clinics */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Top performing clinics</h2>
+                <div className="sub">Sorted by patient rating</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {loading ? (
+                <>
+                  <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
+                  <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
+                  <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
+                </>
+              ) : topClinics.map((c: any, i: number) => (
+                <div
+                  key={c._id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 12px',
+                    background: 'var(--bg-section)',
+                    borderRadius: 12,
+                    border: '1px solid var(--border-light)',
+                  }}
+                >
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 8,
+                    background: i === 0 ? 'var(--brand-gradient)' : 'var(--ink-100)',
+                    color: i === 0 ? 'white' : 'var(--fg-secondary)',
+                    fontSize: 11, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    {i + 1}
+                  </div>
+                  <div className={`av ${TONE_PALETTE[i % TONE_PALETTE.length]}`} style={{ borderRadius: 10, flexShrink: 0 }}>
+                    {c.name?.slice(0, 2) || 'CL'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {c.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 2 }}>
+                      {c.type} · {c.address}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: 'var(--warning-500)', flexShrink: 0 }}>
+                    ★ {c.rating ?? '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Staffing snapshot */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Staffing snapshot</h2>
+                <div className="sub">Enrolled across network</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingTop: 8 }}>
+              {staffingData.map(s => (
+                <div key={s.label}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                      {s.label}
+                    </span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--fg-primary)', letterSpacing: '-0.03em' }}>
+                      {loading ? '...' : s.count}
+                    </span>
+                  </div>
+                  <div style={{ height: 10, background: 'var(--bg-section)', borderRadius: 99, overflow: 'hidden' }}>
                     <div style={{
                       height: '100%',
-                      width: `${pct}%`,
-                      background: color,
+                      width: loading ? '0%' : `${Math.round((s.count / maxStaff) * 100)}%`,
+                      background: s.color,
                       borderRadius: 99,
                       transition: 'width 0.6s var(--ease-out)',
                     }} />
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Network mix donut */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Network mix</h2>
-              <div className="sub">Clinic type breakdown</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-            <DonutChart />
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {TYPE_DATA.map(d => (
-                <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-primary)', flex: 1 }}>
-                    {d.label}
-                  </span>
-                  <span style={{
-                    fontSize: 12, fontWeight: 700,
-                    background: 'var(--bg-section)',
-                    borderRadius: 6,
-                    padding: '2px 8px',
-                    color: 'var(--fg-secondary)',
-                  }}>
-                    {d.count}
-                  </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Top clinics + Staffing */}
-      <div className="dash-grid">
-        {/* Top performing clinics */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Top performing clinics</h2>
-              <div className="sub">Sorted by patient rating</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {loading ? (
-              <>
-                <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
-                <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
-                <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
-              </>
-            ) : topClinics.map((c: any, i: number) => (
-              <div
-                key={c._id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '10px 12px',
-                  background: 'var(--bg-section)',
-                  borderRadius: 12,
-                  border: '1px solid var(--border-light)',
-                }}
-              >
-                <div style={{
-                  width: 24, height: 24, borderRadius: 8,
-                  background: i === 0 ? 'var(--brand-gradient)' : 'var(--ink-100)',
-                  color: i === 0 ? 'white' : 'var(--fg-secondary)',
-                  fontSize: 11, fontWeight: 800,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  {i + 1}
-                </div>
-                <div className={`av ${TONE_PALETTE[i % TONE_PALETTE.length]}`} style={{ borderRadius: 10, flexShrink: 0 }}>
-                  {c.name?.slice(0, 2) || 'CL'}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {c.name}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 2 }}>
-                    {c.type} · {c.address}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: 'var(--warning-500)', flexShrink: 0 }}>
-                  ★ {c.rating ?? '—'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Staffing snapshot */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Staffing snapshot</h2>
-              <div className="sub">Enrolled across network</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingTop: 8 }}>
-            {staffingData.map(s => (
-              <div key={s.label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
-                    {s.label}
-                  </span>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--fg-primary)', letterSpacing: '-0.03em' }}>
-                    {loading ? '...' : s.count}
-                  </span>
-                </div>
-                <div style={{ height: 10, background: 'var(--bg-section)', borderRadius: 99, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%',
-                    width: loading ? '0%' : `${Math.round((s.count / maxStaff) * 100)}%`,
-                    background: s.color,
-                    borderRadius: 99,
-                    transition: 'width 0.6s var(--ease-out)',
-                  }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   )
 }

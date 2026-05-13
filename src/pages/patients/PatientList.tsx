@@ -75,7 +75,7 @@ export default function PatientList() {
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Patient management"
         crumbs={`${items.length} total`}
@@ -83,6 +83,7 @@ export default function PatientList() {
         addLabel="Add patient"
       />
 
+      <div className="main">
       <div className="stats-grid">
         <StatCard ic="users"    tone="blue"  label="Total patients"       value={String(items.length)} foot="All registered patients" />
         <StatCard ic="activity" tone="green" label="Active this month"    value={String(items.filter(p => p.tag === 'active').length)}   foot="Had visits in 30 days" accent />
@@ -175,6 +176,7 @@ export default function PatientList() {
         </table>
         <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
-    </div>
+      </div>
+    </>
   )
 }

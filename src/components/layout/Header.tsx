@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 
 interface HeaderProps {
   title: string
@@ -9,12 +10,33 @@ interface HeaderProps {
   addLabel?: string
 }
 
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  super_admin:  'Super Admin',
+  clinic_admin: 'Clinic Admin',
+  doctor:       'Doctor',
+  nurse:        'Nurse',
+  frontdesk:    'Front Desk',
+  pharmacist:   'Pharmacist',
+  lab_tech:     'Lab Tech',
+}
+
 export default function Header({ title, crumbs, onAdd, addLabel }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const { setRoute, setLogoutOpen } = useAppStore()
+  const user = useAuthStore(s => s.user)
+
+  const displayName = user?.name ?? 'User'
+  const displayRole = user ? (ROLE_LABELS[user.role] ?? user.role) : ''
+  const initials    = user ? getInitials(user.name) : '?'
 
   const goRoute = (k: string) => { setMenuOpen(false); setRoute(k) }
-  const logout = () => { setMenuOpen(false); setLogoutOpen(true) }
+  const logout  = () => { setMenuOpen(false); setLogoutOpen(true) }
 
   return (
     <header className="header">
@@ -43,10 +65,10 @@ export default function Header({ title, crumbs, onAdd, addLabel }: HeaderProps) 
           className={`header-user ${menuOpen ? 'open' : ''}`}
           onClick={() => setMenuOpen(o => !o)}
         >
-          <div className="av blue">RA</div>
+          <div className="av blue">{initials}</div>
           <div className="who">
-            <div className="n">Reena Aggarwal</div>
-            <div className="r">Reception · Admin</div>
+            <div className="n">{displayName}</div>
+            <div className="r">{displayRole}</div>
           </div>
           <Icon name="chevD" size={14} />
         </button>
@@ -55,10 +77,10 @@ export default function Header({ title, crumbs, onAdd, addLabel }: HeaderProps) 
             <div className="hu-backdrop" onClick={() => setMenuOpen(false)} />
             <div className="hu-menu">
               <div className="hu-head">
-                <div className="av blue">RA</div>
+                <div className="av blue">{initials}</div>
                 <div>
-                  <div className="hu-n">Reena Aggarwal</div>
-                  <div className="hu-r">reena.a@noqclinic.in</div>
+                  <div className="hu-n">{displayName}</div>
+                  <div className="hu-r">{user?.email ?? ''}</div>
                 </div>
               </div>
               <button className="hu-item" onClick={() => goRoute('profile')}>

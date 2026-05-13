@@ -86,7 +86,7 @@ export default function ClinicList() {
   const countOf   = (s: string) => items.filter(c => c.status === s).length
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Clinic management"
         crumbs={`${active} active · ${total} total`}
@@ -94,6 +94,7 @@ export default function ClinicList() {
         addLabel="Add clinic"
       />
 
+      <div className="main">
       <div className="stats-grid">
         <StatCard ic="building"    tone="blue"  label="Total clinics"     value={String(total)}    foot="All registered" />
         <StatCard ic="check"       tone="green" label="Active"            value={String(active)}   foot="Operational" accent />
@@ -173,6 +174,7 @@ export default function ClinicList() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

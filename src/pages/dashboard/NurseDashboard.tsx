@@ -87,285 +87,286 @@ export default function NurseDashboard() {
   }, [])
 
   return (
-    <div className="main">
+    <>
       <Header
         title="Hello, Sister Mary"
         crumbs="Saturday, 9 May 2026 · ICU-A · Morning shift"
       />
+      <div className="main">
+        {/* Stat cards */}
+        <div className="stats-grid">
+          <StatCard
+            ic="heart"
+            tone="pink"
+            label="Patients on watch"
+            value="12"
+            foot="ICU-A active patients"
+          />
+          <StatCard
+            ic="hourglass"
+            label="Tasks due in 1h"
+            value="5"
+            accent
+            foot="Requires immediate action"
+          />
+          <StatCard
+            ic="alert"
+            tone="amber"
+            label="Alerts"
+            value="3"
+            foot="2 vitals, 1 medication"
+          />
+          <StatCard
+            ic="check"
+            tone="green"
+            label="Completed today"
+            value="14"
+            foot="Tasks finished this shift"
+          />
+        </div>
 
-      {/* Stat cards */}
-      <div className="stats-grid">
-        <StatCard
-          ic="heart"
-          tone="pink"
-          label="Patients on watch"
-          value="12"
-          foot="ICU-A active patients"
-        />
-        <StatCard
-          ic="hourglass"
-          label="Tasks due in 1h"
-          value="5"
-          accent
-          foot="Requires immediate action"
-        />
-        <StatCard
-          ic="alert"
-          tone="amber"
-          label="Alerts"
-          value="3"
-          foot="2 vitals, 1 medication"
-        />
-        <StatCard
-          ic="check"
-          tone="green"
-          label="Completed today"
-          value="14"
-          foot="Tasks finished this shift"
-        />
-      </div>
-
-      {/* Task list + Ward occupancy */}
-      <div className="dash-grid">
-        {/* Task list */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Task list</h2>
-              <div className="sub">Next 5 pending tasks</div>
+        {/* Task list + Ward occupancy */}
+        <div className="dash-grid">
+          {/* Task list */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Task list</h2>
+                <div className="sub">Next 5 pending tasks</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setRoute('nurses')}>
+                All tasks
+              </button>
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('nurses')}>
-              All tasks
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {TASKS.map((t: Task, i: number) => {
+                const badge = priorityBadge(t.priority)
+                const isHigh = t.priority === 'high'
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      background: isHigh ? 'rgba(239,68,68,0.06)' : 'var(--bg-section)',
+                      border: `1px solid ${isHigh ? 'rgba(239,68,68,0.2)' : 'var(--border-light)'}`,
+                    }}
+                  >
+                    <div style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'var(--fg-secondary)',
+                      minWidth: 38,
+                      flexShrink: 0,
+                    }}>
+                      {t.time}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                        {t.task}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 1 }}>
+                        {t.patient}
+                      </div>
+                    </div>
+                    <span className={`badge ${badge.cls}`}>
+                      <span className="d" />
+                      {badge.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {TASKS.map((t: Task, i: number) => {
-              const badge = priorityBadge(t.priority)
-              const isHigh = t.priority === 'high'
-              return (
+
+          {/* Ward occupancy + On duty */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Ward occupancy</h2>
+                <div className="sub">Current bed utilization</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {WARD_BARS.map((w: WardBar) => {
+                const pct = Math.round((w.occupied / w.total) * 100)
+                return (
+                  <div key={w.ward}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                        {w.ward}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>
+                        <strong style={{ fontWeight: 700 }}>{w.occupied}</strong>/{w.total} beds · {pct}%
+                      </span>
+                    </div>
+                    <div style={{ height: 7, background: 'var(--bg-section)', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${pct}%`,
+                        background: w.color,
+                        borderRadius: 99,
+                        transition: 'width 0.6s var(--ease-out)',
+                      }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* On duty now */}
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-light)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                On duty now
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                {onDutyNurses.map((n, idx) => (
+                  <div
+                    key={n._id}
+                    className={`av ${['blue','teal','pink','amber','green'][idx % 5]}`}
+                    title={n.name}
+                    style={{
+                      marginLeft: idx === 0 ? 0 : -8,
+                      border: '2px solid var(--bg-surface)',
+                      borderRadius: '50%',
+                      zIndex: onDutyNurses.length - idx,
+                      position: 'relative',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {n.name?.slice(0, 2) || 'NU'}
+                  </div>
+                ))}
+                <span style={{ marginLeft: 12, fontSize: 13, color: 'var(--fg-secondary)', fontWeight: 500 }}>
+                  {onDutyNurses.length} nurses on shift
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Patient vitals + Handoff notes */}
+        <div className="dash-grid">
+          {/* Patient vitals */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Patient vitals · ICU-A</h2>
+                <div className="sub">Last reading — updated 4 min ago</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Header row */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 80px 80px 80px',
+                gap: 8,
+                padding: '0 12px',
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Patient</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>BP</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>HR</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Temp</span>
+              </div>
+              {VITALS.map((v: Vital) => (
+                <div
+                  key={v.patient}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 80px 80px 80px',
+                    gap: 8,
+                    padding: '10px 12px',
+                    background: 'var(--bg-section)',
+                    borderRadius: 10,
+                    border: '1px solid var(--border-light)',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                      {v.patient}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 1 }}>
+                      ICU-A · {v.bed}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: vitalColor(v.bpOk) }}>
+                      {v.bp}
+                    </span>
+                    <div style={{ fontSize: 10, color: 'var(--fg-muted)' }}>mmHg</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: vitalColor(v.hrOk) }}>
+                      {v.hr}
+                    </span>
+                    <div style={{ fontSize: 10, color: 'var(--fg-muted)' }}>bpm</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: vitalColor(v.tempOk) }}>
+                      {v.temp}°C
+                    </span>
+                    <div style={{ fontSize: 10, color: 'var(--fg-muted)' }}>temp</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Shift handoff notes */}
+          <div className="card">
+            <div className="card-h">
+              <div>
+                <h2>Shift handoff notes</h2>
+                <div className="sub">From night shift · 4 entries</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setRoute('nurses')}>
+                Add note
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {HANDOFF.map((h: HandoffNote, i: number) => (
                 <div
                   key={i}
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     gap: 12,
-                    padding: '9px 12px',
-                    borderRadius: 10,
-                    background: isHigh ? 'rgba(239,68,68,0.06)' : 'var(--bg-section)',
-                    border: `1px solid ${isHigh ? 'rgba(239,68,68,0.2)' : 'var(--border-light)'}`,
+                    padding: '10px 12px',
+                    background: 'var(--bg-section)',
+                    borderRadius: 12,
+                    border: '1px solid var(--border-light)',
                   }}
                 >
-                  <div style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--fg-secondary)',
-                    minWidth: 38,
-                    flexShrink: 0,
-                  }}>
-                    {t.time}
+                  <div className="av blue" style={{ flexShrink: 0 }}>
+                    <Icon name="clipboard" size={14} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
-                      {t.task}
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-primary)', lineHeight: 1.4 }}>
+                      {h.note}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 1 }}>
-                      {t.patient}
+                    <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 3 }}>
+                      {h.by}
                     </div>
                   </div>
-                  <span className={`badge ${badge.cls}`}>
-                    <span className="d" />
-                    {badge.label}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Ward occupancy + On duty */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Ward occupancy</h2>
-              <div className="sub">Current bed utilization</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {WARD_BARS.map((w: WardBar) => {
-              const pct = Math.round((w.occupied / w.total) * 100)
-              return (
-                <div key={w.ward}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 6,
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
-                      {w.ward}
-                    </span>
-                    <span style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>
-                      <strong style={{ fontWeight: 700 }}>{w.occupied}</strong>/{w.total} beds · {pct}%
-                    </span>
+                  <div style={{ fontSize: 11, color: 'var(--fg-muted)', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
+                    {h.time}
                   </div>
-                  <div style={{ height: 7, background: 'var(--bg-section)', borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${pct}%`,
-                      background: w.color,
-                      borderRadius: 99,
-                      transition: 'width 0.6s var(--ease-out)',
-                    }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* On duty now */}
-          <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-light)' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              On duty now
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-              {onDutyNurses.map((n, idx) => (
-                <div
-                  key={n._id}
-                  className={`av ${['blue','teal','pink','amber','green'][idx % 5]}`}
-                  title={n.name}
-                  style={{
-                    marginLeft: idx === 0 ? 0 : -8,
-                    border: '2px solid var(--bg-surface)',
-                    borderRadius: '50%',
-                    zIndex: onDutyNurses.length - idx,
-                    position: 'relative',
-                    flexShrink: 0,
-                  }}
-                >
-                  {n.name?.slice(0, 2) || 'NU'}
                 </div>
               ))}
-              <span style={{ marginLeft: 12, fontSize: 13, color: 'var(--fg-secondary)', fontWeight: 500 }}>
-                {onDutyNurses.length} nurses on shift
-              </span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Patient vitals + Handoff notes */}
-      <div className="dash-grid">
-        {/* Patient vitals */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Patient vitals · ICU-A</h2>
-              <div className="sub">Last reading — updated 4 min ago</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Header row */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 80px 80px 80px',
-              gap: 8,
-              padding: '0 12px',
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Patient</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>BP</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>HR</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Temp</span>
-            </div>
-            {VITALS.map((v: Vital) => (
-              <div
-                key={v.patient}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 80px 80px 80px',
-                  gap: 8,
-                  padding: '10px 12px',
-                  background: 'var(--bg-section)',
-                  borderRadius: 10,
-                  border: '1px solid var(--border-light)',
-                  alignItems: 'center',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
-                    {v.patient}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 1 }}>
-                    ICU-A · {v.bed}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: vitalColor(v.bpOk) }}>
-                    {v.bp}
-                  </span>
-                  <div style={{ fontSize: 10, color: 'var(--fg-muted)' }}>mmHg</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: vitalColor(v.hrOk) }}>
-                    {v.hr}
-                  </span>
-                  <div style={{ fontSize: 10, color: 'var(--fg-muted)' }}>bpm</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: vitalColor(v.tempOk) }}>
-                    {v.temp}°C
-                  </span>
-                  <div style={{ fontSize: 10, color: 'var(--fg-muted)' }}>temp</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Shift handoff notes */}
-        <div className="card">
-          <div className="card-h">
-            <div>
-              <h2>Shift handoff notes</h2>
-              <div className="sub">From night shift · 4 entries</div>
-            </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRoute('nurses')}>
-              Add note
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {HANDOFF.map((h: HandoffNote, i: number) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 12,
-                  padding: '10px 12px',
-                  background: 'var(--bg-section)',
-                  borderRadius: 12,
-                  border: '1px solid var(--border-light)',
-                }}
-              >
-                <div className="av blue" style={{ flexShrink: 0 }}>
-                  <Icon name="clipboard" size={14} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-primary)', lineHeight: 1.4 }}>
-                    {h.note}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 3 }}>
-                    {h.by}
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--fg-muted)', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
-                  {h.time}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   )
 }
