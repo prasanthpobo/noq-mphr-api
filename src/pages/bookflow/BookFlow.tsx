@@ -1,22 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import dayjs from 'dayjs'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
-import { CLINICS, DOCTORS, PATIENTS } from '@/data'
-import type { Clinic, Doctor, Patient } from '@/types'
+import { clinicsService } from '@/services/clinics.service'
+import { doctorsService } from '@/services/doctors.service'
+import { patientsService } from '@/services/patients.service'
+import { appointmentsService } from '@/services/appointments.service'
+import { tokensService } from '@/services/tokens.service'
+import { toast } from '@/store/toast'
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
 type Step = 1 | 2 | 3 | 4 | 5 | 6
 
 interface Selections {
-  clinic:   Clinic   | null
-  patient:  Patient  | null
-  doctor:   Doctor   | null
-  date:     string
-  time:     string
-  reason:   string
-  reasonCat:string
-  payment:  string
+  clinic:    any | null
+  patient:   any | null
+  doctor:    any | null
+  date:      string
+  time:      string
+  reason:    string
+  reasonCat: string
+  payment:   string
 }
 
 const EMPTY: Selections = {
@@ -58,6 +63,8 @@ const PAYMENT_METHODS = [
 
 const FAKE_DISTANCES = ['2.1 km','3.4 km','1.8 km','5.2 km','4.0 km','2.9 km','6.1 km','3.7 km']
 
+const TONES = ['blue','teal','pink','amber','green','plum','indigo','brand']
+
 function stars(rating: number) {
   return Array.from({ length: 5 }, (_, i) => (
     <Icon
@@ -79,10 +86,11 @@ const STEP_LABELS = [
   'Confirm',
 ]
 
-function Stepper({ step, sel, onJump }: { step: Step; sel: Selections; onJump: (s: Step) => void }) {
+function Stepper({ step, sel, clinics, onJump }: { step: Step; sel: Selections; clinics: any[]; onJump: (s: Step) => void }) {
+  const clinicIdx = sel.clinic ? clinics.findIndex((c: any) => c._id === sel.clinic?._id) : -1
   const summaries: Record<number, string> = {
-    1: sel.clinic  ? `${sel.clinic.name} · ${FAKE_DISTANCES[CLINICS.indexOf(sel.clinic)]}` : '',
-    2: sel.patient ? `${sel.patient.name} · ${sel.patient.age}y` : '',
+    1: sel.clinic  ? `${sel.clinic.name} · ${FAKE_DISTANCES[clinicIdx >= 0 ? clinicIdx : 0]}` : '',
+    2: sel.patient ? `${sel.patient.name} · ${dayjs().diff(dayjs(sel.patient.dob), 'year')}y` : '',
     3: sel.doctor  ? `${sel.doctor.name}` : '',
     4: sel.date && sel.time ? `${sel.date} · ${sel.time}` : '',
     5: sel.reasonCat ? sel.reasonCat : '',
@@ -149,10 +157,10 @@ function Stepper({ step, sel, onJump }: { step: Step; sel: Selections; onJump: (
 }
 
 /* ── Step 1 — Clinic ────────────────────────────────────────────────────── */
-function StepClinic({ sel, onSelect }: { sel: Clinic | null; onSelect: (c: Clinic) => void }) {
+function StepClinic({ clinics, sel, onSelect }: { clinics: any[]; sel: any | null; onSelect: (c: any) => void }) {
   const [search, setSearch] = useState('')
-  const filtered = CLINICS.filter(c =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.area.toLowerCase().includes(search.toLowerCase())
+  const filtered = clinics.filter(c =>
+    !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.address || '').toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -169,69 +177,78 @@ function StepClinic({ sel, onSelect }: { sel: Clinic | null; onSelect: (c: Clini
         />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        {filtered.map((c, idx) => (
-          <button
-            key={c.id}
-            onClick={() => onSelect(c)}
-            style={{
-              border: sel?.id === c.id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-              borderRadius: 14, padding: '16px', background: sel?.id === c.id ? 'var(--brand-soft)' : 'var(--bg-surface)',
-              cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div className={`av ${c.tone}`} style={{ width: 40, height: 40, fontSize: 13, borderRadius: 10 }}>{c.logo}</div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>{c.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>{c.area}</div>
+        {filtered.map((c, idx) => {
+          const tone = TONES[idx % TONES.length]
+          const logo = (c.code || c.name || '??').slice(0, 2).toUpperCase()
+          const rating = 4.5
+          return (
+            <button
+              key={c._id}
+              onClick={() => onSelect(c)}
+              style={{
+                border: sel?._id === c._id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
+                borderRadius: 14, padding: '16px', background: sel?._id === c._id ? 'var(--brand-soft)' : 'var(--bg-surface)',
+                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                <div className={`av ${tone}`} style={{ width: 40, height: 40, fontSize: 13, borderRadius: 10 }}>{logo}</div>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>{c.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>{c.address}</div>
+                </div>
+                <div style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--fg-muted)' }}>{FAKE_DISTANCES[idx % FAKE_DISTANCES.length]}</div>
               </div>
-              <div style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--fg-muted)' }}>{FAKE_DISTANCES[idx]}</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-              {stars(c.rating)}
-              <span style={{ fontSize: 12, fontWeight: 700, marginLeft: 4 }}>{c.rating}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span className="badge muted" style={{ fontSize: 11 }}>{c.type}</span>
-              <span className="badge muted" style={{ fontSize: 11 }}>{c.doctors} doctors</span>
-              <Badge variant={c.status === 'active' ? 'success' : 'gray'}>{c.status}</Badge>
-            </div>
-          </button>
-        ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                {stars(rating)}
+                <span style={{ fontSize: 12, fontWeight: 700, marginLeft: 4 }}>{rating}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span className="badge muted" style={{ fontSize: 11 }}>{c.type}</span>
+                <span className="badge muted" style={{ fontSize: 11 }}>{c.capacity || 0} doctors</span>
+                <Badge variant={c.status === 'active' ? 'success' : 'gray'}>{c.status}</Badge>
+              </div>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
 }
 
 /* ── Step 2 — Patient ───────────────────────────────────────────────────── */
-function StepPatient({ sel, onSelect }: { sel: Patient | null; onSelect: (p: Patient) => void }) {
-  const shown = PATIENTS.slice(0, 4)
+function StepPatient({ patients, sel, onSelect }: { patients: any[]; sel: any | null; onSelect: (p: any) => void }) {
+  const shown = patients.slice(0, 4)
 
   return (
     <div>
       <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6, color: 'var(--fg-primary)' }}>Select patient</div>
       <div style={{ fontSize: 13, color: 'var(--fg-secondary)', marginBottom: 24 }}>Choose who this appointment is for</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        {shown.map(p => (
-          <button
-            key={p.id}
-            onClick={() => onSelect(p)}
-            style={{
-              border: sel?.id === p.id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-              borderRadius: 14, padding: '16px', background: sel?.id === p.id ? 'var(--brand-soft)' : 'var(--bg-surface)',
-              cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className={`av ${p.tone}`} style={{ width: 40, height: 40 }}>{p.name.slice(0,2)}</div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>{p.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>{p.age}y · {p.gender} · {p.bg}</div>
-                <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{p.phone}</div>
+        {shown.map((p, idx) => {
+          const tone = TONES[idx % TONES.length]
+          const age = dayjs().diff(dayjs(p.dob), 'year')
+          return (
+            <button
+              key={p._id}
+              onClick={() => onSelect(p)}
+              style={{
+                border: sel?._id === p._id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
+                borderRadius: 14, padding: '16px', background: sel?._id === p._id ? 'var(--brand-soft)' : 'var(--bg-surface)',
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className={`av ${tone}`} style={{ width: 40, height: 40 }}>{p.name.slice(0,2)}</div>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>{age}y · {p.gender} · {p.bloodGroup}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{p.phone}</div>
+                </div>
               </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
         {/* Add family member */}
         <button style={{
           border: '2px dashed var(--border-soft)', borderRadius: 14, padding: '16px',
@@ -247,38 +264,42 @@ function StepPatient({ sel, onSelect }: { sel: Patient | null; onSelect: (p: Pat
 }
 
 /* ── Step 3 — Doctor ────────────────────────────────────────────────────── */
-function StepDoctor({ sel, onSelect }: { sel: Doctor | null; onSelect: (d: Doctor) => void }) {
+function StepDoctor({ doctors, sel, onSelect }: { doctors: any[]; sel: any | null; onSelect: (d: any) => void }) {
   return (
     <div>
       <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6, color: 'var(--fg-primary)' }}>Choose a doctor</div>
       <div style={{ fontSize: 13, color: 'var(--fg-secondary)', marginBottom: 24 }}>Available doctors at selected clinic</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        {DOCTORS.map(d => (
-          <button
-            key={d.id}
-            onClick={() => onSelect(d)}
-            style={{
-              border: sel?.id === d.id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-              borderRadius: 14, padding: '16px', background: sel?.id === d.id ? 'var(--brand-soft)' : 'var(--bg-surface)',
-              cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <div className={`av ${d.tone}`} style={{ width: 40, height: 40 }}>{d.av}</div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>{d.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>{d.spec}</div>
-                <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{d.exp} exp</div>
+        {doctors.map((d, idx) => {
+          const tone = TONES[idx % TONES.length]
+          const av = (d.name || '??').slice(0, 2)
+          return (
+            <button
+              key={d._id}
+              onClick={() => onSelect(d)}
+              style={{
+                border: sel?._id === d._id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
+                borderRadius: 14, padding: '16px', background: sel?._id === d._id ? 'var(--brand-soft)' : 'var(--bg-surface)',
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div className={`av ${tone}`} style={{ width: 40, height: 40 }}>{av}</div>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>{d.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-secondary)' }}>{d.specialization}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{d.experience} exp</div>
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>₹{d.fee}</span>
-              <Badge variant={d.status === 'on' ? 'success' : d.status === 'busy' ? 'warning' : 'gray'}>
-                {d.status === 'on' ? 'Available' : d.status === 'busy' ? 'Busy' : 'On leave'}
-              </Badge>
-            </div>
-          </button>
-        ))}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-primary)' }}>₹{d.consultationFee}</span>
+                <Badge variant={d.status === 'active' ? 'success' : 'gray'}>
+                  {d.status === 'active' ? 'Available' : 'Unavailable'}
+                </Badge>
+              </div>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -416,14 +437,16 @@ function StepConfirm({ sel, onPaymentChange }: {
   sel: Selections
   onPaymentChange: (method: string) => void
 }) {
-  const fee      = sel.doctor?.fee ?? 600
+  const fee      = sel.doctor?.consultationFee ?? 600
   const discount = Math.round(fee * 0.1)
   const total    = fee - discount
 
+  const patientAge = sel.patient?.dob ? dayjs().diff(dayjs(sel.patient.dob), 'year') : '—'
+
   const rows = [
-    { label: 'Patient',   val: `${sel.patient?.name} · ${sel.patient?.age}y ${sel.patient?.gender}` },
-    { label: 'Doctor',    val: `${sel.doctor?.name} · ${sel.doctor?.spec}` },
-    { label: 'Clinic',    val: `${sel.clinic?.name} · ${sel.clinic?.area}` },
+    { label: 'Patient',   val: `${sel.patient?.name} · ${patientAge}y ${sel.patient?.gender}` },
+    { label: 'Doctor',    val: `${sel.doctor?.name} · ${sel.doctor?.specialization}` },
+    { label: 'Clinic',    val: `${sel.clinic?.name} · ${sel.clinic?.address}` },
     { label: 'Date',      val: `${sel.date} · ${sel.time}` },
     { label: 'Reason',    val: sel.reasonCat || '—' },
   ]
@@ -507,7 +530,12 @@ function StepConfirm({ sel, onPaymentChange }: {
 }
 
 /* ── Success state ──────────────────────────────────────────────────────── */
-function SuccessView({ onViewQueue, onBookAnother }: { onViewQueue: () => void; onBookAnother: () => void }) {
+function SuccessView({ createdToken, onViewQueue, onBookAnother }: {
+  createdToken: any | null
+  onViewQueue: () => void
+  onBookAnother: () => void
+}) {
+  const tokenNumber = createdToken?.tokenNumber ?? 'A-032'
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' }}>
       {/* Animated check */}
@@ -534,7 +562,7 @@ function SuccessView({ onViewQueue, onBookAnother }: { onViewQueue: () => void; 
         background: 'var(--brand-gradient)', color: '#fff',
       }}>
         <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Token number</div>
-        <div style={{ fontSize: 48, fontWeight: 900, lineHeight: 1 }}>A-032</div>
+        <div style={{ fontSize: 48, fontWeight: 900, lineHeight: 1 }}>{tokenNumber}</div>
       </div>
 
       <div style={{ display: 'flex', gap: 12 }}>
@@ -552,9 +580,27 @@ function SuccessView({ onViewQueue, onBookAnother }: { onViewQueue: () => void; 
 /* ── Main component ─────────────────────────────────────────────────────── */
 export default function BookFlow() {
   const { setRoute } = useAppStore()
-  const [step, setStep]       = useState<Step>(1)
-  const [sel, setSel]         = useState<Selections>(EMPTY)
+  const [step, setStep]           = useState<Step>(1)
+  const [sel, setSel]             = useState<Selections>(EMPTY)
   const [confirmed, setConfirmed] = useState(false)
+  const [createdToken, setCreatedToken] = useState<any>(null)
+
+  const [clinics, setClinics]     = useState<any[]>([])
+  const [doctors, setDoctors]     = useState<any[]>([])
+  const [patients, setPatients]   = useState<any[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      clinicsService.list(),
+      doctorsService.list(),
+      patientsService.list(),
+    ]).then(([c, d, p]) => {
+      setClinics(c.data || [])
+      setDoctors(d.data || [])
+      setPatients(p.data || [])
+    }).finally(() => setLoadingData(false))
+  }, [])
 
   const setField = <K extends keyof Selections>(k: K, v: Selections[K]) =>
     setSel(s => ({ ...s, [k]: v }))
@@ -569,28 +615,70 @@ export default function BookFlow() {
     return false
   }
 
-  const handleContinue = () => {
-    if (step < 6) setStep(s => (s + 1) as Step)
-    else setConfirmed(true)
+  const handleConfirm = async () => {
+    try {
+      // Create appointment
+      const appt = await appointmentsService.create({
+        patientId: sel.patient?._id,
+        doctorId: sel.doctor?._id,
+        clinicId: sel.clinic?._id,
+        date: sel.date,
+        time: sel.time,
+        type: sel.reasonCat === 'Follow-up' ? 'follow-up' : sel.reasonCat === 'Emergency' ? 'emergency' : sel.reasonCat === 'Routine check' ? 'routine' : 'consultation',
+        symptoms: sel.reason ? [sel.reason] : [],
+        notes: sel.reason,
+      })
+      // Create token
+      const token = await tokensService.create({
+        patientId: sel.patient?._id,
+        doctorId: sel.doctor?._id,
+        clinicId: sel.clinic?._id,
+        appointmentId: appt._id,
+        priority: 'normal',
+        date: sel.date || new Date().toISOString(),
+      })
+      setCreatedToken(token)
+      setConfirmed(true)
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Booking failed. Please try again.')
+    }
   }
 
-  const fee   = sel.doctor?.fee ?? 600
+  const handleContinue = () => {
+    if (step < 6) setStep(s => (s + 1) as Step)
+    else handleConfirm()
+  }
+
+  const fee   = sel.doctor?.consultationFee ?? 600
   const total = fee - Math.round(fee * 0.1)
 
   if (confirmed) {
     return (
       <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-canvas)' }}>
         <SuccessView
+          createdToken={createdToken}
           onViewQueue={() => setRoute('live-tokens')}
-          onBookAnother={() => { setSel(EMPTY); setStep(1); setConfirmed(false) }}
+          onBookAnother={() => { setSel(EMPTY); setStep(1); setConfirmed(false); setCreatedToken(null) }}
         />
+      </div>
+    )
+  }
+
+  // Loading overlay for data-dependent steps
+  if (loadingData && step <= 3) {
+    return (
+      <div style={{
+        display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg-canvas)', fontSize: 15, color: 'var(--fg-muted)', fontWeight: 600,
+      }}>
+        Loading...
       </div>
     )
   }
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-canvas)', overflow: 'hidden' }}>
-      <Stepper step={step} sel={sel} onJump={setStep} />
+      <Stepper step={step} sel={sel} clinics={clinics} onJump={setStep} />
 
       {/* Right panel */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -606,9 +694,9 @@ export default function BookFlow() {
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '32px 40px' }}>
-          {step === 1 && <StepClinic  sel={sel.clinic}  onSelect={c => setField('clinic', c)} />}
-          {step === 2 && <StepPatient sel={sel.patient} onSelect={p => setField('patient', p)} />}
-          {step === 3 && <StepDoctor  sel={sel.doctor}  onSelect={d => setField('doctor', d)} />}
+          {step === 1 && <StepClinic  clinics={clinics}   sel={sel.clinic}  onSelect={c => setField('clinic', c)} />}
+          {step === 2 && <StepPatient patients={patients} sel={sel.patient} onSelect={p => setField('patient', p)} />}
+          {step === 3 && <StepDoctor  doctors={doctors}   sel={sel.doctor}  onSelect={d => setField('doctor', d)} />}
           {step === 4 && (
             <StepSchedule
               sel={{ date: sel.date, time: sel.time }}

@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import { useAppStore } from '@/store/app'
-import { CLINICS, DOCTORS, NURSES } from '@/data'
-import type { Clinic } from '@/types'
+import { clinicsService } from '@/services/clinics.service'
+import { doctorsService } from '@/services/doctors.service'
+import { nursesService } from '@/services/nurses.service'
 
 const UTIL_COLORS: string[] = [
   'var(--brand-gradient)',
@@ -14,13 +16,6 @@ const UTIL_COLORS: string[] = [
   'linear-gradient(90deg,#1FA3A8,#7FCDD0)',
   'linear-gradient(90deg,#6D28D9,#C4B5FD)',
 ]
-
-// Synthetic utilization percentages per clinic
-const UTIL_MAP: Record<string, number> = {
-  'C-001': 88, 'C-002': 74, 'C-003': 61,
-  'C-004': 95, 'C-005': 42, 'C-006': 57,
-  'C-007': 79, 'C-008': 33,
-}
 
 // Clinic type breakdown for donut
 const TYPE_DATA: { label: string; count: number; color: string }[] = [
@@ -68,24 +63,40 @@ function DonutChart() {
   )
 }
 
-const totalDoctors = DOCTORS.length
-const activeClinics = CLINICS.filter((c: Clinic) => c.status === 'active').length
-const totalRooms = CLINICS.reduce((s: number, c: Clinic) => s + c.rooms, 0)
-
-const topClinics = [...CLINICS]
-  .filter((c: Clinic) => c.status !== 'pending')
-  .sort((a: Clinic, b: Clinic) => b.rating - a.rating)
-  .slice(0, 5)
-
-const staffingData = [
-  { label: 'Doctors',    count: DOCTORS.length,  color: 'var(--brand-gradient)' },
-  { label: 'Nurses',     count: NURSES.length,   color: 'linear-gradient(90deg,#EC4899,#F9A8D4)' },
-  { label: 'Front desk', count: 7,               color: 'linear-gradient(90deg,#059669,#6EE7B7)' },
-]
-const maxStaff = Math.max(...staffingData.map(d => d.count))
+const TONE_PALETTE = ['blue','teal','pink','amber','green','plum','indigo','brand']
 
 export default function ClinicDashboard() {
   const { setRoute } = useAppStore()
+  const [clinics, setClinics] = useState<any[]>([])
+  const [doctors, setDoctors] = useState<any[]>([])
+  const [nurses, setNurses] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      clinicsService.list(),
+      doctorsService.list(),
+      nursesService.list(),
+    ]).then(([cRes, dRes, nRes]) => {
+      setClinics(cRes.data || [])
+      setDoctors(dRes.data || [])
+      setNurses(nRes.data || [])
+    }).finally(() => setLoading(false))
+  }, [])
+
+  const activeClinics = clinics.filter((c: any) => c.status === 'active').length
+  const totalDoctors = doctors.length
+
+  const topClinics = [...clinics]
+    .filter((c: any) => c.status !== 'pending')
+    .slice(0, 5)
+
+  const staffingData = [
+    { label: 'Doctors',    count: doctors.length, color: 'var(--brand-gradient)' },
+    { label: 'Nurses',     count: nurses.length,  color: 'linear-gradient(90deg,#EC4899,#F9A8D4)' },
+    { label: 'Front desk', count: 7,              color: 'linear-gradient(90deg,#059669,#6EE7B7)' },
+  ]
+  const maxStaff = Math.max(...staffingData.map(d => d.count), 1)
 
   return (
     <div className="main">
@@ -100,13 +111,13 @@ export default function ClinicDashboard() {
           ic="building"
           tone="blue"
           label="Total clinics"
-          value="8"
+          value={loading ? '...' : String(clinics.length)}
           foot="Across Bengaluru"
         />
         <StatCard
           ic="activity"
           label="Active right now"
-          value={String(activeClinics)}
+          value={loading ? '...' : String(activeClinics)}
           accent
           foot="Clinics open today"
         />
@@ -114,14 +125,14 @@ export default function ClinicDashboard() {
           ic="stethoscope"
           tone="plum"
           label="Doctors enrolled"
-          value={String(totalDoctors)}
+          value={loading ? '...' : String(totalDoctors)}
           foot="Across all clinics"
         />
         <StatCard
           ic="clipboard"
           tone="amber"
           label="Consult rooms"
-          value={String(totalRooms)}
+          value="..."
           foot="Total across network"
         />
       </div>
@@ -140,11 +151,17 @@ export default function ClinicDashboard() {
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {CLINICS.map((c: Clinic, i: number) => {
-              const pct = UTIL_MAP[c.id] ?? 50
+            {loading ? (
+              <>
+                <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
+                <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
+                <div style={{ height: 32, background: 'var(--bg-section)', borderRadius: 8 }} />
+              </>
+            ) : clinics.map((c: any, i: number) => {
+              const pct = 50 + (i * 7) % 50
               const color = UTIL_COLORS[i % UTIL_COLORS.length]
               return (
-                <div key={c.id}>
+                <div key={c._id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <div>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
@@ -217,9 +234,15 @@ export default function ClinicDashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {topClinics.map((c: Clinic, i: number) => (
+            {loading ? (
+              <>
+                <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
+                <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
+                <div style={{ height: 56, background: 'var(--bg-section)', borderRadius: 12 }} />
+              </>
+            ) : topClinics.map((c: any, i: number) => (
               <div
-                key={c.id}
+                key={c._id}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -240,19 +263,19 @@ export default function ClinicDashboard() {
                 }}>
                   {i + 1}
                 </div>
-                <div className={`av ${c.tone}`} style={{ borderRadius: 10, flexShrink: 0 }}>
-                  {c.logo}
+                <div className={`av ${TONE_PALETTE[i % TONE_PALETTE.length]}`} style={{ borderRadius: 10, flexShrink: 0 }}>
+                  {c.name?.slice(0, 2) || 'CL'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {c.name}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 2 }}>
-                    {c.type} · {c.area}
+                    {c.type} · {c.address}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: 'var(--warning-500)', flexShrink: 0 }}>
-                  ★ {c.rating}
+                  ★ {c.rating ?? '—'}
                 </div>
               </div>
             ))}
@@ -275,13 +298,13 @@ export default function ClinicDashboard() {
                     {s.label}
                   </span>
                   <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--fg-primary)', letterSpacing: '-0.03em' }}>
-                    {s.count}
+                    {loading ? '...' : s.count}
                   </span>
                 </div>
                 <div style={{ height: 10, background: 'var(--bg-section)', borderRadius: 99, overflow: 'hidden' }}>
                   <div style={{
                     height: '100%',
-                    width: `${Math.round((s.count / maxStaff) * 100)}%`,
+                    width: loading ? '0%' : `${Math.round((s.count / maxStaff) * 100)}%`,
                     background: s.color,
                     borderRadius: 99,
                     transition: 'width 0.6s var(--ease-out)',

@@ -1,17 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAppStore } from '@/store/app'
-import { DOCTORS, TOKEN_QUEUE } from '@/data'
-import type { Doctor, TokenQueue } from '@/types'
-
-// Group TOKEN_QUEUE by doctor
-function getDocQueues(): Map<string, TokenQueue[]> {
-  const map = new Map<string, TokenQueue[]>()
-  TOKEN_QUEUE.forEach(t => {
-    if (!map.has(t.doctor)) map.set(t.doctor, [])
-    map.get(t.doctor)!.push(t)
-  })
-  return map
-}
+import { tokensService } from '@/services/tokens.service'
+import { doctorsService } from '@/services/doctors.service'
+import dayjs from 'dayjs'
 
 function useClockTick() {
   const [now, setNow] = useState(new Date())
@@ -32,29 +23,56 @@ export default function TokenDisplay() {
   const [currentDoctorIdx, setCurrentDoctorIdx] = useState(0)
   const [isAutoRotate, setIsAutoRotate] = useState(true)
   const [soundOn, setSoundOn] = useState(false)
+  const [doctors, setDoctors] = useState<any[]>([])
+  const [tokens, setTokens] = useState<any[]>([])
 
-  const docQueues = getDocQueues()
-  const activeDoctors = DOCTORS.filter(d => d.status !== 'leave')
+  const loadData = useCallback(async () => {
+    const today = dayjs().format('YYYY-MM-DD')
+    const [dRes, tRes] = await Promise.all([
+      doctorsService.list(),
+      tokensService.list({ date: today }),
+    ])
+    setDoctors(dRes.data || [])
+    setTokens(tRes.data || [])
+  }, [])
+
+  useEffect(() => {
+    loadData()
+    const id = setInterval(loadData, 30000)
+    return () => clearInterval(id)
+  }, [loadData])
+
+  // Group tokens by doctorId._id
+  const docQueues = new Map<string, any[]>()
+  tokens.forEach(t => {
+    const key = t.doctorId?._id || ''
+    if (!docQueues.has(key)) docQueues.set(key, [])
+    docQueues.get(key)!.push(t)
+  })
+
+  const activeDoctors = doctors.filter((d: any) => d.status !== 'on-leave')
 
   useEffect(() => {
     if (!isAutoRotate) return
     const id = setInterval(() => {
-      setCurrentDoctorIdx(i => (i + 1) % activeDoctors.length)
+      setCurrentDoctorIdx(i => (i + 1) % (activeDoctors.length || 1))
     }, 15000)
     return () => clearInterval(id)
   }, [isAutoRotate, activeDoctors.length])
 
-  const currentDoctor: Doctor = activeDoctors[currentDoctorIdx] ?? activeDoctors[0]
-  const doctorQueue = docQueues.get(currentDoctor?.name ?? '') ?? []
-  const nowToken = doctorQueue.find(t => t.status === 'in-consultation') ?? doctorQueue[0]
-  const nextTokens = doctorQueue.filter(t => t !== nowToken && t.status !== 'completed' && t.status !== 'cancelled').slice(0, 6)
+  const currentDoctor = activeDoctors[currentDoctorIdx] ?? activeDoctors[0]
+  const doctorQueue = docQueues.get(currentDoctor?._id ?? '') ?? []
+  const nowToken = doctorQueue.find((t: any) => t.status === 'in-consultation') ?? doctorQueue[0]
+  const nextTokens = doctorQueue
+    .filter((t: any) => t !== nowToken && t.status !== 'completed' && t.status !== 'cancelled')
+    .slice(0, 6)
 
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
   const [timePart, ampm] = timeStr.split(' ')
   const parts = timePart.split(':')
   const displayTime = `${parts[0]}${colon ? ':' : ' '}${parts[1]}`
 
-  const totalSeen = doctorQueue.filter(t => t.status === 'completed').length
+  const totalSeen = doctorQueue.filter((t: any) => t.status === 'completed').length
 
   return (
     <div className="tv-overlay">
@@ -110,7 +128,7 @@ export default function TokenDisplay() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 14 }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 18, fontWeight: 800 }}>{currentDoctor?.name}</div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 3 }}>{currentDoctor?.spec}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 3 }}>{currentDoctor?.specialization}</div>
             <div style={{ fontSize: 12, color: 'rgba(79,216,218,0.8)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>{currentDoctor?.room}</div>
           </div>
           <div style={{
@@ -120,7 +138,7 @@ export default function TokenDisplay() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 18, fontWeight: 800, flexShrink: 0,
           }}>
-            {currentDoctor?.av}
+            {currentDoctor?.name?.slice(0, 2) || 'DR'}
           </div>
         </div>
       </div>
@@ -170,11 +188,11 @@ export default function TokenDisplay() {
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               letterSpacing: '-0.04em',
             }}>
-              {nowToken?.id ?? '—'}
+              {nowToken?.tokenNumber != null ? String(nowToken.tokenNumber) : '—'}
             </div>
 
             <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginTop: 12 }}>
-              {nowToken?.patient ?? 'No patient'}
+              {nowToken?.patientId?.name || 'No patient'}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
@@ -224,7 +242,7 @@ export default function TokenDisplay() {
                         <span style={{
                           fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 800,
                           color: isNext ? '#4fd8da' : 'rgba(255,255,255,0.85)',
-                        }}>{t.id}</span>
+                        }}>{t.tokenNumber}</span>
                         {isNext && (
                           <span style={{
                             background: 'rgba(79,216,218,0.2)', border: '1px solid rgba(79,216,218,0.4)',
@@ -233,8 +251,8 @@ export default function TokenDisplay() {
                           }}>Up next</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 14.5, fontWeight: 700, color: 'white', lineHeight: 1.3 }}>{t.patient}</div>
-                      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--font-mono)' }}>{t.slot}</div>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, color: 'white', lineHeight: 1.3 }}>{t.patientId?.name || 'Patient'}</div>
+                      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--font-mono)' }}>{t.time || ''}</div>
                     </>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.08)', fontSize: 30 }}>—</div>
@@ -254,13 +272,13 @@ export default function TokenDisplay() {
       }}>
         <div style={{ display: 'flex', gap: 8, flex: 1, overflowX: 'auto', paddingBottom: 2 }}>
           {activeDoctors.map((doc, i) => {
-            const dq = docQueues.get(doc.name) ?? []
-            const nowTk = dq.find(t => t.status === 'in-consultation')
-            const waitingCount = dq.filter(t => t.status === 'waiting').length
+            const dq = docQueues.get(doc._id) ?? []
+            const nowTk = dq.find((t: any) => t.status === 'in-consultation')
+            const waitingCount = dq.filter((t: any) => t.status === 'waiting').length
             const isActive = i === currentDoctorIdx
             return (
               <button
-                key={doc.id}
+                key={doc._id}
                 onClick={() => { setCurrentDoctorIdx(i); setIsAutoRotate(false) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
@@ -275,7 +293,7 @@ export default function TokenDisplay() {
                   padding: '2px 6px', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800,
                 }}>{doc.room}</span>
                 {nowTk && (
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#4fd8da' }}>{nowTk.id}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#4fd8da' }}>{nowTk.tokenNumber}</span>
                 )}
                 <span style={{ fontSize: 12.5, fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.08)', borderRadius: 999, padding: '1px 6px' }}>{waitingCount} waiting</span>

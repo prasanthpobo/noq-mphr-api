@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import StatCard from '@/components/ui/StatCard'
-import { CHART_DAYS, DOCTORS } from '@/data'
+import { reportsService } from '@/services/reports.service'
+import dayjs from 'dayjs'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,6 @@ function makePolyline(values: number[], maxVal: number): string {
 
 const REVENUE_BY_DAY = [42400, 55200, 48600, 61800, 73200, 82400, 56100]
 const maxRev = Math.max(...REVENUE_BY_DAY)
-const maxTokens = Math.max(...CHART_DAYS.map(d => d.tokens))
 
 // ─── Donut chart ──────────────────────────────────────────────────────────────
 
@@ -153,7 +153,8 @@ const BAR_SLOT = BAR_INNER_W / BAR_COUNT
 const BAR_WIDTH = BAR_SLOT * 0.55
 const peakIdx = REVENUE_BY_DAY.indexOf(maxRev)
 
-function BarChart() {
+function BarChart({ chartDays }: { chartDays: any[] }) {
+  const labels = chartDays.length > 0 ? chartDays : REVENUE_BY_DAY.map((_, i) => ({ label: `D${i + 1}` }))
   return (
     <svg width="100%" viewBox={`0 0 ${BAR_W} ${BAR_H}`} style={{ display: 'block' }}>
       {/* Gridlines */}
@@ -178,7 +179,7 @@ function BarChart() {
           <g key={i}>
             <rect x={x} y={y} width={BAR_WIDTH} height={bh} fill={fill} rx={3} />
             <text x={x + BAR_WIDTH / 2} y={BAR_H - BAR_PAD.bottom + 12} textAnchor="middle" fontSize={9} fill="var(--fg-muted)" fontFamily="inherit">
-              {CHART_DAYS[i].d}
+              {labels[i]?.label ?? `D${i + 1}`}
             </text>
           </g>
         )
@@ -195,9 +196,11 @@ function BarChart() {
 
 // ─── Appointments trend line chart ───────────────────────────────────────────
 
-function LineChart() {
-  const tokensPoints = makePolyline(CHART_DAYS.map(d => d.tokens), maxTokens)
+function LineChart({ chartDays }: { chartDays: any[] }) {
+  const maxTokens = chartDays.length > 0 ? Math.max(...chartDays.map((d: any) => d.tokens), 1) : 1
+  const tokensPoints = chartDays.length > 1 ? makePolyline(chartDays.map((d: any) => d.tokens), maxTokens) : ''
   const revPoints    = makePolyline(REVENUE_BY_DAY.map(v => v / 1000), maxRev / 1000)
+  const chartLen = Math.max(chartDays.length, 2)
 
   return (
     <svg width="100%" viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ display: 'block' }}>
@@ -222,29 +225,33 @@ function LineChart() {
       })}
 
       {/* Area under tokens line */}
-      <polygon
-        points={`${tokensPoints} ${scaleX(CHART_DAYS.length - 1, CHART_DAYS.length)},${PAD.top + innerH} ${PAD.left},${PAD.top + innerH}`}
-        fill="url(#areaGrad)"
-      />
+      {tokensPoints && (
+        <polygon
+          points={`${tokensPoints} ${scaleX(chartDays.length - 1, chartLen)},${PAD.top + innerH} ${PAD.left},${PAD.top + innerH}`}
+          fill="url(#areaGrad)"
+        />
+      )}
 
       {/* Token line (solid teal) */}
-      <polyline points={tokensPoints} fill="none" stroke="#1FA3A8" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      {tokensPoints && (
+        <polyline points={tokensPoints} fill="none" stroke="#1FA3A8" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      )}
 
       {/* Revenue line (dashed amber) */}
       <polyline points={revPoints} fill="none" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 3" strokeLinejoin="round" strokeLinecap="round" />
 
       {/* X axis labels */}
-      {CHART_DAYS.map((d, i) => (
-        <text key={d.d} x={scaleX(i, CHART_DAYS.length)} y={CHART_H - 4} textAnchor="middle" fontSize={9} fill="var(--fg-muted)" fontFamily="inherit">
-          {d.d}
+      {chartDays.map((d: any, i: number) => (
+        <text key={i} x={scaleX(i, chartLen)} y={CHART_H - 4} textAnchor="middle" fontSize={9} fill="var(--fg-muted)" fontFamily="inherit">
+          {d.label}
         </text>
       ))}
 
       {/* Dots on token line */}
-      {CHART_DAYS.map((d, i) => {
-        const x = scaleX(i, CHART_DAYS.length)
+      {chartDays.map((d: any, i: number) => {
+        const x = scaleX(i, chartLen)
         const y = PAD.top + innerH - (d.tokens / maxTokens) * innerH
-        return <circle key={d.d} cx={x} cy={y} r={3} fill="#1FA3A8" />
+        return <circle key={i} cx={x} cy={y} r={3} fill="#1FA3A8" />
       })}
     </svg>
   )
@@ -278,6 +285,19 @@ export default function ReportsPage() {
   const [dateRange, setDateRange] = useState<DateRange>('7d')
   const [clinic, setClinic] = useState('All clinics')
   const [doctor, setDoctor] = useState('All doctors')
+  const [chartDays, setChartDays] = useState<any[]>([])
+  const [topDoctors, setTopDoctors] = useState<any[]>([])
+  const [period, setPeriod] = useState<'week' | 'month' | 'year'>('week')
+
+  useEffect(() => {
+    reportsService.tokens(period).then((data: any) => {
+      setChartDays((data || []).map((d: any) => ({
+        label: dayjs(d._id).format(period === 'week' ? 'ddd' : period === 'month' ? 'DD' : 'MMM'),
+        tokens: d.count || 0,
+      })))
+    }).catch(() => {})
+    reportsService.topDoctors().then(setTopDoctors).catch(() => {})
+  }, [period])
 
   const [apptSort, setApptSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'token', dir: 'asc' })
   const [revSort,  setRevSort]  = useState<{ key: keyof RevRow; dir: SortDir }>({ key: 'invoiceId', dir: 'asc' })
@@ -370,7 +390,7 @@ export default function ReportsPage() {
 
           <select className="form-select" style={{ fontSize: 13, padding: '6px 12px', minWidth: 160 }} value={doctor} onChange={e => setDoctor(e.target.value)}>
             <option>All doctors</option>
-            {DOCTORS.map(d => <option key={d.id}>{d.name}</option>)}
+            {topDoctors.map((d: any, i: number) => <option key={i}>{d.doctorName || 'Doctor'}</option>)}
           </select>
 
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -408,7 +428,7 @@ export default function ReportsPage() {
                 </span>
               </div>
             </div>
-            <LineChart />
+            <LineChart chartDays={chartDays} />
           </div>
 
           {/* Donut chart */}
@@ -442,45 +462,49 @@ export default function ReportsPage() {
               <div style={{ fontSize: 14, fontWeight: 700 }}>Revenue overview</div>
               <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
                 <span style={{ color: '#F59E0B', fontWeight: 700 }}>Peak: </span>
-                {CHART_DAYS[peakIdx].d} · ₹{(maxRev / 1000).toFixed(1)}k
+                {chartDays[peakIdx]?.label ?? `Day ${peakIdx + 1}`} · ₹{(maxRev / 1000).toFixed(1)}k
               </div>
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginBottom: 12 }}>
               <Icon name="trendUp" size={11} style={{ verticalAlign: 'middle', marginRight: 4, color: '#10B981' }} />
               +14% vs last week
             </div>
-            <BarChart />
+            <BarChart chartDays={chartDays} />
           </div>
 
           {/* Doctor performance */}
           <div className="card">
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Doctor performance</div>
-            {DOCTORS.map(doc => (
-              <div key={doc.id} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div className={`av ${doc.tone}`} style={{ width: 28, height: 28, fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{doc.av}</div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{doc.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{doc.spec}</div>
+            {topDoctors.map((doc: any, idx: number) => {
+              const tones = ['pink', 'indigo', 'amber', 'mint', 'plum', 'blue']
+              const tone = tones[idx % tones.length]
+              const name: string = doc.doctorName || 'Doctor'
+              const initials = name.slice(0, 2).toUpperCase()
+              const count: number = doc.count || 0
+              const maxCount = topDoctors.reduce((m: number, d: any) => Math.max(m, d.count || 0), 1)
+              return (
+                <div key={idx} style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className={`av ${tone}`} style={{ width: 28, height: 28, fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{name}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: 'var(--fg-secondary)', fontWeight: 600 }}>{count} pts</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, color: 'var(--fg-secondary)', fontWeight: 600 }}>{doc.today} pts</span>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: 5 }}>
-                      ★ {doc.rating}
-                    </span>
+                  <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-section)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      width: `${(count / maxCount) * 100}%`,
+                      background: 'var(--brand-gradient)',
+                    }} />
                   </div>
                 </div>
-                <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-section)', overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', borderRadius: 3,
-                    width: `${(doc.today / 24) * 100}%`,
-                    background: 'var(--brand-gradient)',
-                  }} />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

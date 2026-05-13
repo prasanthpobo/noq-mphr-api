@@ -3,9 +3,8 @@ import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { CHART_DAYS, ALERTS } from '@/data'
 import { reportsService } from '@/services/reports.service'
-import type { ChartDay, Alert } from '@/types'
+import dayjs from 'dayjs'
 
 const DEPT_LOAD: { dept: string; pct: number; color: string }[] = [
   { dept: 'General OPD',  pct: 92, color: 'var(--brand-gradient)' },
@@ -14,6 +13,19 @@ const DEPT_LOAD: { dept: string; pct: number; color: string }[] = [
   { dept: 'Pediatrics',   pct: 40, color: 'linear-gradient(90deg,#059669,#6EE7B7)' },
   { dept: 'Gynecology',   pct: 55, color: 'linear-gradient(90deg,#B45309,#FCD34D)' },
   { dept: 'Orthopedics',  pct: 70, color: 'linear-gradient(90deg,#0369A1,#7DD3FC)' },
+]
+
+interface AlertItem {
+  kind: string
+  t: string
+  s: string
+  when: string
+}
+
+const ALERTS: AlertItem[] = [
+  { kind: 'danger', t: 'Queue overload — General OPD', s: 'Over 30 patients waiting, consider adding a room', when: '5m ago' },
+  { kind: 'warn',   t: 'Doctor late — Dr. Priya Sharma', s: 'Scheduled at 09:00, not checked in yet', when: '12m ago' },
+  { kind: 'info',   t: 'System maintenance tonight', s: 'Planned downtime 11:00 PM – 01:00 AM', when: '1h ago' },
 ]
 
 const ALERT_ICONS: Record<string, { ic: string; cls: string }> = {
@@ -28,17 +40,25 @@ function alertToBadge(kind: string): string {
   return 'info'
 }
 
-const maxTokens = Math.max(...CHART_DAYS.map((d: ChartDay) => d.tokens))
-
 export default function AdminDashboard() {
   const { setRoute } = useAppStore()
   const [summary, setSummary] = useState<any>(null)
+  const [chartDays, setChartDays] = useState<any[]>([])
 
   useEffect(() => {
     reportsService.summary()
       .then(data => setSummary(data))
       .catch(() => { /* silent — dashboard renders with '...' placeholders */ })
+    reportsService.tokens('week').then(data => {
+      // data is array of { _id: 'YYYY-MM-DD', count: N }
+      setChartDays((data || []).slice(-7).map((d: any) => ({
+        label: dayjs(d._id).format('ddd'),
+        tokens: d.count || 0,
+      })))
+    }).catch(() => {})
   }, [])
+
+  const maxTokens = chartDays.length > 0 ? Math.max(...chartDays.map(d => d.tokens)) : 1
 
   return (
     <div className="main">
@@ -102,38 +122,31 @@ export default function AdminDashboard() {
                 />
                 Tokens
               </span>
-              <span>
-                <span
-                  className="swatch"
-                  style={{ background: 'var(--teal-100)' }}
-                />
-                Visits
-              </span>
             </div>
           </div>
-          <div className="bars">
-            {CHART_DAYS.map((day: ChartDay) => {
-              const tokH = Math.round((day.tokens / maxTokens) * 100)
-              const visH = Math.round((day.visits / maxTokens) * 100)
-              return (
-                <div key={day.d} className="bar-col">
-                  <div className="bar-stack">
-                    <div
-                      className="bar"
-                      style={{ height: `${tokH}%` }}
-                      title={`${day.tokens} tokens`}
-                    />
-                    <div
-                      className="bar alt"
-                      style={{ height: `${visH}%` }}
-                      title={`${day.visits} visits`}
-                    />
+          {chartDays.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--fg-muted)', fontSize: 13 }}>
+              No data available
+            </div>
+          ) : (
+            <div className="bars">
+              {chartDays.map((day: any) => {
+                const tokH = Math.round((day.tokens / maxTokens) * 100)
+                return (
+                  <div key={day.label} className="bar-col">
+                    <div className="bar-stack">
+                      <div
+                        className="bar"
+                        style={{ height: `${tokH}%` }}
+                        title={`${day.tokens} tokens`}
+                      />
+                    </div>
+                    <div className="bar-lbl">{day.label}</div>
                   </div>
-                  <div className="bar-lbl">{day.d}</div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Pending bills summary */}
@@ -181,7 +194,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {ALERTS.map((a: Alert, i: number) => {
+            {ALERTS.map((a: AlertItem, i: number) => {
               const cfg = ALERT_ICONS[a.kind] ?? ALERT_ICONS.info
               return (
                 <div

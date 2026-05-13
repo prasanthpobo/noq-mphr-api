@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { DOCTORS, TOKEN_QUEUE } from '@/data'
-import type { TokenQueue } from '@/types'
+import { doctorsService } from '@/services/doctors.service'
+import { tokensService } from '@/services/tokens.service'
+import dayjs from 'dayjs'
 
 interface HourBar {
   hour: string
@@ -39,30 +41,47 @@ const QUICK_ACTIONS: QuickAction[] = [
   { ic: 'settings',  label: 'Settings',           route: 'settings',    tone: 'indigo' },
 ]
 
-// Queue tokens: active/waiting entries
-const QUEUE_ROWS: TokenQueue[] = TOKEN_QUEUE
-  .filter(t => t.status !== 'completed' && t.status !== 'cancelled')
-  .sort((a, b) => a.pos - b.pos)
-  .slice(0, 6)
-
-// Doctors on duty (not on leave)
-const DUTY_DOCTORS = DOCTORS.filter(d => d.status !== 'leave').slice(0, 4)
-
-function statusBadgeForToken(status: TokenQueue['status'], priority: TokenQueue['priority']): { cls: string; label: string } {
+function statusBadgeForToken(status: string, priority: string): { cls: string; label: string } {
   if (priority === 'emergency') return { cls: 'danger',  label: 'Emergency' }
   if (status === 'in-consultation') return { cls: 'blue',    label: 'In room'  }
   if (status === 'waiting')         return { cls: 'warning', label: 'Waiting'  }
   return                                   { cls: 'muted',   label: 'Not seen' }
 }
 
-function doctorStatusBadge(status: 'on' | 'busy' | 'leave'): { cls: string; label: string } {
-  if (status === 'on')   return { cls: 'success', label: 'Available' }
-  if (status === 'busy') return { cls: 'warning', label: 'Busy'      }
-  return                        { cls: 'muted',   label: 'Leave'     }
+function doctorStatusBadge(status: string): { cls: string; label: string } {
+  if (status === 'active') return { cls: 'success', label: 'Available' }
+  return                          { cls: 'muted',   label: 'Unavailable' }
 }
 
 export default function FrontDeskDashboard() {
   const { setRoute } = useAppStore()
+  const [tokens, setTokens] = useState<any[]>([])
+  const [doctors, setDoctors] = useState<any[]>([])
+  const [stats, setStats] = useState({ total: 0, waiting: 0, completed: 0 })
+
+  useEffect(() => {
+    const today = dayjs().format('YYYY-MM-DD')
+    Promise.all([
+      tokensService.list({ date: today }),
+      doctorsService.list(),
+    ]).then(([tRes, dRes]) => {
+      const tData = tRes.data || []
+      const dData = dRes.data || []
+      setTokens(tData)
+      setDoctors(dData)
+      setStats({
+        total: tRes.count || tData.length,
+        waiting: tData.filter((t: any) => t.status === 'waiting').length,
+        completed: tData.filter((t: any) => t.status === 'completed').length,
+      })
+    }).catch(() => {})
+  }, [])
+
+  const QUEUE_ROWS = tokens
+    .filter((t: any) => t.status !== 'completed' && t.status !== 'cancelled')
+    .slice(0, 6)
+
+  const DUTY_DOCTORS = doctors.filter((d: any) => d.status !== 'on-leave').slice(0, 4)
 
   return (
     <div className="main">
@@ -78,7 +97,7 @@ export default function FrontDeskDashboard() {
         <StatCard
           ic="ticket"
           label="Tokens today"
-          value="84"
+          value={String(stats.total)}
           accent
           foot="Issued since 09:00"
         />
@@ -86,7 +105,7 @@ export default function FrontDeskDashboard() {
           ic="users"
           tone="blue"
           label="Waiting now"
-          value="12"
+          value={String(stats.waiting)}
           foot="In queue across OPD"
         />
         <StatCard
@@ -100,7 +119,7 @@ export default function FrontDeskDashboard() {
           ic="check"
           tone="green"
           label="Completed"
-          value="62"
+          value={String(stats.completed)}
           foot="Consultations done today"
         />
       </div>
@@ -135,12 +154,12 @@ export default function FrontDeskDashboard() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
-            {QUEUE_ROWS.map((t: TokenQueue, i: number) => {
+            {QUEUE_ROWS.map((t: any, i: number) => {
               const badge = statusBadgeForToken(t.status, t.priority)
               const isCurrent = t.status === 'in-consultation'
               return (
                 <div
-                  key={t.id}
+                  key={t._id}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '28px 80px 1fr 1fr 90px',
@@ -157,16 +176,16 @@ export default function FrontDeskDashboard() {
                   </span>
                   <div className="token-pill">
                     <span className="l">{t.priority === 'emergency' ? 'EMG' : 'TKN'}</span>
-                    <span className="n">{t.id}</span>
+                    <span className="n">{t.tokenNumber}</span>
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {t.patient}
+                      {t.patientId?.name || 'Patient'}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-secondary)' }}>{t.slot}</div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--fg-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {t.doctor}
+                    {t.doctorId?.name || 'Doctor'}
                   </div>
                   <span className={`badge ${badge.cls}`}>
                     <span className="d" />
@@ -190,11 +209,11 @@ export default function FrontDeskDashboard() {
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {DUTY_DOCTORS.map(d => {
+            {DUTY_DOCTORS.map((d: any, idx: number) => {
               const badge = doctorStatusBadge(d.status)
               return (
                 <div
-                  key={d.id}
+                  key={d._id}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -205,22 +224,18 @@ export default function FrontDeskDashboard() {
                     border: '1px solid var(--border-light)',
                   }}
                 >
-                  <div className={`av ${d.tone}`} style={{ flexShrink: 0 }}>
-                    {d.av}
+                  <div className={`av ${['blue','teal','pink','amber'][idx % 4]}`} style={{ flexShrink: 0 }}>
+                    {d.name?.slice(0, 2) || 'DR'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
                       {d.name}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 2 }}>
-                      {d.spec} · {d.room}
+                      {d.specialization}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--fg-primary)' }}>
-                      {d.today}
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--fg-muted)', marginBottom: 4 }}>in queue</div>
                     <span className={`badge ${badge.cls}`}>
                       <span className="d" />
                       {badge.label}

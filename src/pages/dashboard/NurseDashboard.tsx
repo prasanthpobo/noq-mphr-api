@@ -1,8 +1,9 @@
+import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { NURSES } from '@/data'
+import { nursesService } from '@/services/nurses.service'
 
 interface Task {
   time: string
@@ -65,8 +66,6 @@ const HANDOFF: HandoffNote[] = [
   { time: '08:00', note: 'Morning meds administered, Bed 3 patient fasting',           by: 'Sister Mary' },
 ]
 
-const ON_DUTY_NURSES = NURSES.filter(n => n.ward !== 'OT-3' && n.status === 'active').slice(0, 5)
-
 function priorityBadge(p: Task['priority']): { cls: string; label: string } {
   if (p === 'high')   return { cls: 'danger',  label: 'High'   }
   if (p === 'medium') return { cls: 'warning', label: 'Medium' }
@@ -79,6 +78,13 @@ function vitalColor(ok: boolean): string {
 
 export default function NurseDashboard() {
   const { setRoute } = useAppStore()
+  const [onDutyNurses, setOnDutyNurses] = useState<any[]>([])
+
+  useEffect(() => {
+    nursesService.list({ status: 'active' }).then(res => {
+      setOnDutyNurses((res.data || []).slice(0, 5))
+    }).catch(() => {})
+  }, [])
 
   return (
     <div className="main">
@@ -223,25 +229,25 @@ export default function NurseDashboard() {
               On duty now
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-              {ON_DUTY_NURSES.map((n, i) => (
+              {onDutyNurses.map((n, idx) => (
                 <div
-                  key={n.id}
-                  className={`av ${n.tone}`}
+                  key={n._id}
+                  className={`av ${['blue','teal','pink','amber','green'][idx % 5]}`}
                   title={n.name}
                   style={{
-                    marginLeft: i === 0 ? 0 : -8,
+                    marginLeft: idx === 0 ? 0 : -8,
                     border: '2px solid var(--bg-surface)',
                     borderRadius: '50%',
-                    zIndex: ON_DUTY_NURSES.length - i,
+                    zIndex: onDutyNurses.length - idx,
                     position: 'relative',
                     flexShrink: 0,
                   }}
                 >
-                  {n.av}
+                  {n.name?.slice(0, 2) || 'NU'}
                 </div>
               ))}
               <span style={{ marginLeft: 12, fontSize: 13, color: 'var(--fg-secondary)', fontWeight: 500 }}>
-                {ON_DUTY_NURSES.length} nurses on shift
+                {onDutyNurses.length} nurses on shift
               </span>
             </div>
           </div>
