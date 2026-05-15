@@ -39,7 +39,7 @@ function SkeletonRow() {
 }
 
 export default function Appointments() {
-  const { setRoute } = useAppStore()
+  const { setRoute, setSelectedId } = useAppStore()
   const [activeFilter, setActiveFilter] = useState('All')
   const [search, setSearch]             = useState('')
   const [page, setPage]                 = useState(1)
@@ -72,6 +72,18 @@ export default function Appointments() {
   const handleFilterChange = (f: string) => { setActiveFilter(f); setPage(1) }
   const handleSearch       = (v: string) => { setSearch(v);        setPage(1) }
 
+  const handleView   = (id: string) => { setSelectedId(id); setRoute('appt-view') }
+  const handleEdit   = (id: string) => { setSelectedId(id); setRoute('appt-edit') }
+  const handleCancel = async (id: string) => {
+    try {
+      await appointmentsService.update(id, { status: 'cancelled' })
+      toast.success('Appointment cancelled')
+      load()
+    } catch {
+      toast.error('Failed to cancel appointment')
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
@@ -79,8 +91,6 @@ export default function Appointments() {
       <Header
         title="Appointments & tokens"
         crumbs={`${total} total tokens today`}
-        onAdd={() => setRoute('book')}
-        addLabel="Book appointment"
       />
 
       <div className="main">
@@ -106,6 +116,13 @@ export default function Appointments() {
                 </button>
               ))}
             </div>
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => setRoute('book')}
+            >
+              <Icon name="plus" size={14}/> Book appointment
+            </button>
           </div>
 
           {/* Table */}
@@ -171,13 +188,18 @@ export default function Appointments() {
                     </td>
                     <td>
                       <div className="row-actions">
-                        <button className="act" title="View" onClick={() => setRoute('appt-view')}>
+                        <button className="act" title="View" onClick={() => handleView(item._id)}>
                           <Icon name="eye" size={14} />
                         </button>
-                        <button className="act" title="Edit" onClick={() => setRoute('appt-edit')}>
+                        <button className="act" title="Edit" onClick={() => handleEdit(item._id)}>
                           <Icon name="edit" size={14} />
                         </button>
-                        <button className="act danger" title="Cancel">
+                        <button
+                          className="act danger"
+                          title="Cancel"
+                          disabled={item.status === 'cancelled' || item.status === 'completed'}
+                          onClick={() => handleCancel(item._id)}
+                        >
                           <Icon name="x" size={14} />
                         </button>
                       </div>

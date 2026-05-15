@@ -17,10 +17,14 @@ export interface IPharmacyOrder extends Document {
   appointmentId?: mongoose.Types.ObjectId
   orderId: string
   medicines: IPharmacyMedicine[]
-  status: 'pending' | 'dispensed' | 'partial' | 'cancelled'
-  total: number
+  status: 'pending' | 'dispensed' | 'partial' | 'paid' | 'cancelled'
+  subtotal: number
   discount: number
+  gst: number
+  total: number
   finalAmount: number
+  paidAmount: number
+  paymentMethod?: 'cash' | 'upi' | 'card' | 'insurance' | 'online'
   paidAt?: Date
   notes?: string
   createdAt: Date
@@ -28,81 +32,44 @@ export interface IPharmacyOrder extends Document {
 
 const PharmacyMedicineSchema = new Schema<IPharmacyMedicine>(
   {
-    name: { type: String },
-    dosage: { type: String },
+    name:     { type: String },
+    dosage:   { type: String },
     quantity: { type: Number },
-    unit: { type: String },
-    rate: { type: Number },
-    amount: { type: Number },
-    status: {
-      type: String,
-      enum: ['available', 'partial', 'out-of-stock'],
-      default: 'available'
-    }
+    unit:     { type: String },
+    rate:     { type: Number },
+    amount:   { type: Number },
+    status:   { type: String, enum: ['available', 'partial', 'out-of-stock'], default: 'available' },
   },
   { _id: false }
 )
 
 const PharmacyOrderSchema = new Schema<IPharmacyOrder>(
   {
-    patientId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Patient',
-      required: [true, 'Patient ID is required']
-    },
-    doctorId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Doctor',
-      required: [true, 'Doctor ID is required']
-    },
-    clinicId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Clinic',
-      required: [true, 'Clinic ID is required']
-    },
-    appointmentId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Appointment'
-    },
-    orderId: {
-      type: String,
-      unique: true
-    },
-    medicines: {
-      type: [PharmacyMedicineSchema],
-      default: []
-    },
+    patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: [true, 'Patient is required'] },
+    doctorId:  { type: Schema.Types.ObjectId, ref: 'Doctor',  required: [true, 'Doctor is required']  },
+    clinicId:  { type: Schema.Types.ObjectId, ref: 'Clinic',  required: [true, 'Clinic is required']  },
+    appointmentId: { type: Schema.Types.ObjectId, ref: 'Appointment' },
+    orderId:  { type: String, unique: true },
+    medicines: { type: [PharmacyMedicineSchema], default: [] },
     status: {
       type: String,
-      enum: ['pending', 'dispensed', 'partial', 'cancelled'],
-      default: 'pending'
+      enum: ['pending', 'dispensed', 'partial', 'paid', 'cancelled'],
+      default: 'pending',
     },
-    total: {
-      type: Number,
-      default: 0
+    subtotal:    { type: Number, default: 0 },
+    discount:    { type: Number, default: 0 },
+    gst:         { type: Number, default: 0 },
+    total:       { type: Number, default: 0 },
+    finalAmount: { type: Number, default: 0 },
+    paidAmount:  { type: Number, default: 0 },
+    paymentMethod: {
+      type: String,
+      enum: ['cash', 'upi', 'card', 'insurance', 'online'],
     },
-    discount: {
-      type: Number,
-      default: 0
-    },
-    finalAmount: {
-      type: Number,
-      default: 0
-    },
-    paidAt: {
-      type: Date
-    },
-    notes: {
-      type: String
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
+    paidAt: { type: Date },
+    notes:  { type: String },
   },
-  { timestamps: false }
+  { timestamps: true }
 )
 
-const PharmacyOrder = mongoose.model<IPharmacyOrder>('PharmacyOrder', PharmacyOrderSchema)
-
-export default PharmacyOrder
+export default mongoose.model<IPharmacyOrder>('PharmacyOrder', PharmacyOrderSchema)

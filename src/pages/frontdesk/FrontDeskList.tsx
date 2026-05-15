@@ -81,8 +81,6 @@ export default function FrontDeskList() {
       <Header
         title="Front desk management"
         crumbs={`${active} active · ${total} total`}
-        onAdd={() => setRoute('fd-new')}
-        addLabel="Add staff"
       />
 
       <div className="main">
@@ -99,10 +97,17 @@ export default function FrontDeskList() {
             <Icon name="search" size={15}/>
             <input placeholder="Search staff…" value={search} onChange={e=>setSearch(e.target.value)}/>
           </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setRoute('fd-new')}
+          >
+            <Icon name="plus" size={14}/> Add staff
+          </button>
         </div>
 
         {error && (
-          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+          <div style={{ padding: '12px 16px', color: 'var(--danger-500)', fontSize: 13 }}>{error}</div>
         )}
 
         <table className="data">
@@ -126,10 +131,15 @@ export default function FrontDeskList() {
                 <tr key={fd._id || fd.id}>
                   <td>
                     <div className="cell-person">
-                      <div className={`av ${fd.tone}`}>{fd.av}</div>
+                      <div
+                        className={`av ${fd.tone || 'blue'}`}
+                        style={{ borderRadius: '50%', flexShrink: 0 }}
+                      >
+                        {fd.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'FD'}
+                      </div>
                       <div className="info">
-                        <div className="n">{fd.name}</div>
-                        <div className="s">{fd.email}</div>
+                        <div className="n">{fd.name?.split(' ')[0] || '—'}</div>
+                        <div className="s">{fd.name?.split(' ').slice(1).join(' ') || fd.email}</div>
                       </div>
                     </div>
                   </td>

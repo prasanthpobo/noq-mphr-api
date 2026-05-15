@@ -1,152 +1,186 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import dayjs from 'dayjs'
 import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
+import { useAuthStore } from '@/store/auth'
+import { supportService } from '@/services/support.service'
+import { toast } from '@/store/toast'
+import api from '@/lib/axios'
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
 type TicketStatus   = 'open' | 'in-progress' | 'resolved' | 'closed'
-type TicketPriority = 'high' | 'medium' | 'low'
-type TicketCategory = 'Technical' | 'Billing' | 'Appointment' | 'Other'
+type TicketPriority = 'low' | 'medium' | 'high' | 'critical'
+type TicketCategory = 'technical' | 'billing' | 'clinical' | 'general' | 'complaint'
 
-interface TicketPerson {
-  name: string
-  av:   string
-  tone: string
-}
+interface TicketUser    { _id: string; name: string; email: string }
+interface TicketMessage { _id: string; sender: TicketUser | null; text: string; sentAt: string; isStaff: boolean }
 
 interface Ticket {
-  id:          string
-  title:       string
+  _id:         string
+  ticketId:    string
+  subject:     string
   category:    TicketCategory
   priority:    TicketPriority
   status:      TicketStatus
-  created:     string
-  createdBy:   TicketPerson
-  assignedTo:  TicketPerson | null
-  description: string
-  replies:     number
-  unread:      boolean
+  createdAt:   string
+  resolvedAt?: string
+  submittedBy: TicketUser | null
+  assignedTo:  TicketUser | null
+  messages:    TicketMessage[]
 }
 
-/* ── Initial data ───────────────────────────────────────────────────────── */
-const INITIAL_TICKETS: Ticket[] = [
-  { id: 'T-001', title: 'Token display frozen on TV', category: 'Technical', priority: 'high', status: 'open', created: '2026-05-08', createdBy: { name: 'Reena A.', av: 'RA', tone: 'blue' }, assignedTo: { name: 'Anil B.', av: 'AB', tone: 'mint' }, description: 'The TV token display screen froze at A-024 and did not advance. Staff had to restart the device manually. This has happened 3 times this week.', replies: 3, unread: true },
-  { id: 'T-002', title: 'UPI payment charged twice for A-032', category: 'Billing', priority: 'high', status: 'in-progress', created: '2026-05-09', createdBy: { name: 'Mohit B.', av: 'MB', tone: 'indigo' }, assignedTo: { name: 'Neha B.', av: 'NB', tone: 'amber' }, description: 'Patient Aarav Sharma was double-charged ₹600 on his UPI for token A-032. Refund needs to be processed and root cause investigated.', replies: 5, unread: true },
-  { id: 'T-003', title: 'OTP not arriving for staff login', category: 'Technical', priority: 'medium', status: 'in-progress', created: '2026-05-07', createdBy: { name: 'Anjali K.', av: 'AK', tone: 'pink' }, assignedTo: { name: 'Anil B.', av: 'AB', tone: 'mint' }, description: 'New staff member Pradeep Kumar is unable to receive OTP on +91 99001 23456. Login blocked. Tried resending 5 times.', replies: 2, unread: false },
-  { id: 'T-004', title: 'GSTIN missing on PDF invoices', category: 'Billing', priority: 'medium', status: 'open', created: '2026-05-06', createdBy: { name: 'Pooja N.', av: 'PN', tone: 'mint' }, assignedTo: null, description: 'Generated invoice PDFs do not show GSTIN number. The GSTIN is set correctly in settings but is not appearing on the printed/downloaded PDFs.', replies: 0, unread: true },
-  { id: 'T-005', title: 'Cannot reschedule appointment', category: 'Appointment', priority: 'low', status: 'resolved', created: '2026-05-05', createdBy: { name: 'Karthik I.', av: 'KI', tone: 'plum' }, assignedTo: { name: 'Vivek A.', av: 'VA', tone: 'mint' }, description: 'The reschedule button is greyed out for appointments booked more than 3 days ago. Patients are calling in to change dates manually.', replies: 4, unread: false },
-  { id: 'T-006', title: 'Doctor availability not reflecting in booking', category: 'Appointment', priority: 'high', status: 'open', created: '2026-05-10', createdBy: { name: 'Reena A.', av: 'RA', tone: 'blue' }, assignedTo: null, description: 'Dr. Vikram Mehta marked leave on 12 May but the booking flow still shows him as available. Three appointments have already been booked.', replies: 1, unread: true },
-  { id: 'T-007', title: 'Patient SMS not delivered after confirmation', category: 'Technical', priority: 'medium', status: 'in-progress', created: '2026-05-04', createdBy: { name: 'Mohit B.', av: 'MB', tone: 'indigo' }, assignedTo: { name: 'Anil B.', av: 'AB', tone: 'mint' }, description: 'Appointment confirmation SMSes stopped delivering since 4 May morning. Twilio dashboard shows no failures. Issue may be on routing side.', replies: 3, unread: false },
-  { id: 'T-008', title: 'Lab report upload failing for large PDFs', category: 'Technical', priority: 'medium', status: 'open', created: '2026-05-03', createdBy: { name: 'Anjali K.', av: 'AK', tone: 'pink' }, assignedTo: { name: 'Anil B.', av: 'AB', tone: 'mint' }, description: 'Uploading lab reports over 5MB fails silently. No error message shown. Only small reports succeed. Affects about 30% of uploads.', replies: 2, unread: true },
-  { id: 'T-009', title: 'Invoice total incorrect with discount applied', category: 'Billing', priority: 'low', status: 'resolved', created: '2026-05-02', createdBy: { name: 'Pooja N.', av: 'PN', tone: 'mint' }, assignedTo: { name: 'Neha B.', av: 'NB', tone: 'amber' }, description: 'When a 10% discount is applied to a multi-service invoice the total is calculated before tax instead of after. Results in slightly inflated totals.', replies: 6, unread: false },
-  { id: 'T-010', title: 'Queue display showing wrong doctor name', category: 'Technical', priority: 'low', status: 'closed', created: '2026-05-01', createdBy: { name: 'Karthik I.', av: 'KI', tone: 'plum' }, assignedTo: { name: 'Vivek A.', av: 'VA', tone: 'mint' }, description: 'Live token queue occasionally shows Dr. Ananya Rao on tokens assigned to Dr. Priya Iyer. Seems to be a display cache issue.', replies: 2, unread: false },
-]
-
-const STAFF = [
-  { name: 'Anil B.',  av: 'AB', tone: 'mint'   },
-  { name: 'Neha B.',  av: 'NB', tone: 'amber'  },
-  { name: 'Vivek A.', av: 'VA', tone: 'mint'   },
-  { name: 'Reena A.', av: 'RA', tone: 'blue'   },
-  { name: 'Mohit B.', av: 'MB', tone: 'indigo' },
-]
+interface UserItem { _id: string; name: string; role: string }
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
-function statusVariant(s: TicketStatus): string {
+const CATEGORIES: TicketCategory[] = ['technical', 'billing', 'clinical', 'general', 'complaint']
+const PRIORITIES: TicketPriority[] = ['low', 'medium', 'high', 'critical']
+
+function statusVariant(s: TicketStatus) {
   if (s === 'open')        return 'warning'
   if (s === 'in-progress') return 'blue'
   if (s === 'resolved')    return 'success'
-  return 'gray'
+  return 'muted'
 }
 
-function priorityColor(p: TicketPriority) {
-  if (p === 'high')   return { bg: '#fff0f0', color: '#e53e3e' }
-  if (p === 'medium') return { bg: '#fff7e6', color: '#dd6b20' }
-  return { bg: '#f0f4ff', color: '#3b82f6' }
+function priorityStyle(p: TicketPriority) {
+  if (p === 'critical' || p === 'high') return { background: '#fff0f0', color: '#e53e3e' }
+  if (p === 'medium')                   return { background: '#fff7e6', color: '#dd6b20' }
+  return { background: '#f0f4ff', color: '#3b82f6' }
 }
 
-/* ── Slide panel ────────────────────────────────────────────────────────── */
-function TicketPanel({ ticket, onClose, onStatusChange }: {
-  ticket: Ticket
-  onClose: () => void
-  onStatusChange: (id: string, s: TicketStatus) => void
+function initials(name?: string | null) {
+  if (!name) return '??'
+  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1) }
+
+/* ── Skeleton ───────────────────────────────────────────────────────────── */
+function SkeletonRow() {
+  return (
+    <tr>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <td key={i}>
+          <div style={{
+            height: 14, borderRadius: 6,
+            background: 'linear-gradient(90deg, var(--bg-section) 25%, var(--border-light) 50%, var(--bg-section) 75%)',
+            backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', width: '85%',
+          }} />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
+/* ── TicketPanel ────────────────────────────────────────────────────────── */
+function TicketPanel({ ticket, currentUserId, onClose, onStatusChange, onReload, onEditOpen }: {
+  ticket:          Ticket
+  currentUserId:   string
+  onClose:         () => void
+  onStatusChange:  (id: string, s: TicketStatus) => Promise<void>
+  onReload:        () => Promise<void>
+  onEditOpen:      (t: Ticket) => void
 }) {
-  const [reply, setReply] = useState('')
-  const pc = priorityColor(ticket.priority)
+  const [reply,   setReply]   = useState('')
+  const [sending, setSending] = useState(false)
+  const ps = priorityStyle(ticket.priority)
 
-  const bubbles = [
-    { mine: false, text: `Hi, I'm looking into this. Can you provide the token ID and time of occurrence?`, time: '10:02 AM' },
-    { mine: true,  text: `Token A-024 at approximately 9:30 AM. The screen froze and showed the old number for 15 minutes.`, time: '10:08 AM' },
-    { mine: false, text: `Got it. This looks like a WebSocket reconnect issue. We'll push a fix in tonight's deploy.`, time: '10:45 AM' },
-    { mine: true,  text: `Thank you. Please confirm once deployed. This is causing patient confusion.`, time: '11:00 AM' },
-  ]
+  const sendReply = async () => {
+    if (!reply.trim()) return
+    setSending(true)
+    try {
+      await supportService.addMessage(ticket._id, reply.trim(), true)
+      setReply('')
+      await onReload()
+    } catch {
+      toast.error('Failed to send reply')
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <>
       <div className="slide-panel-backdrop" onClick={onClose} />
       <div className="slide-panel" style={{ width: 620, display: 'flex', flexDirection: 'column' }}>
-        {/* Panel header */}
+
+        {/* Header */}
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border-light)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-            <code style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--fg-muted)' }}>{ticket.id}</code>
-            <span style={{ ...pc, padding: '2px 10px', borderRadius: 20, fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase' }}>
+            <code style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--fg-muted)' }}>
+              {ticket.ticketId}
+            </code>
+            <span style={{ ...ps, padding: '2px 10px', borderRadius: 20, fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase' }}>
               {ticket.priority}
             </span>
             <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={onClose}>
               <Icon name="x" size={15} />
             </button>
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg-primary)', marginBottom: 8 }}>{ticket.title}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg-primary)', marginBottom: 8 }}>
+            {ticket.subject}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Badge variant={statusVariant(ticket.status) as never}>{ticket.status}</Badge>
-            <span className="badge muted">{ticket.category}</span>
-            <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{ticket.created}</span>
+            <span className="badge muted" style={{ textTransform: 'capitalize' }}>{ticket.category}</span>
+            <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+              {dayjs(ticket.createdAt).format('DD MMM YYYY')}
+            </span>
           </div>
         </div>
 
-        {/* Created / Assigned cards */}
+        {/* People */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-light)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {(['createdBy','assignedTo'] as const).map(key => {
-            const p = ticket[key]
-            const label = key === 'createdBy' ? 'Created by' : 'Assigned to'
-            return (
-              <div key={key} style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--bg-surface-alt)', border: '1px solid var(--border-soft)' }}>
-                <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>{label}</div>
-                {p ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div className={`av ${p.tone}`} style={{ width: 32, height: 32, fontSize: 11 }}>{p.av}</div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Staff</div>
-                    </div>
+          {[
+            { label: 'Submitted by', person: ticket.submittedBy },
+            { label: 'Assigned to',  person: ticket.assignedTo  },
+          ].map(({ label, person }) => (
+            <div key={label} style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--bg-section)', border: '1px solid var(--border-soft)' }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>{label}</div>
+              {person ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="av blue" style={{ width: 32, height: 32, fontSize: 11 }}>{initials(person.name)}</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>{person.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{person.email}</div>
                   </div>
-                ) : (
-                  <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', fontStyle: 'italic' }}>Unassigned</div>
-                )}
-              </div>
-            )
-          })}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', fontStyle: 'italic' }}>Unassigned</div>
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* Description */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-muted)', marginBottom: 8 }}>Description</div>
-          <p style={{ fontSize: 13.5, color: 'var(--fg-primary)', lineHeight: 1.6, margin: 0 }}>{ticket.description}</p>
-        </div>
-
-        {/* Thread */}
+        {/* Conversation thread */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-muted)', marginBottom: 12 }}>
-            Conversation ({ticket.replies})
+            Conversation ({ticket.messages.length})
           </div>
-          <div className="thread">
-            {bubbles.map((b, i) => (
-              <div key={i} className={`msg-bubble ${b.mine ? 'mine' : 'other'}`}>
-                <div className="bubble">{b.text}</div>
-                <div className="meta">{b.time}</div>
-              </div>
-            ))}
-          </div>
+          {ticket.messages.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--fg-muted)', fontSize: 13 }}>
+              No messages yet. Be the first to reply.
+            </div>
+          ) : (
+            <div className="thread">
+              {ticket.messages.map(m => {
+                const mine = m.sender?._id === currentUserId
+                return (
+                  <div key={m._id} className={`msg-bubble ${mine ? 'mine' : 'other'}`}>
+                    {!mine && m.sender && (
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-secondary)', marginBottom: 3 }}>
+                        {m.sender.name}
+                      </div>
+                    )}
+                    <div className="bubble">{m.text}</div>
+                    <div className="meta">{dayjs(m.sentAt).format('hh:mm A · DD MMM')}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Reply composer */}
@@ -155,57 +189,61 @@ function TicketPanel({ ticket, onClose, onStatusChange }: {
             <textarea
               className="form-textarea"
               rows={2}
-              placeholder="Write a reply…"
+              placeholder="Write a reply… (Ctrl+Enter to send)"
               value={reply}
               onChange={e => setReply(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendReply() }}
               style={{ flex: 1, resize: 'none' }}
             />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <button className="btn btn-ghost btn-sm" title="Attach file">
                 <Icon name="paperclip" size={15} />
               </button>
-              <button className="btn btn-primary btn-sm" disabled={!reply.trim()} onClick={() => setReply('')}>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={!reply.trim() || sending}
+                onClick={sendReply}
+              >
                 <Icon name="send" size={14} />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Footer quick actions */}
+        {/* Footer actions */}
         <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border-light)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {ticket.status === 'open' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => onStatusChange(ticket.id, 'in-progress')}>
+            <button className="btn btn-secondary btn-sm" onClick={() => onStatusChange(ticket._id, 'in-progress')}>
               Mark in progress
             </button>
           )}
           {ticket.status === 'in-progress' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => onStatusChange(ticket.id, 'resolved')}>
+            <button className="btn btn-secondary btn-sm" onClick={() => onStatusChange(ticket._id, 'resolved')}>
               Mark resolved
             </button>
           )}
           {ticket.status !== 'closed' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => onStatusChange(ticket.id, 'closed')}>
+            <button className="btn btn-secondary btn-sm" onClick={() => onStatusChange(ticket._id, 'closed')}>
               Close ticket
             </button>
           )}
-          <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => { onClose(); onEditOpen(ticket) }}>
             <Icon name="edit" size={14} /> Edit
           </button>
-          <button className="btn btn-primary btn-sm" onClick={onClose}>Done</button>
+          <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={onClose}>Done</button>
         </div>
       </div>
     </>
   )
 }
 
-/* ── Status popover ─────────────────────────────────────────────────────── */
+/* ── StatusPopover ──────────────────────────────────────────────────────── */
 function StatusPopover({ current, onChange, onClose }: {
-  current: TicketStatus
+  current:  TicketStatus
   onChange: (s: TicketStatus) => void
-  onClose: () => void
+  onClose:  () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const statuses: TicketStatus[] = ['open', 'in-progress', 'resolved', 'closed']
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -222,7 +260,7 @@ function StatusPopover({ current, onChange, onClose }: {
       border: '1px solid var(--border-soft)', boxShadow: 'var(--shadow-md)',
       padding: 8, minWidth: 160,
     }}>
-      {statuses.map(s => (
+      {(['open', 'in-progress', 'resolved', 'closed'] as TicketStatus[]).map(s => (
         <button
           key={s}
           onClick={() => { onChange(s); onClose() }}
@@ -241,194 +279,307 @@ function StatusPopover({ current, onChange, onClose }: {
   )
 }
 
-/* ── Create / Edit modal forms ──────────────────────────────────────────── */
+/* ── TicketForm ─────────────────────────────────────────────────────────── */
 interface TicketFormState {
-  title:      string
-  description:string
-  category:   TicketCategory
-  priority:   TicketPriority
-  assignedTo: string
+  subject:      string
+  description:  string
+  category:     TicketCategory
+  priority:     TicketPriority
+  assignedToId: string
+  status:       TicketStatus
 }
 
-function TicketForm({ value, onChange }: { value: TicketFormState; onChange: (v: TicketFormState) => void }) {
-  const set = (k: keyof TicketFormState) => (val: string) => onChange({ ...value, [k]: val as never })
+const EMPTY_FORM: TicketFormState = {
+  subject: '', description: '', category: 'technical',
+  priority: 'medium', assignedToId: '', status: 'open',
+}
+
+function TicketForm({ value, onChange, users, showStatus }: {
+  value:       TicketFormState
+  onChange:    (v: TicketFormState) => void
+  users:       UserItem[]
+  showStatus?: boolean
+}) {
+  const set = (k: keyof TicketFormState, v: string) => onChange({ ...value, [k]: v })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="form-group">
-        <label className="form-label">Title <span style={{ color: 'var(--danger)' }}>*</span></label>
-        <input className="form-input" value={value.title} onChange={e => set('title')(e.target.value)} placeholder="Brief description of the issue" />
+        <label className="form-label">Subject <span style={{ color: 'var(--danger-500)' }}>*</span></label>
+        <input
+          className="form-input"
+          value={value.subject}
+          onChange={e => set('subject', e.target.value)}
+          placeholder="Brief description of the issue"
+        />
       </div>
       <div className="form-group">
-        <label className="form-label">Description <span style={{ color: 'var(--danger)' }}>*</span></label>
-        <textarea className="form-textarea" rows={4} value={value.description} onChange={e => set('description')(e.target.value)} placeholder="Detailed explanation of the problem…" />
+        <label className="form-label">Description</label>
+        <textarea
+          className="form-textarea"
+          rows={4}
+          value={value.description}
+          onChange={e => set('description', e.target.value)}
+          placeholder="Detailed explanation of the problem…"
+        />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div className="form-group">
           <label className="form-label">Category</label>
-          <select className="form-select" value={value.category} onChange={e => set('category')(e.target.value)}>
-            <option>Technical</option>
-            <option>Billing</option>
-            <option>Appointment</option>
-            <option>Other</option>
+          <select className="form-input" value={value.category} onChange={e => set('category', e.target.value)}>
+            {CATEGORIES.map(c => <option key={c} value={c}>{cap(c)}</option>)}
           </select>
         </div>
         <div className="form-group">
           <label className="form-label">Assign to</label>
-          <select className="form-select" value={value.assignedTo} onChange={e => set('assignedTo')(e.target.value)}>
+          <select className="form-input" value={value.assignedToId} onChange={e => set('assignedToId', e.target.value)}>
             <option value="">Unassigned</option>
-            {STAFF.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+            {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
           </select>
         </div>
       </div>
       <div className="form-group">
         <label className="form-label">Priority</label>
         <div className="seg-ctrl">
-          {(['low','medium','high'] as TicketPriority[]).map(p => (
+          {PRIORITIES.map(p => (
             <button
               key={p}
-              className={value.priority === p ? 'active' : ''}
-              onClick={() => set('priority')(p)}
               type="button"
+              className={value.priority === p ? 'active' : ''}
+              onClick={() => set('priority', p)}
+              style={{ textTransform: 'capitalize' }}
             >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
+              {p}
             </button>
           ))}
         </div>
       </div>
+      {showStatus && (
+        <div className="form-group">
+          <label className="form-label">Status</label>
+          <select className="form-input" value={value.status} onChange={e => set('status', e.target.value)}>
+            <option value="open">Open</option>
+            <option value="in-progress">In progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+      )}
     </div>
   )
 }
 
 /* ── Main component ─────────────────────────────────────────────────────── */
+const PAGE_SIZE = 10
+
 export default function SupportTickets() {
-  const [tickets, setTickets]           = useState<Ticket[]>(INITIAL_TICKETS)
-  const [statusFilter, setStatusFilter] = useState('All')
+  const { user } = useAuthStore()
+
+  const [tickets,        setTickets]        = useState<Ticket[]>([])
+  const [users,          setUsers]          = useState<UserItem[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [saving,         setSaving]         = useState(false)
+  const [statusFilter,   setStatusFilter]   = useState('All')
   const [priorityFilter, setPriorityFilter] = useState('All')
   const [categoryFilter, setCategoryFilter] = useState('All')
-  const [search, setSearch]             = useState('')
-  const [sort, setSort]                 = useState<'latest' | 'priority'>('latest')
-  const [viewTicket, setViewTicket]     = useState<Ticket | null>(null)
-  const [editTicket, setEditTicket]     = useState<Ticket | null>(null)
-  const [createOpen, setCreateOpen]     = useState(false)
-  const [popoverId, setPopoverId]       = useState<string | null>(null)
+  const [search,         setSearch]         = useState('')
+  const [sort,           setSort]           = useState<'latest' | 'priority'>('latest')
+  const [page,           setPage]           = useState(1)
+  const [viewTicket,     setViewTicket]     = useState<Ticket | null>(null)
+  const [editTicket,     setEditTicket]     = useState<Ticket | null>(null)
+  const [createOpen,     setCreateOpen]     = useState(false)
+  const [popoverId,      setPopoverId]      = useState<string | null>(null)
+  const [createForm,     setCreateForm]     = useState<TicketFormState>(EMPTY_FORM)
+  const [editForm,       setEditForm]       = useState<TicketFormState>(EMPTY_FORM)
+  const [createError,    setCreateError]    = useState('')
 
-  const emptyForm: TicketFormState = { title: '', description: '', category: 'Technical', priority: 'medium', assignedTo: '' }
-  const [createForm, setCreateForm] = useState<TicketFormState>(emptyForm)
-  const [createError, setCreateError] = useState('')
-  const [editForm, setEditForm]     = useState<TicketFormState>(emptyForm)
+  /* Dropdown state */
+  const [catDropOpen,  setCatDropOpen]  = useState(false)
+  const [catSearch,    setCatSearch]    = useState('')
+  const [priDropOpen,  setPriDropOpen]  = useState(false)
 
+  const CATEGORY_OPTIONS = ['All', 'Technical', 'Billing', 'Clinical', 'General', 'Complaint']
+  const PRIORITY_OPTIONS = ['All', 'Low', 'Medium', 'High', 'Critical']
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await supportService.list()
+      setTickets(res.data ?? [])
+    } catch {
+      toast.error('Failed to load tickets')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    api.get('/users').then(r => setUsers(r.data.data ?? [])).catch(() => {})
+  }, [load])
+
+  /* KPI counts */
   const counts = {
     all:        tickets.length,
     open:       tickets.filter(t => t.status === 'open').length,
     inProgress: tickets.filter(t => t.status === 'in-progress').length,
     resolved:   tickets.filter(t => t.status === 'resolved').length,
-    high:       tickets.filter(t => t.priority === 'high').length,
+    high:       tickets.filter(t => t.priority === 'high' || t.priority === 'critical').length,
   }
 
+  /* Filtered + sorted list */
   const filtered = tickets
     .filter(t => {
       if (statusFilter !== 'All') {
-        if (statusFilter === 'Open' && t.status !== 'open') return false
-        if (statusFilter === 'In Progress' && t.status !== 'in-progress') return false
-        if (statusFilter === 'Resolved' && t.status !== 'resolved') return false
-        if (statusFilter === 'Closed' && t.status !== 'closed') return false
+        const map: Record<string, TicketStatus> = {
+          'Open': 'open', 'In Progress': 'in-progress',
+          'Resolved': 'resolved', 'Closed': 'closed',
+        }
+        if (t.status !== map[statusFilter]) return false
       }
       if (priorityFilter !== 'All' && t.priority !== priorityFilter.toLowerCase()) return false
-      if (categoryFilter !== 'All' && t.category !== categoryFilter) return false
+      if (categoryFilter !== 'All' && t.category !== categoryFilter.toLowerCase()) return false
       const q = search.toLowerCase()
-      if (q && !t.title.toLowerCase().includes(q) && !t.id.toLowerCase().includes(q)) return false
+      if (q && !t.subject.toLowerCase().includes(q) && !t.ticketId.toLowerCase().includes(q)) return false
       return true
     })
     .sort((a, b) => {
       if (sort === 'priority') {
-        const order = { high: 0, medium: 1, low: 2 }
-        return order[a.priority] - order[b.priority]
+        const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+        return (order[a.priority] ?? 4) - (order[b.priority] ?? 4)
       }
-      return b.created.localeCompare(a.created)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     })
 
-  const handleStatusChange = (id: string, s: TicketStatus) => {
-    setTickets(ts => ts.map(t => t.id === id ? { ...t, status: s } : t))
-    if (viewTicket?.id === id) setViewTicket(v => v ? { ...v, status: s } : v)
+  /* Open view panel — fetch full ticket with message detail */
+  const openView = async (t: Ticket) => {
+    try {
+      const full = await supportService.get(t._id)
+      setViewTicket(full)
+    } catch {
+      setViewTicket(t)
+    }
   }
 
-  const handleCreate = () => {
-    if (!createForm.title.trim() || !createForm.description.trim()) {
-      setCreateError('Title and description are required.')
-      return
+  /* Reload just the open panel ticket (after a reply) */
+  const reloadViewTicket = async () => {
+    if (!viewTicket) return
+    try {
+      const fresh = await supportService.get(viewTicket._id)
+      setViewTicket(fresh)
+      setTickets(ts => ts.map(t => t._id === fresh._id ? fresh : t))
+    } catch {
+      toast.error('Failed to refresh ticket')
     }
-    const assignee = STAFF.find(s => s.name === createForm.assignedTo) ?? null
-    const newTicket: Ticket = {
-      id:          `T-${String(tickets.length + 1).padStart(3, '0')}`,
-      title:       createForm.title,
-      description: createForm.description,
-      category:    createForm.category,
-      priority:    createForm.priority,
-      status:      'open',
-      created:     new Date().toISOString().slice(0, 10),
-      createdBy:   { name: 'Reena A.', av: 'RA', tone: 'blue' },
-      assignedTo:  assignee,
-      replies:     0,
-      unread:      false,
-    }
-    setTickets(ts => [newTicket, ...ts])
-    setCreateOpen(false)
-    setCreateForm(emptyForm)
-    setCreateError('')
   }
 
+  /* Status change — call API then update local state */
+  const handleStatusChange = async (id: string, s: TicketStatus) => {
+    try {
+      const updated = await supportService.updateStatus(id, s)
+      setTickets(ts => ts.map(t => t._id === id ? updated : t))
+      if (viewTicket?._id === id) setViewTicket(updated)
+      toast.success(`Ticket marked ${s}`)
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }
+
+  /* Create */
+  const handleCreate = async () => {
+    if (!createForm.subject.trim()) { setCreateError('Subject is required.'); return }
+    if (!user?.id) { setCreateError('You must be logged in.'); return }
+    setSaving(true)
+    try {
+      const payload: Record<string, unknown> = {
+        subject:     createForm.subject,
+        category:    createForm.category,
+        priority:    createForm.priority,
+        submittedBy: user.id,
+        ...(createForm.assignedToId && { assignedTo: createForm.assignedToId }),
+        ...(user.clinicId           && { clinicId:   user.clinicId }),
+        ...(createForm.description  && {
+          messages: [{ sender: user.id, text: createForm.description, sentAt: new Date(), isStaff: true }],
+        }),
+      }
+      await supportService.create(payload)
+      toast.success('Ticket submitted')
+      setCreateOpen(false)
+      setCreateForm(EMPTY_FORM)
+      setCreateError('')
+      load()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to create ticket')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /* Open edit modal */
   const openEdit = (t: Ticket) => {
     setEditForm({
-      title:       t.title,
-      description: t.description,
-      category:    t.category,
-      priority:    t.priority,
-      assignedTo:  t.assignedTo?.name ?? '',
+      subject:      t.subject,
+      description:  '',
+      category:     t.category,
+      priority:     t.priority,
+      assignedToId: t.assignedTo?._id ?? '',
+      status:       t.status,
     })
     setEditTicket(t)
   }
 
-  const handleEdit = () => {
+  /* Save edit */
+  const handleEdit = async () => {
     if (!editTicket) return
-    const assignee = STAFF.find(s => s.name === editForm.assignedTo) ?? null
-    setTickets(ts => ts.map(t => t.id === editTicket.id ? {
-      ...t,
-      title:       editForm.title,
-      description: editForm.description,
-      category:    editForm.category,
-      priority:    editForm.priority,
-      assignedTo:  assignee,
-    } : t))
-    setEditTicket(null)
+    setSaving(true)
+    try {
+      await supportService.update(editTicket._id, {
+        subject:    editForm.subject,
+        category:   editForm.category,
+        priority:   editForm.priority,
+        assignedTo: editForm.assignedToId || null,
+        status:     editForm.status,
+      })
+      toast.success('Ticket updated')
+      setEditTicket(null)
+      load()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to update ticket')
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const catDropOptions = CATEGORY_OPTIONS.filter(c => c === 'All' || c.toLowerCase().includes(catSearch.toLowerCase()))
 
   return (
     <>
       <Header
         title="Support tickets"
-        crumbs={`${counts.all} tickets total`}
-        onAdd={() => { setCreateOpen(true); setCreateError('') }}
-        addLabel="New ticket"
+        crumbs={`${counts.all} tickets · ${counts.open} open`}
       />
 
       <div className="main">
-        {/* KPI chips */}
+        {/* KPI filter chips */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
           {[
-            { label: 'All',         count: counts.all,        key: 'All'        },
-            { label: 'Open',        count: counts.open,       key: 'Open'       },
-            { label: 'In Progress', count: counts.inProgress, key: 'In Progress'},
-            { label: 'Resolved',    count: counts.resolved,   key: 'Resolved'   },
-            { label: 'High priority', count: counts.high,     key: '_high'      },
+            { label: 'All',           count: counts.all,        key: 'All'         },
+            { label: 'Open',          count: counts.open,       key: 'Open'        },
+            { label: 'In Progress',   count: counts.inProgress, key: 'In Progress' },
+            { label: 'Resolved',      count: counts.resolved,   key: 'Resolved'    },
+            { label: 'High priority', count: counts.high,       key: '_high'       },
           ].map(k => (
             <button
               key={k.key}
+              className={`chip ${statusFilter === k.key || (k.key === '_high' && priorityFilter === 'High') ? 'active' : ''}`}
               onClick={() => {
                 if (k.key === '_high') { setPriorityFilter('High'); setStatusFilter('All') }
-                else setStatusFilter(k.key)
+                else { setStatusFilter(k.key); setPriorityFilter('All') }
+                setPage(1)
               }}
-              className={`chip ${statusFilter === k.key || (k.key === '_high' && priorityFilter === 'High') ? 'active' : ''}`}
             >
               {k.label} <span className="count">{k.count}</span>
             </button>
@@ -437,44 +588,144 @@ export default function SupportTickets() {
 
         <div className="table-card">
           {/* Toolbar */}
-          <div className="table-toolbar" style={{ flexWrap: 'wrap', gap: 10 }}>
-            <div className="table-search" style={{ flex: 1, minWidth: 200 }}>
-              <Icon name="search" size={15} />
-              <input placeholder="Search tickets…" value={search} onChange={e => setSearch(e.target.value)} />
+          <div className="table-toolbar" style={{ gap: 8 }}>
+            {/* Title */}
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', flexShrink: 0 }}>
+              Support tickets
+              <span className="badge muted" style={{ marginLeft: 6, fontWeight: 500 }}>{tickets.length}</span>
             </div>
 
-            {/* Priority filter */}
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {['All','High','Medium','Low'].map(p => (
-                <button
-                  key={p}
-                  className={`chip ${priorityFilter === p ? 'active' : ''}`}
-                  onClick={() => setPriorityFilter(p)}
-                  style={{ fontSize: 12 }}
+            {/* Right side */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+              {/* Search */}
+              <div className="table-search" style={{ width: 220, flexShrink: 0 }}>
+                <Icon name="search" size={15} />
+                <input
+                  placeholder="Search subject or ID…"
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1) }}
+                />
+              </div>
+
+              {/* Category dropdown */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div
+                  className="table-search"
+                  style={{ width: 180, cursor: 'pointer' }}
+                  onClick={() => setCatDropOpen(o => !o)}
                 >
-                  {p}
-                </button>
-              ))}
-            </div>
+                  <Icon name="filter" size={14} />
+                  <input
+                    placeholder="Category…"
+                    value={catDropOpen ? catSearch : (categoryFilter === 'All' ? '' : categoryFilter)}
+                    onChange={e => { setCatSearch(e.target.value); setCatDropOpen(true) }}
+                    onClick={e => { e.stopPropagation(); setCatDropOpen(true) }}
+                    onBlur={() => setTimeout(() => setCatDropOpen(false), 150)}
+                    readOnly={!catDropOpen}
+                    style={{ cursor: catDropOpen ? 'text' : 'pointer' }}
+                  />
+                  <Icon name="chevD" size={13} />
+                </div>
+                {catDropOpen && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                    background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                    borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                    minWidth: 180, maxHeight: 240, overflowY: 'auto', padding: '4px 0',
+                  }}>
+                    {catDropOptions.map(c => (
+                      <button
+                        key={c}
+                        onMouseDown={() => { setCategoryFilter(c); setCatSearch(''); setCatDropOpen(false); setPage(1) }}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                          fontSize: 13, fontWeight: categoryFilter === c ? 700 : 400,
+                          color: categoryFilter === c ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                          background: categoryFilter === c ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                        }}
+                      >
+                        <span>{c}</span>
+                        {c !== 'All' && (
+                          <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                            {tickets.filter(t => t.category === c.toLowerCase()).length}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Category filter */}
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {['All','Technical','Billing','Appointment','Other'].map(c => (
-                <button
-                  key={c}
-                  className={`chip ${categoryFilter === c ? 'active' : ''}`}
-                  onClick={() => setCategoryFilter(c)}
-                  style={{ fontSize: 12 }}
+              {/* Priority dropdown */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div
+                  className="table-search"
+                  style={{ width: 160, cursor: 'pointer' }}
+                  onClick={() => setPriDropOpen(o => !o)}
                 >
-                  {c}
-                </button>
-              ))}
-            </div>
+                  <Icon name="activity" size={14} />
+                  <input
+                    placeholder="Priority…"
+                    value={priorityFilter === 'All' ? '' : priorityFilter}
+                    readOnly
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <Icon name="chevD" size={13} />
+                </div>
+                {priDropOpen && (
+                  <div
+                    style={{
+                      position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                      background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                      borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                      minWidth: 160, padding: '4px 0',
+                    }}
+                    onMouseLeave={() => setPriDropOpen(false)}
+                  >
+                    {PRIORITY_OPTIONS.map(p => (
+                      <button
+                        key={p}
+                        onMouseDown={() => { setPriorityFilter(p); setPriDropOpen(false); setPage(1) }}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                          fontSize: 13, fontWeight: priorityFilter === p ? 700 : 400,
+                          color: priorityFilter === p ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                          background: priorityFilter === p ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                        }}
+                      >
+                        <span>{p}</span>
+                        {p !== 'All' && (
+                          <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                            {tickets.filter(t => t.priority === p.toLowerCase()).length}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Sort */}
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className={`btn btn-sm ${sort === 'latest' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSort('latest')}>Latest</button>
-              <button className={`btn btn-sm ${sort === 'priority' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSort('priority')}>Priority</button>
+              {/* Sort toggle */}
+              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                <button
+                  className={`btn btn-sm ${sort === 'latest' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSort('latest')}
+                >Latest</button>
+                <button
+                  className={`btn btn-sm ${sort === 'priority' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSort('priority')}
+                >Priority</button>
+              </div>
+
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ flexShrink: 0 }}
+                onClick={() => { setCreateOpen(true); setCreateError('') }}
+              >
+                <Icon name="plus" size={14} /> New ticket
+              </button>
             </div>
           </div>
 
@@ -482,8 +733,8 @@ export default function SupportTickets() {
           <table className="data">
             <thead>
               <tr>
-                <th>Ticket</th>
-                <th>Title</th>
+                <th>Ticket ID</th>
+                <th>Subject</th>
                 <th>Category</th>
                 <th>People</th>
                 <th>Priority</th>
@@ -493,160 +744,197 @@ export default function SupportTickets() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(t => {
-                const pc = priorityColor(t.priority)
-                const isHighActive = t.priority === 'high' && t.status !== 'resolved' && t.status !== 'closed'
-                return (
-                  <tr key={t.id} style={isHighActive ? { background: 'rgba(229,62,62,0.04)' } : undefined}>
-                    {/* ID */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {t.unread && (
-                          <span style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: 'var(--brand-gradient)', flexShrink: 0,
-                            boxShadow: '0 0 0 2px var(--bg-canvas)',
-                          }} />
-                        )}
-                        <code style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--fg-secondary)' }}>{t.id}</code>
-                      </div>
-                    </td>
-
-                    {/* Title */}
-                    <td>
-                      <button
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                        onClick={() => setViewTicket(t)}
-                      >
-                        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--brand-primary)' }}>{t.title}</div>
-                        {t.replies > 0 && (
-                          <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 2 }}>
-                            <Icon name="message" size={11} /> {t.replies} replies
-                          </div>
-                        )}
-                      </button>
-                    </td>
-
-                    {/* Category */}
-                    <td><span className="badge muted" style={{ fontSize: 11.5 }}>{t.category}</span></td>
-
-                    {/* People */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div className={`av ${t.createdBy.tone}`} style={{ width: 26, height: 26, fontSize: 9.5 }} title={`Created by ${t.createdBy.name}`}>{t.createdBy.av}</div>
-                        {t.assignedTo ? (
-                          <>
-                            <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>→</span>
-                            <div className={`av ${t.assignedTo.tone}`} style={{ width: 26, height: 26, fontSize: 9.5 }} title={`Assigned to ${t.assignedTo.name}`}>{t.assignedTo.av}</div>
-                          </>
-                        ) : (
-                          <span style={{ fontSize: 11, color: 'var(--fg-muted)', fontStyle: 'italic' }}>Unassigned</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Priority */}
-                    <td>
-                      <span style={{
-                        ...pc,
-                        padding: '3px 10px', borderRadius: 20,
-                        fontSize: 11.5, fontWeight: 700, textTransform: 'capitalize',
-                        boxShadow: t.priority === 'high' ? '0 0 0 2px rgba(229,62,62,0.2)' : 'none',
-                      }}>
-                        {t.priority}
-                      </span>
-                    </td>
-
-                    {/* Status */}
-                    <td><Badge variant={statusVariant(t.status) as never}>{t.status}</Badge></td>
-
-                    {/* Created */}
-                    <td style={{ fontSize: 12.5, color: 'var(--fg-secondary)' }}>{t.created}</td>
-
-                    {/* Actions */}
-                    <td>
-                      <div className="row-actions" style={{ justifyContent: 'flex-end', position: 'relative' }}>
-                        <button className="act" title="View" onClick={() => setViewTicket(t)}>
-                          <Icon name="eye" size={14} />
-                        </button>
-                        <button className="act" title="Edit" onClick={() => openEdit(t)}>
-                          <Icon name="edit" size={14} />
-                        </button>
-                        <div style={{ position: 'relative' }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            title="Change status"
-                            onClick={() => setPopoverId(id => id === t.id ? null : t.id)}
-                          >
-                            Status <Icon name="chevD" size={12} />
-                          </button>
-                          {popoverId === t.id && (
-                            <StatusPopover
-                              current={t.status}
-                              onChange={s => handleStatusChange(t.id, s)}
-                              onClose={() => setPopoverId(null)}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-              {filtered.length === 0 && (
+              {loading ? (
+                <><SkeletonRow /><SkeletonRow /><SkeletonRow /></>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={8}>
                     <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--fg-muted)' }}>
                       <Icon name="lifebuoy" size={32} />
                       <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No tickets found</div>
+                      <div style={{ fontSize: 12, marginTop: 4 }}>Try adjusting your filters</div>
                     </div>
                   </td>
                 </tr>
+              ) : (
+                paginated.map(t => {
+                  const ps = priorityStyle(t.priority)
+                  const isUrgent = (t.priority === 'high' || t.priority === 'critical') &&
+                    t.status !== 'resolved' && t.status !== 'closed'
+                  return (
+                    <tr key={t._id} style={isUrgent ? { background: 'rgba(229,62,62,0.04)' } : undefined}>
+
+                      {/* Ticket ID */}
+                      <td>
+                        <code style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--fg-secondary)' }}>
+                          {t.ticketId}
+                        </code>
+                      </td>
+
+                      {/* Subject */}
+                      <td>
+                        <button
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                          onClick={() => openView(t)}
+                        >
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--teal-600)' }}>{t.subject}</div>
+                          {t.messages.length > 0 && (
+                            <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 2 }}>
+                              <Icon name="message" size={11} /> {t.messages.length} messages
+                            </div>
+                          )}
+                        </button>
+                      </td>
+
+                      {/* Category */}
+                      <td>
+                        <span className="badge muted" style={{ fontSize: 11.5, textTransform: 'capitalize' }}>
+                          {t.category}
+                        </span>
+                      </td>
+
+                      {/* People */}
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div
+                            className="av blue"
+                            style={{ width: 26, height: 26, fontSize: 9.5 }}
+                            title={`Submitted by ${t.submittedBy?.name ?? '?'}`}
+                          >
+                            {initials(t.submittedBy?.name)}
+                          </div>
+                          {t.assignedTo ? (
+                            <>
+                              <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>→</span>
+                              <div
+                                className="av teal"
+                                style={{ width: 26, height: 26, fontSize: 9.5 }}
+                                title={`Assigned to ${t.assignedTo.name}`}
+                              >
+                                {initials(t.assignedTo.name)}
+                              </div>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--fg-muted)', fontStyle: 'italic' }}>Unassigned</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Priority */}
+                      <td>
+                        <span style={{
+                          ...ps,
+                          padding: '3px 10px', borderRadius: 20,
+                          fontSize: 11.5, fontWeight: 700, textTransform: 'capitalize',
+                          boxShadow: isUrgent ? '0 0 0 2px rgba(229,62,62,0.2)' : 'none',
+                        }}>
+                          {t.priority}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td><Badge variant={statusVariant(t.status) as never}>{t.status}</Badge></td>
+
+                      {/* Created */}
+                      <td style={{ fontSize: 12.5, color: 'var(--fg-secondary)' }}>
+                        {dayjs(t.createdAt).format('DD MMM YYYY')}
+                      </td>
+
+                      {/* Actions */}
+                      <td>
+                        <div className="row-actions" style={{ justifyContent: 'flex-end', position: 'relative' }}>
+                          <button className="act" title="View" onClick={() => openView(t)}>
+                            <Icon name="eye" size={14} />
+                          </button>
+                          <button className="act" title="Edit" onClick={() => openEdit(t)}>
+                            <Icon name="edit" size={14} />
+                          </button>
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setPopoverId(id => id === t._id ? null : t._id)}
+                            >
+                              Status <Icon name="chevD" size={12} />
+                            </button>
+                            {popoverId === t._id && (
+                              <StatusPopover
+                                current={t.status}
+                                onChange={s => handleStatusChange(t._id, s)}
+                                onClose={() => setPopoverId(null)}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 16px', borderTop: '1px solid var(--border-light)',
+            fontSize: 12.5, color: 'var(--fg-secondary)',
+          }}>
+            <span>
+              Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} tickets
+            </span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                <Icon name="chevL" size={13} /> Prev
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button
+                  key={p}
+                  style={{
+                    width: 30, height: 30, borderRadius: 8, border: '1px solid',
+                    borderColor: p === page ? 'transparent' : 'var(--border-soft)',
+                    background: p === page ? 'var(--brand-gradient)' : 'var(--bg-surface)',
+                    color: p === page ? 'white' : 'var(--fg-secondary)',
+                    fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                  }}
+                  onClick={() => setPage(p)}
+                >{p}</button>
+              ))}
+              <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+                Next <Icon name="chevR" size={13} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Slide panel */}
+      {/* View panel */}
       {viewTicket && (
         <TicketPanel
           ticket={viewTicket}
+          currentUserId={user?.id ?? ''}
           onClose={() => setViewTicket(null)}
           onStatusChange={handleStatusChange}
+          onReload={reloadViewTicket}
+          onEditOpen={openEdit}
         />
       )}
 
       {/* Edit modal */}
       {editTicket && (
         <Modal
-          title={`Edit ${editTicket.id}`}
+          title={`Edit · ${editTicket.ticketId}`}
           onClose={() => setEditTicket(null)}
           size="lg"
           footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setEditTicket(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleEdit}>Update ticket</button>
+              <button className="btn btn-primary" disabled={saving} onClick={handleEdit}>
+                {saving ? 'Saving…' : 'Update ticket'}
+              </button>
             </div>
           }
         >
-          <TicketForm value={editForm} onChange={setEditForm} />
-          <div className="form-group" style={{ marginTop: 16 }}>
-            <label className="form-label">Status</label>
-            <select
-              className="form-select"
-              value={editTicket.status}
-              onChange={e => {
-                const s = e.target.value as TicketStatus
-                setEditTicket(t => t ? { ...t, status: s } : t)
-              }}
-            >
-              <option value="open">Open</option>
-              <option value="in-progress">In progress</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
+          <TicketForm value={editForm} onChange={setEditForm} users={users} showStatus />
         </Modal>
       )}
 
@@ -658,25 +946,17 @@ export default function SupportTickets() {
           size="lg"
           footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-              {createError && <span style={{ fontSize: 12.5, color: 'var(--danger)', flex: 1 }}>{createError}</span>}
+              {createError && (
+                <span style={{ fontSize: 12.5, color: 'var(--danger-500)', flex: 1 }}>{createError}</span>
+              )}
               <button className="btn btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleCreate}>Submit ticket</button>
+              <button className="btn btn-primary" disabled={saving} onClick={handleCreate}>
+                {saving ? 'Submitting…' : 'Submit ticket'}
+              </button>
             </div>
           }
         >
-          <TicketForm value={createForm} onChange={setCreateForm} />
-          <div style={{ marginTop: 16 }}>
-            <div className="form-label" style={{ marginBottom: 8 }}>Attachment</div>
-            <div style={{
-              border: '2px dashed var(--border-soft)', borderRadius: 10,
-              padding: '20px 16px', textAlign: 'center',
-              color: 'var(--fg-muted)', fontSize: 13, cursor: 'pointer',
-            }}>
-              <Icon name="paperclip" size={18} />
-              <div style={{ marginTop: 6 }}>Drop files here or click to upload</div>
-              <div style={{ fontSize: 11.5, marginTop: 4 }}>PNG, JPG, PDF up to 10 MB</div>
-            </div>
-          </div>
+          <TicketForm value={createForm} onChange={setCreateForm} users={users} />
         </Modal>
       )}
     </>

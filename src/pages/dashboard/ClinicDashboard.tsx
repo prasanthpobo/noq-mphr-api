@@ -2,9 +2,17 @@ import { useState, useEffect } from 'react'
 import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { clinicsService } from '@/services/clinics.service'
 import { doctorsService } from '@/services/doctors.service'
 import { nursesService } from '@/services/nurses.service'
+import dayjs from 'dayjs'
+
+function greeting(name: string): string {
+  const h = new Date().getHours()
+  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${period}, ${name}`
+}
 
 const UTIL_COLORS: string[] = [
   'var(--brand-gradient)',
@@ -66,7 +74,8 @@ function DonutChart() {
 const TONE_PALETTE = ['blue','teal','pink','amber','green','plum','indigo','brand']
 
 export default function ClinicDashboard() {
-  const { setRoute } = useAppStore()
+  const { setRoute }  = useAppStore()
+  const user          = useAuthStore(s => s.user)
   const [clinics, setClinics] = useState<any[]>([])
   const [doctors, setDoctors] = useState<any[]>([])
   const [nurses, setNurses] = useState<any[]>([])
@@ -101,8 +110,8 @@ export default function ClinicDashboard() {
   return (
     <>
       <Header
-        title="Clinic dashboard"
-        crumbs="Network overview"
+        title={greeting(user?.name ?? 'Clinic Admin')}
+        crumbs={`Clinic overview · ${dayjs().format('dddd, D MMM YYYY')}`}
       />
       <div className="main">
         {/* Stat cards */}

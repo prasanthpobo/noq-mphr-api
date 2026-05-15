@@ -2,6 +2,13 @@ import mongoose, { Document, Schema } from 'mongoose'
 
 export type ClinicStatus = 'active' | 'inactive'
 
+export interface IWorkingHour {
+  day: string
+  active: boolean
+  start: string
+  end: string
+}
+
 export interface IClinic extends Document {
   name: string
   code: string
@@ -19,6 +26,19 @@ export interface IClinic extends Document {
   closeTime?: string
   logo?: string
   about?: string
+  // Extended settings
+  gstin?: string
+  currency?: string
+  defaultFee?: number
+  taxRate?: number
+  invoiceNotes?: string
+  workingHours?: IWorkingHour[]
+  notifications?: {
+    sms: boolean
+    email: boolean
+    browser: boolean
+    queueAlerts: boolean
+  }
   createdAt: Date
 }
 
@@ -90,6 +110,29 @@ const ClinicSchema = new Schema<IClinic>(
     },
     about: {
       type: String
+    },
+    gstin: { type: String },
+    currency: { type: String, default: 'INR' },
+    defaultFee: { type: Number },
+    taxRate: { type: Number },
+    invoiceNotes: { type: String },
+    workingHours: {
+      type: [{
+        day:    { type: String },
+        active: { type: Boolean, default: true },
+        start:  { type: String, default: '09:00' },
+        end:    { type: String, default: '20:00' },
+      }],
+      default: undefined,
+    },
+    notifications: {
+      type: {
+        sms:         { type: Boolean, default: true  },
+        email:       { type: Boolean, default: true  },
+        browser:     { type: Boolean, default: false },
+        queueAlerts: { type: Boolean, default: true  },
+      },
+      default: undefined,
     },
     createdAt: {
       type: Date,

@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '@/store/app'
 import { useAuthStore } from '@/store/auth'
+import { DEFAULT_ROUTE, type Role } from '@/config/rbac'
 import Icon from '@/components/ui/Icon'
+
+function roleRoute(role?: string): string {
+  return DEFAULT_ROUTE[(role as Role) || 'user'] ?? 'support'
+}
 
 export default function LoginPage() {
   const { setAuthed, setRoute } = useAppStore()
@@ -12,11 +17,11 @@ export default function LoginPage() {
   const [showPw, setShowPw]     = useState(false)
   const [keepMe, setKeepMe]     = useState(false)
 
-  // If already logged in on mount, redirect to dashboard
+  // If already logged in on mount, redirect to role's home
   useEffect(() => {
     if (user) {
       setAuthed(true)
-      setRoute('dashboard')
+      setRoute(roleRoute(user.role))
     }
   }, [user, setAuthed, setRoute])
 
@@ -28,16 +33,12 @@ export default function LoginPage() {
 
     await login(email, password)
 
-    // After login attempt, check if user is now set
+    // After login attempt, redirect to role's home
     const currentUser = useAuthStore.getState().user
     if (currentUser) {
       setAuthed(true)
-      setRoute('dashboard')
+      setRoute(roleRoute(currentUser.role))
     }
-  }
-
-  const handleSso = () => {
-    // SSO not yet implemented on backend — kept as stub
   }
 
   return (
@@ -89,6 +90,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 style={{ fontSize: 12, color: 'var(--teal-600)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+                onClick={() => setRoute('forgot-password')}
               >
                 Forgot?
               </button>
@@ -140,27 +142,6 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        {/* Divider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '18px 0' }}>
-          <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
-          <span style={{ fontSize: 12, color: 'var(--fg-muted)', fontWeight: 500 }}>or</span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
-        </div>
-
-        {/* SSO button */}
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ width: '100%', justifyContent: 'center', padding: '10px 14px', fontSize: 13.5 }}
-          onClick={handleSso}
-          disabled={loading}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-            <path d="M21.8 10.3H12v3.8h5.6c-.5 2.5-2.8 4.3-5.6 4.3-3.4 0-6.1-2.7-6.1-6.1s2.7-6.1 6.1-6.1c1.5 0 2.9.6 4 1.5l2.7-2.7C16.8 3.5 14.5 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c5.8 0 9.7-4.1 9.7-9.8 0-.5-.1-1.1-.2-1.5z" fill="#4285F4"/>
-          </svg>
-          Continue with SSO / Google Workspace
-        </button>
 
         {/* Footer note */}
         <p style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 20, lineHeight: 1.6 }}>

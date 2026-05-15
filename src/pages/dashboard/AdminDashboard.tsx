@@ -3,8 +3,15 @@ import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { reportsService } from '@/services/reports.service'
 import dayjs from 'dayjs'
+
+function greeting(name: string): string {
+  const h = new Date().getHours()
+  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${period}, ${name}`
+}
 
 const DEPT_LOAD: { dept: string; pct: number; color: string }[] = [
   { dept: 'General OPD',  pct: 92, color: 'var(--brand-gradient)' },
@@ -41,7 +48,8 @@ function alertToBadge(kind: string): string {
 }
 
 export default function AdminDashboard() {
-  const { setRoute } = useAppStore()
+  const { setRoute }  = useAppStore()
+  const user          = useAuthStore(s => s.user)
   const [summary, setSummary] = useState<any>(null)
   const [chartDays, setChartDays] = useState<any[]>([])
 
@@ -63,10 +71,8 @@ export default function AdminDashboard() {
   return (
     <>
       <Header
-        title="Good morning, Reception"
-        crumbs="Today · Saturday, 9 May 2026 · Sunshine Clinic"
-        onAdd={() => setRoute('book')}
-        addLabel="Book appointment"
+        title={greeting(user?.name ?? 'Admin')}
+        crumbs={`Today · ${dayjs().format('dddd, D MMM YYYY')} · Admin console`}
       />
       <div className="main">
         {/* Stat cards */}

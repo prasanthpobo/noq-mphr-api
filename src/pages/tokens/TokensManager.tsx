@@ -86,7 +86,7 @@ export default function TokensManager() {
   const filtered = items.filter(q => {
     const qLower = search.toLowerCase()
     const matchSearch = !qLower ||
-      (q.tokenNumber ?? '').toLowerCase().includes(qLower) ||
+      String(q.tokenNumber ?? '').toLowerCase().includes(qLower) ||
       (q.patientId?.name ?? '').toLowerCase().includes(qLower) ||
       (q.doctorId?.name ?? '').toLowerCase().includes(qLower)
     const matchSt = matchStatus(q, statusFilter)
@@ -188,8 +188,6 @@ export default function TokensManager() {
       <Header
         title="Tokens manager"
         crumbs={`${total} total · ${waiting} waiting · ${inConsult} in consultation`}
-        onAdd={() => setModalType('add')}
-        addLabel="Add token"
       />
 
       <div className="main">
@@ -233,6 +231,13 @@ export default function TokensManager() {
                 </button>
               ))}
             </div>
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => setModalType('add')}
+            >
+              <Icon name="plus" size={14}/> Add token
+            </button>
           </div>
 
           <table className="data">
@@ -296,7 +301,7 @@ export default function TokensManager() {
                       <td style={{ fontSize: 13, color: 'var(--fg-secondary)' }}>{t.clinicId?.name ?? '-'}</td>
                       <td style={{ fontSize: 13, fontWeight: 600 }}>{t.doctorId?.name ?? 'Doctor'}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--fg-secondary)' }}>
-                        {t.slot ?? '-'}
+                        {t.appointmentId?.time ?? '-'}
                       </td>
                       <td><StatusBadge status={t.status} emergency={t.priority === 'emergency'} /></td>
                       <td>
@@ -426,9 +431,9 @@ export default function TokensManager() {
               {[
                 { label: 'Clinic',    value: selectedToken.clinicId?.name ?? '-' },
                 { label: 'Doctor',    value: selectedToken.doctorId?.name ?? '-' },
-                { label: 'Slot',      value: selectedToken.slot ?? '-' },
+                { label: 'Slot',      value: selectedToken.appointmentId?.time ?? '-' },
                 { label: 'Queue pos.', value: `#${selectedToken.pos ?? '-'}` },
-                { label: 'Created',   value: selectedToken.createdAt ? dayjs(selectedToken.createdAt).format('hh:mm A') : '-' },
+                { label: 'Issued at', value: selectedToken.issuedAt ? dayjs(selectedToken.issuedAt).format('hh:mm A') : '-' },
                 { label: 'Priority',  value: selectedToken.priority },
               ].map(f => (
                 <div key={f.label}>

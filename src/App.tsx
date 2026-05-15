@@ -1,9 +1,14 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
+import { ROUTE_PERMISSIONS, DEFAULT_ROUTE } from '@/config/rbac'
 import Sidebar from '@/components/layout/Sidebar'
-import LoginPage from '@/pages/login/Login'
+import LoginPage      from '@/pages/login/Login'
+import ForgotPassword from '@/pages/login/ForgotPassword'
 import LogoutModal from '@/components/LogoutModal'
 import ToastContainer from '@/components/ui/Toast'
+import Icon from '@/components/ui/Icon'
 
 // ─── Lazy page imports ───────────────────────────────────────────────────────
 const AdminDashboard    = lazy(() => import('@/pages/dashboard/AdminDashboard'))
@@ -41,6 +46,7 @@ const PharmacyDetail    = lazy(() => import('@/pages/pharmacy/PharmacyDetail'))
 
 const LabPage           = lazy(() => import('@/pages/lab/LabPage'))
 const LabDetail         = lazy(() => import('@/pages/lab/LabDetail'))
+const LabBillingPage    = lazy(() => import('@/pages/lab/LabBillingPage'))
 
 const BillingPage       = lazy(() => import('@/pages/billing/BillingPage'))
 const BillingDetail     = lazy(() => import('@/pages/billing/BillingDetail'))
@@ -66,12 +72,42 @@ function PageLoader() {
 // ─── Coming Soon stub ────────────────────────────────────────────────────────
 function ComingSoon() {
   const { setRoute } = useAppStore()
+  const { role }     = usePermissions()
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
       <div style={{ fontSize: 48 }}>🚧</div>
       <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--fg-primary)', margin: 0 }}>Coming Soon</h2>
       <p style={{ color: 'var(--fg-secondary)', margin: 0 }}>This page is under construction.</p>
-      <button className="btn btn-primary" onClick={() => setRoute('dashboard')}>
+      <button className="btn btn-primary" onClick={() => setRoute(DEFAULT_ROUTE[role] ?? 'support')}>
+        Back to Dashboard
+      </button>
+    </div>
+  )
+}
+
+// ─── Access Denied ───────────────────────────────────────────────────────────
+function AccessDenied() {
+  const { setRoute } = useAppStore()
+  const { role }     = usePermissions()
+  const home         = DEFAULT_ROUTE[role] ?? 'support'
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
+      <div style={{
+        width: 72, height: 72, borderRadius: '50%',
+        background: 'rgba(239,68,68,0.08)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon name="lock" size={28} />
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg-primary)', margin: '0 0 6px' }}>
+          Access denied
+        </h2>
+        <p style={{ color: 'var(--fg-secondary)', margin: 0, fontSize: 14 }}>
+          You don't have permission to view this page.
+        </p>
+      </div>
+      <button className="btn btn-primary" onClick={() => setRoute(home)}>
         Back to Dashboard
       </button>
     </div>
@@ -81,9 +117,22 @@ function ComingSoon() {
 // ─── App root ────────────────────────────────────────────────────────────────
 export default function App() {
   const { authed, route, logoutOpen, selectedId, setSelectedId, setRoute } = useAppStore()
+  const user       = useAuthStore(s => s.user)
+  const { can, role } = usePermissions()
 
+  // On login / role change: redirect to role's default if current route is forbidden
+  useEffect(() => {
+    if (!authed || !user) return
+    const requiredPerm = ROUTE_PERMISSIONS[route]
+    if (requiredPerm && !can(requiredPerm)) {
+      setRoute(DEFAULT_ROUTE[role] ?? 'support')
+    }
+  }, [authed, user?.role]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (route === 'forgot-password') return <ForgotPassword />
   if (!authed) return <LoginPage />
 
+  // ── Screen resolution ──────────────────────────────────────────────────────
   let screen: React.ReactNode
 
   switch (route) {
@@ -136,6 +185,7 @@ export default function App() {
 
     case 'lab':             screen = <LabPage />; break
     case 'lab-detail':      screen = <LabDetail />; break
+    case 'lab-billing':     screen = <LabBillingPage />; break
 
     case 'billing':         screen = <BillingPage />; break
     case 'billing-detail':  screen = <BillingDetail />; break
@@ -150,6 +200,12 @@ export default function App() {
     case 'book':            screen = <BookFlow />; break
 
     default:                screen = <ComingSoon />; break
+  }
+
+  // ── Route guard: replace screen if role lacks permission ──────────────────
+  const requiredPerm = ROUTE_PERMISSIONS[route]
+  if (requiredPerm && !can(requiredPerm)) {
+    screen = <AccessDenied />
   }
 
   return (

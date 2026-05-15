@@ -27,6 +27,8 @@ export interface IAppointment extends Document {
   notes: string
   prescription: IPrescriptionItem[]
   vitals: IVitals
+  followUpOf?: mongoose.Types.ObjectId
+  followUpReason?: string
   createdAt: Date
 }
 
@@ -99,6 +101,13 @@ const AppointmentSchema = new Schema<IAppointment>(
     vitals: {
       type: VitalsSchema,
       default: {}
+    },
+    followUpOf: {
+      type: Schema.Types.ObjectId,
+      ref: 'Appointment',
+    },
+    followUpReason: {
+      type: String,
     },
     createdAt: {
       type: Date,

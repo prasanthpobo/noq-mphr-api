@@ -82,8 +82,6 @@ export default function AdminUserList() {
       <Header
         title="User management"
         crumbs={`${active} active · ${total} total`}
-        onAdd={() => setRoute('admin-new')}
-        addLabel="Add user"
       />
 
       <div className="main">
@@ -100,6 +98,13 @@ export default function AdminUserList() {
             <Icon name="search" size={15}/>
             <input placeholder="Search users…" value={search} onChange={e=>setSearch(e.target.value)}/>
           </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setRoute('admin-new')}
+          >
+            <Icon name="plus" size={14}/> Add user
+          </button>
         </div>
 
         {error && (
@@ -127,10 +132,15 @@ export default function AdminUserList() {
                 <tr key={u._id || u.id}>
                   <td>
                     <div className="cell-person">
-                      <div className={`av ${u.tone}`}>{u.av}</div>
+                      <div
+                        className={`av ${u.tone || 'blue'}`}
+                        style={{ borderRadius: '50%', flexShrink: 0 }}
+                      >
+                        {u.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+                      </div>
                       <div className="info">
-                        <div className="n">{u.name}</div>
-                        <div className="s">{u.email}</div>
+                        <div className="n">{u.name?.split(' ')[0] || '—'}</div>
+                        <div className="s">{u.name?.split(' ').slice(1).join(' ') || u.email}</div>
                       </div>
                     </div>
                   </td>

@@ -7,23 +7,29 @@ const router = Router()
 // GET /api/tokens
 router.get('/', protect, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { date, clinicId, doctorId, status } = req.query
+    const { date, clinicId, doctorId, status, appointmentId } = req.query
     const filter: Record<string, unknown> = {}
 
-    const targetDate = date ? new Date(date as string) : new Date()
-    const start = new Date(targetDate)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(targetDate)
-    end.setHours(23, 59, 59, 999)
-    filter.issuedAt = { $gte: start, $lte: end }
+    if (appointmentId) {
+      filter.appointmentId = appointmentId
+    } else {
+      const targetDate = date ? new Date(date as string) : new Date()
+      const start = new Date(targetDate)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(targetDate)
+      end.setHours(23, 59, 59, 999)
+      filter.issuedAt = { $gte: start, $lte: end }
+    }
 
     if (clinicId) filter.clinicId = clinicId
     if (doctorId) filter.doctorId = doctorId
-    if (status) filter.status = status
+    if (status)   filter.status   = status
 
     const tokens = await Token.find(filter)
       .populate('patientId', 'name phone tag')
-      .populate('doctorId', 'name specialization')
+      .populate('doctorId', 'name specialization room')
+      .populate('clinicId', 'name address')
+      .populate('appointmentId', 'time date type')
       .sort({ tokenNumber: 1 })
 
     res.json({ success: true, count: tokens.length, data: tokens })

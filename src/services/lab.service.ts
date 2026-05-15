@@ -11,16 +11,12 @@ export const labService = {
     api.post(base, data).then(r => r.data.data),
   update: (id: string, data: unknown) =>
     api.put(`${base}/${id}`, data).then(r => r.data.data),
-  updateResult: (
-    id: string,
-    testIndex: number,
-    result: string,
-    unit?: string,
-    normalRange?: string
-  ) =>
-    api
-      .put(`${base}/${id}/result`, { testIndex, result, unit, normalRange })
-      .then(r => r.data.data),
+  collect: (id: string) =>
+    api.put(`${base}/${id}/collect`, {}).then(r => r.data.data),
+  updateResult: (id: string, testIndex: number, result: string, unit?: string, normalRange?: string) =>
+    api.put(`${base}/${id}/result`, { testIndex, result, unit, normalRange }).then(r => r.data.data),
+  pay: (id: string, amount: number, method: string) =>
+    api.put(`${base}/${id}/pay`, { amount, method }).then(r => r.data.data),
   remove: (id: string) =>
     api.delete(`${base}/${id}`).then(r => r.data),
 }

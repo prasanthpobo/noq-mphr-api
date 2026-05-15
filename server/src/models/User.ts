@@ -22,6 +22,12 @@ export interface IUser extends Document {
   avatar?: string
   phone?: string
   createdAt: Date
+  // Password reset flow
+  resetOtp?: string
+  resetOtpExpiry?: Date
+  resetOtpVerified?: boolean
+  resetToken?: string
+  resetTokenExpiry?: Date
   matchPassword(enteredPassword: string): Promise<boolean>
 }
 
@@ -70,7 +76,12 @@ const UserSchema = new Schema<IUser>(
     createdAt: {
       type: Date,
       default: Date.now
-    }
+    },
+    resetOtp:          { type: String,  select: false },
+    resetOtpExpiry:    { type: Date,    select: false },
+    resetOtpVerified:  { type: Boolean, select: false, default: false },
+    resetToken:        { type: String,  select: false },
+    resetTokenExpiry:  { type: Date,    select: false },
   },
   { timestamps: false }
 )

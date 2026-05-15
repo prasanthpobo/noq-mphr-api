@@ -30,7 +30,7 @@ const EMPTY: Selections = {
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
-function today(): Date { return new Date('2026-05-13') }
+function today(): Date { return new Date() }
 
 function dateLabel(offset: number): { label: string; sub: string; iso: string } {
   const d = today()
@@ -121,8 +121,8 @@ function Stepper({ step, sel, clinics, onJump }: { step: Step; sel: Selections; 
             style={{
               width: '100%', display: 'flex', alignItems: 'flex-start', gap: 14,
               padding: '12px 24px', border: 'none', cursor: done ? 'pointer' : 'default',
-              background: active ? 'var(--brand-soft)' : 'transparent',
-              borderLeft: active ? '3px solid var(--brand-primary)' : '3px solid transparent',
+              background: active ? 'var(--brand-gradient-soft)' : 'transparent',
+              borderLeft: active ? '3px solid var(--teal-600)' : '3px solid transparent',
               textAlign: 'left',
             }}
           >
@@ -131,7 +131,7 @@ function Stepper({ step, sel, clinics, onJump }: { step: Step; sel: Selections; 
               width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 800,
-              background: done ? 'var(--success)' : active ? 'var(--brand-gradient)' : 'var(--bg-surface-alt)',
+              background: done ? 'var(--success-500)' : active ? 'var(--brand-gradient)' : 'var(--bg-section)',
               color: done || active ? '#fff' : 'var(--fg-muted)',
             }}>
               {done ? <Icon name="check" size={13} stroke={3} /> : s}
@@ -139,7 +139,7 @@ function Stepper({ step, sel, clinics, onJump }: { step: Step; sel: Selections; 
             <div>
               <div style={{
                 fontSize: 13, fontWeight: active ? 700 : 500,
-                color: active ? 'var(--brand-primary)' : done ? 'var(--fg-primary)' : 'var(--fg-muted)',
+                color: active ? 'var(--teal-600)' : done ? 'var(--fg-primary)' : 'var(--fg-muted)',
               }}>
                 {label}
               </div>
@@ -186,8 +186,8 @@ function StepClinic({ clinics, sel, onSelect }: { clinics: any[]; sel: any | nul
               key={c._id}
               onClick={() => onSelect(c)}
               style={{
-                border: sel?._id === c._id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-                borderRadius: 14, padding: '16px', background: sel?._id === c._id ? 'var(--brand-soft)' : 'var(--bg-surface)',
+                border: sel?._id === c._id ? '2px solid var(--teal-600)' : '2px solid var(--border-soft)',
+                borderRadius: 14, padding: '16px', background: sel?._id === c._id ? 'var(--brand-gradient-soft)' : 'var(--bg-surface)',
                 cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
               }}
             >
@@ -233,8 +233,8 @@ function StepPatient({ patients, sel, onSelect }: { patients: any[]; sel: any | 
               key={p._id}
               onClick={() => onSelect(p)}
               style={{
-                border: sel?._id === p._id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-                borderRadius: 14, padding: '16px', background: sel?._id === p._id ? 'var(--brand-soft)' : 'var(--bg-surface)',
+                border: sel?._id === p._id ? '2px solid var(--teal-600)' : '2px solid var(--border-soft)',
+                borderRadius: 14, padding: '16px', background: sel?._id === p._id ? 'var(--brand-gradient-soft)' : 'var(--bg-surface)',
                 cursor: 'pointer', textAlign: 'left',
               }}
             >
@@ -278,8 +278,8 @@ function StepDoctor({ doctors, sel, onSelect }: { doctors: any[]; sel: any | nul
               key={d._id}
               onClick={() => onSelect(d)}
               style={{
-                border: sel?._id === d._id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-                borderRadius: 14, padding: '16px', background: sel?._id === d._id ? 'var(--brand-soft)' : 'var(--bg-surface)',
+                border: sel?._id === d._id ? '2px solid var(--teal-600)' : '2px solid var(--border-soft)',
+                borderRadius: 14, padding: '16px', background: sel?._id === d._id ? 'var(--brand-gradient-soft)' : 'var(--bg-surface)',
                 cursor: 'pointer', textAlign: 'left',
               }}
             >
@@ -325,7 +325,7 @@ function StepSchedule({ sel, onChange }: {
             onClick={() => onChange(d.iso, sel.time)}
             style={{
               flexShrink: 0, width: 72, padding: '10px 8px', borderRadius: 12, cursor: 'pointer',
-              border: sel.date === d.iso ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
+              border: sel.date === d.iso ? '2px solid var(--teal-600)' : '2px solid var(--border-soft)',
               background: sel.date === d.iso ? 'var(--brand-gradient)' : 'var(--bg-surface)',
               color: sel.date === d.iso ? '#fff' : 'var(--fg-primary)',
               textAlign: 'center',
@@ -352,9 +352,9 @@ function StepSchedule({ sel, onChange }: {
                   onClick={() => onChange(sel.date, slot)}
                   style={{
                     padding: '10px 8px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: taken ? 'not-allowed' : 'pointer',
-                    border: active ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-                    background: taken ? 'var(--bg-surface-alt)' : active ? 'var(--brand-soft)' : 'var(--bg-surface)',
-                    color: taken ? 'var(--fg-muted)' : active ? 'var(--brand-primary)' : 'var(--fg-primary)',
+                    border: active ? '2px solid var(--teal-600)' : '2px solid var(--border-soft)',
+                    background: taken ? 'var(--bg-section)' : active ? 'var(--brand-gradient-soft)' : 'var(--bg-surface)',
+                    color: taken ? 'var(--fg-muted)' : active ? 'var(--teal-600)' : 'var(--fg-primary)',
                     textDecoration: taken ? 'line-through' : 'none',
                   }}
                 >
@@ -366,8 +366,8 @@ function StepSchedule({ sel, onChange }: {
           {sel.time && (
             <div style={{
               marginTop: 20, padding: '12px 16px', borderRadius: 10,
-              background: 'var(--brand-soft)', border: '1px solid var(--brand-primary)',
-              fontSize: 13, color: 'var(--brand-primary)', fontWeight: 600,
+              background: 'var(--brand-gradient-soft)', border: '1px solid var(--teal-600)',
+              fontSize: 13, color: 'var(--teal-600)', fontWeight: 600,
             }}>
               <Icon name="clock" size={14} style={{ marginRight: 6 }} />
               Estimated wait time: ~15 minutes after your scheduled slot
@@ -492,7 +492,7 @@ function StepConfirm({ sel, onPaymentChange }: {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
             <span>Consultation fee</span><span>₹{fee}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--success)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--success-500)' }}>
             <span>Discount (10%)</span><span>− ₹{discount}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: 'var(--fg-primary)', paddingTop: 8, borderTop: '1px solid var(--border-light)' }}>
@@ -510,17 +510,17 @@ function StepConfirm({ sel, onPaymentChange }: {
               key={m.id}
               onClick={() => onPaymentChange(m.id)}
               style={{
-                border: sel.payment === m.id ? '2px solid var(--brand-primary)' : '2px solid var(--border-soft)',
-                borderRadius: 12, padding: '12px 14px', background: sel.payment === m.id ? 'var(--brand-soft)' : 'var(--bg-surface)',
+                border: sel.payment === m.id ? '2px solid var(--teal-600)' : '2px solid var(--border-soft)',
+                borderRadius: 12, padding: '12px 14px', background: sel.payment === m.id ? 'var(--brand-gradient-soft)' : 'var(--bg-surface)',
                 cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10,
               }}
             >
-              <Icon name={m.icon} size={18} style={{ color: sel.payment === m.id ? 'var(--brand-primary)' : 'var(--fg-secondary)' }} />
+              <Icon name={m.icon} size={18} style={{ color: sel.payment === m.id ? 'var(--teal-600)' : 'var(--fg-secondary)' }} />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-primary)' }}>{m.label}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>{m.sub}</div>
               </div>
-              {sel.payment === m.id && <Icon name="check" size={14} style={{ marginLeft: 'auto', color: 'var(--brand-primary)' }} />}
+              {sel.payment === m.id && <Icon name="check" size={14} style={{ marginLeft: 'auto', color: 'var(--teal-600)' }} />}
             </button>
           ))}
         </div>
@@ -540,7 +540,7 @@ function SuccessView({ createdToken, onViewQueue, onBookAnother }: {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' }}>
       {/* Animated check */}
       <div style={{
-        width: 80, height: 80, borderRadius: '50%', background: 'var(--success)',
+        width: 80, height: 80, borderRadius: '50%', background: 'var(--success-500)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
         animation: 'pulse-success 1.5s ease infinite',
       }}>
@@ -654,7 +654,7 @@ export default function BookFlow() {
 
   if (confirmed) {
     return (
-      <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-canvas)' }}>
+      <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-app)' }}>
         <SuccessView
           createdToken={createdToken}
           onViewQueue={() => setRoute('live-tokens')}
@@ -669,7 +669,7 @@ export default function BookFlow() {
     return (
       <div style={{
         display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--bg-canvas)', fontSize: 15, color: 'var(--fg-muted)', fontWeight: 600,
+        background: 'var(--bg-app)', fontSize: 15, color: 'var(--fg-muted)', fontWeight: 600,
       }}>
         Loading...
       </div>
@@ -677,7 +677,7 @@ export default function BookFlow() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-canvas)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-app)', overflow: 'hidden' }}>
       <Stepper step={step} sel={sel} clinics={clinics} onJump={setStep} />
 
       {/* Right panel */}
@@ -733,7 +733,7 @@ export default function BookFlow() {
 
           {step === 6 && sel.payment && (
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-primary)' }}>
-              Total: <span style={{ color: 'var(--brand-primary)' }}>₹{total}</span>
+              Total: <span style={{ color: 'var(--teal-600)' }}>₹{total}</span>
             </span>
           )}
 

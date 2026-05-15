@@ -3,7 +3,15 @@ import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { nursesService } from '@/services/nurses.service'
+import dayjs from 'dayjs'
+
+function greeting(name: string): string {
+  const h = new Date().getHours()
+  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${period}, ${name}`
+}
 
 interface Task {
   time: string
@@ -78,6 +86,7 @@ function vitalColor(ok: boolean): string {
 
 export default function NurseDashboard() {
   const { setRoute } = useAppStore()
+  const user         = useAuthStore(s => s.user)
   const [onDutyNurses, setOnDutyNurses] = useState<any[]>([])
 
   useEffect(() => {
@@ -89,8 +98,8 @@ export default function NurseDashboard() {
   return (
     <>
       <Header
-        title="Hello, Sister Mary"
-        crumbs="Saturday, 9 May 2026 · ICU-A · Morning shift"
+        title={greeting(user?.name ?? 'Nurse')}
+        crumbs={`${dayjs().format('dddd, D MMM YYYY')} · Your ward`}
       />
       <div className="main">
         {/* Stat cards */}

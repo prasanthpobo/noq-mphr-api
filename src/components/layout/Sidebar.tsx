@@ -1,120 +1,124 @@
+import { useState, useEffect } from 'react'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
-import { useAuthStore } from '@/store/auth'
+import { usePermissions } from '@/hooks/usePermissions'
+import { MENU_CONFIG } from '@/config/menuConfig'
+import { ROLE_LABELS, ROLE_COLORS, type Role } from '@/config/rbac'
 
-type NavItem = { k: string; l: string; ic: string; badge?: number }
-type NavGroup = { g: string; items: NavItem[] }
-
-const NAV: NavGroup[] = [
-  { g: 'Workspace', items: [
-    { k: 'dashboard',      l: 'Admin dashboard',      ic: 'dashboard' },
-    { k: 'dash-clinic',    l: 'Clinic dashboard',     ic: 'building' },
-    { k: 'dash-doctor',    l: 'Doctor dashboard',     ic: 'stethoscope' },
-    { k: 'dash-nurse',     l: 'Nurse dashboard',      ic: 'heart' },
-    { k: 'dash-frontdesk', l: 'Front desk dashboard', ic: 'user' },
-  ]},
-  { g: 'Clinic', items: [
-    { k: 'appointments', l: 'Appointments',  ic: 'calendar', badge: 62 },
-    { k: 'live-tokens',  l: 'Live tokens',   ic: 'ticket' },
-    { k: 'tokens-mgr',   l: 'Tokens',        ic: 'ticket' },
-    { k: 'tokens',       l: 'Token display', ic: 'dashboard' },
-  ]},
-  { g: 'Manage', items: [
-    { k: 'clinics',     l: 'Clinics',    ic: 'building' },
-    { k: 'doctors',     l: 'Doctors',    ic: 'stethoscope' },
-    { k: 'nurses',      l: 'Nurses',     ic: 'heart' },
-    { k: 'frontdesk',   l: 'Front desk', ic: 'user' },
-    { k: 'patients',    l: 'Patients',   ic: 'users' },
-    { k: 'admin-users', l: 'Users',      ic: 'shield' },
-  ]},
-  { g: 'Operations', items: [
-    { k: 'pharmacy', l: 'Pharmacy', ic: 'pill' },
-    { k: 'lab',      l: 'Lab',      ic: 'flask' },
-    { k: 'billing',  l: 'Billing',  ic: 'receipt' },
-    { k: 'reports',  l: 'Reports',  ic: 'chart' },
-  ]},
-  { g: 'System', items: [
-    { k: 'master-data', l: 'Master data', ic: 'database' },
-  ]},
-  { g: 'Account', items: [
-    { k: 'support',  l: 'Support tickets', ic: 'lifebuoy' },
-    { k: 'settings', l: 'Settings',        ic: 'settings' },
-  ]},
-]
-
-const ROLE_LABELS: Record<string, string> = {
-  super_admin:  'Super Admin',
-  clinic_admin: 'Clinic Admin',
-  doctor:       'Doctor',
-  nurse:        'Nurse',
-  frontdesk:    'Front Desk',
-  pharmacist:   'Pharmacist',
-  lab_tech:     'Lab Tech',
+/* ── Role chip ──────────────────────────────────────────────────────────── */
+function RoleChip({ role }: { role: Role }) {
+  const { bg, fg } = ROLE_COLORS[role] ?? ROLE_COLORS.user
+  return (
+    <span style={{
+      display:       'inline-block',
+      padding:       '2px 8px',
+      borderRadius:  20,
+      fontSize:      10,
+      fontWeight:    700,
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+      background:    bg,
+      color:         fg,
+      border:        `1px solid ${fg}22`,
+    }}>
+      {ROLE_LABELS[role] ?? role}
+    </span>
+  )
 }
 
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
 export default function Sidebar() {
   const { route, setRoute, setLogoutOpen } = useAppStore()
-  const user = useAuthStore(s => s.user)
+  const { can, role } = usePermissions()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
-  const displayName = user?.name ?? 'Unknown User'
-  const displayRole = user ? (ROLE_LABELS[user.role] ?? user.role) : 'Guest'
-  const initials    = user ? getInitials(user.name) : '??'
+  // Close sidebar on route change (mobile)
+  useEffect(() => { setMobileOpen(false) }, [route])
+
+  // Close sidebar on Escape key (mobile)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Filter menu to only items the current role can see
+  const visibleGroups = MENU_CONFIG
+    .map(g => ({ ...g, items: g.items.filter(item => can(item.permission)) }))
+    .filter(g => g.items.length > 0)
+
+  const handleNav = (key: string) => {
+    setRoute(key)
+    setMobileOpen(false)
+  }
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="logo">N</div>
-        <div>
-          <div className="name">NoQ</div>
-          <div className="sub">Clinic admin</div>
-        </div>
-      </div>
+    <>
+      {/* ── Mobile hamburger ─────────────────────────────────────────────── */}
+      <button
+        className="sidebar-hamburger"
+        onClick={() => setMobileOpen(o => !o)}
+        aria-label="Toggle navigation"
+        aria-expanded={mobileOpen}
+      >
+        <Icon name={mobileOpen ? 'x' : 'menu'} size={18} />
+      </button>
 
-      <nav className="sidebar-nav">
-        {NAV.map(group => (
-          <div key={group.g}>
-            <div className="sidebar-section-title">{group.g}</div>
-            {group.items.map(item => (
-              <button
-                key={item.k}
-                className={`nav-item ${route === item.k ? 'active' : ''}`}
-                onClick={() => setRoute(item.k)}
-              >
-                <span className="nav-ic">
-                  <Icon name={item.ic} size={17} />
-                </span>
-                <span>{item.l}</span>
-                {item.badge != null && (
-                  <span className="nav-badge">{item.badge}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        ))}
-      </nav>
+      {/* ── Mobile overlay ───────────────────────────────────────────────── */}
+      {mobileOpen && (
+        <div
+          className="sidebar-overlay open"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden
+        />
+      )}
 
-      <div className="sidebar-footer">
-        <div className="sidebar-user" onClick={() => setRoute('profile')} style={{ cursor: 'pointer' }}>
-          <div className="av blue">{initials}</div>
-          <div className="who">
-            <div className="n">{displayName}</div>
-            <div className="r">{displayRole}</div>
+      {/* ── Sidebar panel ────────────────────────────────────────────────── */}
+      <aside className={`sidebar${mobileOpen ? ' mobile-open' : ''}`}>
+
+        {/* Brand */}
+        <div className="sidebar-brand">
+          <div className="logo">N</div>
+          <div>
+            <div className="name">NoQ</div>
+            <div className="sub">Health Platform</div>
           </div>
+          {/* Mobile close button inside sidebar */}
           <button
-            style={{ marginLeft: 'auto', padding: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg-secondary)', borderRadius: 6 }}
-            onClick={e => { e.stopPropagation(); setLogoutOpen(true) }}
-            title="Sign out"
+            className="sidebar-close-btn"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close navigation"
           >
-            <Icon name="log" size={14} />
+            <Icon name="x" size={16} />
           </button>
         </div>
-      </div>
-    </aside>
+
+        {/* Nav groups */}
+        <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">
+          {visibleGroups.map(group => (
+            <div key={group.group}>
+              <div className="sidebar-section-title">{group.group}</div>
+              {group.items.map(item => (
+                <button
+                  key={item.key}
+                  className={`nav-item${route === item.key ? ' active' : ''}`}
+                  onClick={() => handleNav(item.key)}
+                  aria-current={route === item.key ? 'page' : undefined}
+                >
+                  <span className="nav-ic">
+                    <Icon name={item.icon} size={17} />
+                  </span>
+                  <span>{item.label}</span>
+                  {item.badge != null && (
+                    <span className="nav-badge">{item.badge}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+      </aside>
+    </>
   )
 }

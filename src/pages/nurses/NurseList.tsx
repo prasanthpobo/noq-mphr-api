@@ -81,8 +81,6 @@ export default function NurseList() {
       <Header
         title="Nurse management"
         crumbs={`${active} active · ${total} total`}
-        onAdd={() => setRoute('nurse-new')}
-        addLabel="Add nurse"
       />
 
       <div className="main">
@@ -99,10 +97,17 @@ export default function NurseList() {
             <Icon name="search" size={15}/>
             <input placeholder="Search nurses…" value={search} onChange={e=>setSearch(e.target.value)}/>
           </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setRoute('nurse-new')}
+          >
+            <Icon name="plus" size={14}/> Add nurse
+          </button>
         </div>
 
         {error && (
-          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+          <div style={{ padding: '12px 16px', color: 'var(--danger-500)', fontSize: 13 }}>{error}</div>
         )}
 
         <table className="data">
@@ -127,10 +132,15 @@ export default function NurseList() {
                 <tr key={n._id || n.id}>
                   <td>
                     <div className="cell-person">
-                      <div className={`av ${n.tone}`}>{n.av}</div>
+                      <div
+                        className={`av ${n.tone || 'pink'}`}
+                        style={{ borderRadius: '50%', flexShrink: 0 }}
+                      >
+                        {n.name?.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'NR'}
+                      </div>
                       <div className="info">
-                        <div className="n">{n.name}</div>
-                        <div className="s">{n.email}</div>
+                        <div className="n">{n.name?.split(' ')[0] || '—'}</div>
+                        <div className="s">{n.name?.split(' ').slice(1).join(' ') || n.email}</div>
                       </div>
                     </div>
                   </td>

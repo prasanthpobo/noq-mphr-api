@@ -17,13 +17,17 @@ router.get('/categories', protect, async (req: Request, res: Response, next: Nex
 // GET /api/masterdata
 router.get('/', protect, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { category, isActive } = req.query
+    const { category, isActive, search } = req.query
     const filter: Record<string, unknown> = {}
 
     if (category) filter.category = category
     if (isActive !== undefined) filter.isActive = isActive === 'true'
+    if (search) filter.label = { $regex: String(search).trim(), $options: 'i' }
 
-    const items = await MasterData.find(filter).sort({ category: 1, order: 1, label: 1 })
+    const items = await MasterData.find(filter)
+      .sort({ order: 1, label: 1 })
+      .limit(search ? 20 : 0)
+
     res.json({ success: true, count: items.length, data: items })
   } catch (err) {
     next(err)

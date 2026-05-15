@@ -114,11 +114,30 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
 }
 
 /* ── Tab content components ─────────────────────────────────────────────── */
+const MED_PAGE_SIZE = 10
+
 function MedicinesTab() {
   const [rows, setRows]           = useState<Medicine[]>(MEDICINES)
   const [modalOpen, setModalOpen] = useState(false)
+  const [catFilter, setCatFilter] = useState('All')
+  const [catSearch, setCatSearch] = useState('')
+  const [dropOpen, setDropOpen]   = useState(false)
+  const [page, setPage]           = useState(1)
   const empty: Omit<Medicine,'id'> = { name:'', generic:'', category:'', unit:'Tablet', dose:'' }
   const [form, setForm]           = useState(empty)
+
+  const categories = ['All', ...Array.from(new Set(rows.map(r => r.category))).sort()]
+  const dropOptions = categories.filter(c =>
+    c === 'All' || c.toLowerCase().includes(catSearch.toLowerCase())
+  )
+
+  const filtered   = catFilter === 'All' ? rows : rows.filter(r => r.category === catFilter)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / MED_PAGE_SIZE))
+  const paginated  = filtered.slice((page - 1) * MED_PAGE_SIZE, page * MED_PAGE_SIZE)
+
+  const handleCatSelect = (c: string) => {
+    setCatFilter(c); setCatSearch(''); setDropOpen(false); setPage(1)
+  }
 
   const add = () => {
     setRows(r => [...r, { ...form, id: r.length + 1 }])
@@ -129,19 +148,93 @@ function MedicinesTab() {
     <>
       <div className="table-card">
         <div className="table-toolbar">
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)' }}>
-            Medicine library <span className="badge muted" style={{ marginLeft: 6 }}>{rows.length}</span>
+          {/* Title */}
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', flexShrink: 0 }}>
+            Medicine library
+            <span className="badge muted" style={{ marginLeft: 6, fontWeight: 500 }}>{rows.length}</span>
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)}>
+
+          {/* Right side: category filter + add button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+
+          {/* Category search dropdown */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div
+              className="table-search"
+              style={{ width: 200, cursor: 'pointer' }}
+              onClick={() => setDropOpen(o => !o)}
+            >
+              <Icon name="filter" size={14} />
+              <input
+                placeholder="Filter by category…"
+                value={dropOpen ? catSearch : (catFilter === 'All' ? '' : catFilter)}
+                onChange={e => { setCatSearch(e.target.value); setDropOpen(true) }}
+                onClick={e => { e.stopPropagation(); setDropOpen(true) }}
+                onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+                readOnly={!dropOpen}
+                style={{ cursor: dropOpen ? 'text' : 'pointer' }}
+              />
+              <Icon name="chevD" size={13} />
+            </div>
+            {dropOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                minWidth: 200, maxHeight: 240, overflowY: 'auto',
+                padding: '4px 0',
+              }}>
+                {dropOptions.length === 0 ? (
+                  <div style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--fg-muted)' }}>No categories found</div>
+                ) : dropOptions.map(c => (
+                  <button
+                    key={c}
+                    onMouseDown={() => handleCatSelect(c)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                      fontSize: 13, fontWeight: catFilter === c ? 700 : 400,
+                      color: catFilter === c ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                      background: catFilter === c ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                    }}
+                  >
+                    <span>{c}</span>
+                    {c !== 'All' && (
+                      <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                        {rows.filter(r => r.category === c).length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {catFilter !== 'All' && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => handleCatSelect('All')}
+              style={{ flexShrink: 0 }}
+            >
+              <Icon name="x" size={12} /> {catFilter}
+            </button>
+          )}
+
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ flexShrink: 0 }}
+            onClick={() => setModalOpen(true)}
+          >
             <Icon name="plus" size={14} /> Add medicine
           </button>
+          </div>{/* end right-side wrapper */}
         </div>
         <table className="data">
           <thead>
             <tr><th>Medicine name</th><th>Generic name</th><th>Category</th><th>Unit</th><th>Standard dose</th><th style={{ textAlign:'right' }}>Actions</th></tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {paginated.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 600, color: 'var(--fg-primary)' }}>{r.name}</td>
                 <td style={{ fontSize: 13, color: 'var(--fg-secondary)' }}>{r.generic}</td>
@@ -153,6 +246,48 @@ function MedicinesTab() {
             ))}
           </tbody>
         </table>
+
+        {/* Pagination */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderTop: '1px solid var(--border-light)',
+          fontSize: 12.5, color: 'var(--fg-secondary)',
+        }}>
+          <span>
+            Showing {filtered.length === 0 ? 0 : (page - 1) * MED_PAGE_SIZE + 1}–{Math.min(page * MED_PAGE_SIZE, filtered.length)} of {filtered.length} medicines
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <Icon name="chevL" size={13} /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid',
+                  borderColor: p === page ? 'transparent' : 'var(--border-soft)',
+                  background: p === page ? 'var(--brand-gradient)' : 'var(--bg-surface)',
+                  color: p === page ? 'white' : 'var(--fg-secondary)',
+                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                }}
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next <Icon name="chevR" size={13} />
+            </button>
+          </div>
+        </div>
       </div>
       {modalOpen && (
         <Modal title="Add medicine" onClose={() => setModalOpen(false)} size="md"
@@ -178,8 +313,20 @@ function MedicinesTab() {
 function ICDTab() {
   const [rows, setRows]           = useState<ICD[]>(ICD_CODES)
   const [modalOpen, setModalOpen] = useState(false)
+  const [catFilter, setCatFilter] = useState('All')
+  const [catSearch, setCatSearch] = useState('')
+  const [dropOpen, setDropOpen]   = useState(false)
+  const [page, setPage]           = useState(1)
   const empty = { code:'', description:'', category:'', active: true }
   const [form, setForm]           = useState(empty)
+
+  const categories  = ['All', ...Array.from(new Set(rows.map(r => r.category))).sort()]
+  const dropOptions = categories.filter(c => c === 'All' || c.toLowerCase().includes(catSearch.toLowerCase()))
+  const filtered    = catFilter === 'All' ? rows : rows.filter(r => r.category === catFilter)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / MED_PAGE_SIZE))
+  const paginated   = filtered.slice((page - 1) * MED_PAGE_SIZE, page * MED_PAGE_SIZE)
+
+  const handleCatSelect = (c: string) => { setCatFilter(c); setCatSearch(''); setDropOpen(false); setPage(1) }
 
   const add = () => {
     setRows(r => [...r, { ...form, id: r.length + 1 }])
@@ -190,17 +337,82 @@ function ICDTab() {
     <>
       <div className="table-card">
         <div className="table-toolbar">
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)' }}>ICD-10 codes</div>
-          <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)}>
-            <Icon name="plus" size={14} /> Add code
-          </button>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', flexShrink: 0 }}>
+            ICD-10 codes
+            <span className="badge muted" style={{ marginLeft: 6, fontWeight: 500 }}>{rows.length}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+            {/* Category dropdown */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div
+                className="table-search"
+                style={{ width: 200, cursor: 'pointer' }}
+                onClick={() => setDropOpen(o => !o)}
+              >
+                <Icon name="filter" size={14} />
+                <input
+                  placeholder="Filter by category…"
+                  value={dropOpen ? catSearch : (catFilter === 'All' ? '' : catFilter)}
+                  onChange={e => { setCatSearch(e.target.value); setDropOpen(true) }}
+                  onClick={e => { e.stopPropagation(); setDropOpen(true) }}
+                  onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+                  readOnly={!dropOpen}
+                  style={{ cursor: dropOpen ? 'text' : 'pointer' }}
+                />
+                <Icon name="chevD" size={13} />
+              </div>
+              {dropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                  borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                  minWidth: 200, maxHeight: 240, overflowY: 'auto', padding: '4px 0',
+                }}>
+                  {dropOptions.length === 0 ? (
+                    <div style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--fg-muted)' }}>No categories found</div>
+                  ) : dropOptions.map(c => (
+                    <button
+                      key={c}
+                      onMouseDown={() => handleCatSelect(c)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: 13, fontWeight: catFilter === c ? 700 : 400,
+                        color: catFilter === c ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                        background: catFilter === c ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                      }}
+                    >
+                      <span>{c}</span>
+                      {c !== 'All' && (
+                        <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                          {rows.filter(r => r.category === c).length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {catFilter !== 'All' && (
+              <button className="btn btn-ghost btn-sm" onClick={() => handleCatSelect('All')} style={{ flexShrink: 0 }}>
+                <Icon name="x" size={12} /> {catFilter}
+              </button>
+            )}
+
+            <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setModalOpen(true)}>
+              <Icon name="plus" size={14} /> Add code
+            </button>
+          </div>
         </div>
+
         <table className="data">
           <thead>
             <tr><th>ICD code</th><th>Description</th><th>Category</th><th>Active</th><th style={{ textAlign:'right' }}>Actions</th></tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {paginated.map(r => (
               <tr key={r.id}>
                 <td><code style={{ fontFamily:'var(--font-mono)', fontSize:13, background:'var(--bg-surface-alt)', padding:'2px 8px', borderRadius:4 }}>{r.code}</code></td>
                 <td style={{ fontSize:13 }}>{r.description}</td>
@@ -211,7 +423,40 @@ function ICDTab() {
             ))}
           </tbody>
         </table>
+
+        {/* Pagination */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderTop: '1px solid var(--border-light)',
+          fontSize: 12.5, color: 'var(--fg-secondary)',
+        }}>
+          <span>
+            Showing {filtered.length === 0 ? 0 : (page - 1) * MED_PAGE_SIZE + 1}–{Math.min(page * MED_PAGE_SIZE, filtered.length)} of {filtered.length} codes
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <Icon name="chevL" size={13} /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid',
+                  borderColor: p === page ? 'transparent' : 'var(--border-soft)',
+                  background: p === page ? 'var(--brand-gradient)' : 'var(--bg-surface)',
+                  color: p === page ? 'white' : 'var(--fg-secondary)',
+                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                }}
+                onClick={() => setPage(p)}
+              >{p}</button>
+            ))}
+            <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+              Next <Icon name="chevR" size={13} />
+            </button>
+          </div>
+        </div>
       </div>
+
       {modalOpen && (
         <Modal title="Add ICD code" onClose={() => setModalOpen(false)} size="md"
           footer={<div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
@@ -236,8 +481,20 @@ function ICDTab() {
 function TestsTab() {
   const [rows, setRows]           = useState<TestCatalog[]>(TESTS)
   const [modalOpen, setModalOpen] = useState(false)
+  const [catFilter, setCatFilter] = useState('All')
+  const [catSearch, setCatSearch] = useState('')
+  const [dropOpen, setDropOpen]   = useState(false)
+  const [page, setPage]           = useState(1)
   const empty: Omit<TestCatalog,'id'> = { name:'', category:'', sample:'', tat:'', price:0 }
   const [form, setForm]           = useState(empty)
+
+  const categories  = ['All', ...Array.from(new Set(rows.map(r => r.category))).sort()]
+  const dropOptions = categories.filter(c => c === 'All' || c.toLowerCase().includes(catSearch.toLowerCase()))
+  const filtered    = catFilter === 'All' ? rows : rows.filter(r => r.category === catFilter)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / MED_PAGE_SIZE))
+  const paginated   = filtered.slice((page - 1) * MED_PAGE_SIZE, page * MED_PAGE_SIZE)
+
+  const handleCatSelect = (c: string) => { setCatFilter(c); setCatSearch(''); setDropOpen(false); setPage(1) }
 
   const add = () => {
     setRows(r => [...r, { ...form, id: r.length + 1 }])
@@ -248,17 +505,81 @@ function TestsTab() {
     <>
       <div className="table-card">
         <div className="table-toolbar">
-          <div style={{ fontSize:14, fontWeight:700, color:'var(--fg-primary)' }}>Test catalog</div>
-          <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)}>
-            <Icon name="plus" size={14} /> Add test
-          </button>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', flexShrink: 0 }}>
+            Test catalog
+            <span className="badge muted" style={{ marginLeft: 6, fontWeight: 500 }}>{rows.length}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div
+                className="table-search"
+                style={{ width: 200, cursor: 'pointer' }}
+                onClick={() => setDropOpen(o => !o)}
+              >
+                <Icon name="filter" size={14} />
+                <input
+                  placeholder="Filter by category…"
+                  value={dropOpen ? catSearch : (catFilter === 'All' ? '' : catFilter)}
+                  onChange={e => { setCatSearch(e.target.value); setDropOpen(true) }}
+                  onClick={e => { e.stopPropagation(); setDropOpen(true) }}
+                  onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+                  readOnly={!dropOpen}
+                  style={{ cursor: dropOpen ? 'text' : 'pointer' }}
+                />
+                <Icon name="chevD" size={13} />
+              </div>
+              {dropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                  borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                  minWidth: 200, maxHeight: 240, overflowY: 'auto', padding: '4px 0',
+                }}>
+                  {dropOptions.length === 0 ? (
+                    <div style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--fg-muted)' }}>No categories found</div>
+                  ) : dropOptions.map(c => (
+                    <button
+                      key={c}
+                      onMouseDown={() => handleCatSelect(c)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: 13, fontWeight: catFilter === c ? 700 : 400,
+                        color: catFilter === c ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                        background: catFilter === c ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                      }}
+                    >
+                      <span>{c}</span>
+                      {c !== 'All' && (
+                        <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                          {rows.filter(r => r.category === c).length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {catFilter !== 'All' && (
+              <button className="btn btn-ghost btn-sm" onClick={() => handleCatSelect('All')} style={{ flexShrink: 0 }}>
+                <Icon name="x" size={12} /> {catFilter}
+              </button>
+            )}
+
+            <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setModalOpen(true)}>
+              <Icon name="plus" size={14} /> Add test
+            </button>
+          </div>
         </div>
+
         <table className="data">
           <thead>
             <tr><th>Test name</th><th>Category</th><th>Sample type</th><th>TAT</th><th>Price (₹)</th><th style={{ textAlign:'right' }}>Actions</th></tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {paginated.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight:600 }}>{r.name}</td>
                 <td><span className="badge muted">{r.category}</span></td>
@@ -270,7 +591,39 @@ function TestsTab() {
             ))}
           </tbody>
         </table>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderTop: '1px solid var(--border-light)',
+          fontSize: 12.5, color: 'var(--fg-secondary)',
+        }}>
+          <span>
+            Showing {filtered.length === 0 ? 0 : (page - 1) * MED_PAGE_SIZE + 1}–{Math.min(page * MED_PAGE_SIZE, filtered.length)} of {filtered.length} tests
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <Icon name="chevL" size={13} /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid',
+                  borderColor: p === page ? 'transparent' : 'var(--border-soft)',
+                  background: p === page ? 'var(--brand-gradient)' : 'var(--bg-surface)',
+                  color: p === page ? 'white' : 'var(--fg-secondary)',
+                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                }}
+                onClick={() => setPage(p)}
+              >{p}</button>
+            ))}
+            <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+              Next <Icon name="chevR" size={13} />
+            </button>
+          </div>
+        </div>
       </div>
+
       {modalOpen && (
         <Modal title="Add test" onClose={() => setModalOpen(false)} size="md"
           footer={<div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
@@ -299,8 +652,20 @@ function TestsTab() {
 function ServicesTab() {
   const [rows, setRows]           = useState<ServiceCatalog[]>(SERVICES)
   const [modalOpen, setModalOpen] = useState(false)
+  const [catFilter, setCatFilter] = useState('All')
+  const [catSearch, setCatSearch] = useState('')
+  const [dropOpen, setDropOpen]   = useState(false)
+  const [page, setPage]           = useState(1)
   const empty: Omit<ServiceCatalog,'id'> = { name:'', category:'', code:'', price:0, gst:18 }
   const [form, setForm]           = useState(empty)
+
+  const categories  = ['All', ...Array.from(new Set(rows.map(r => r.category))).sort()]
+  const dropOptions = categories.filter(c => c === 'All' || c.toLowerCase().includes(catSearch.toLowerCase()))
+  const filtered    = catFilter === 'All' ? rows : rows.filter(r => r.category === catFilter)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / MED_PAGE_SIZE))
+  const paginated   = filtered.slice((page - 1) * MED_PAGE_SIZE, page * MED_PAGE_SIZE)
+
+  const handleCatSelect = (c: string) => { setCatFilter(c); setCatSearch(''); setDropOpen(false); setPage(1) }
 
   const add = () => {
     setRows(r => [...r, { ...form, id: r.length + 1 }])
@@ -311,17 +676,81 @@ function ServicesTab() {
     <>
       <div className="table-card">
         <div className="table-toolbar">
-          <div style={{ fontSize:14, fontWeight:700, color:'var(--fg-primary)' }}>Service catalog</div>
-          <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)}>
-            <Icon name="plus" size={14} /> Add service
-          </button>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', flexShrink: 0 }}>
+            Service catalog
+            <span className="badge muted" style={{ marginLeft: 6, fontWeight: 500 }}>{rows.length}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div
+                className="table-search"
+                style={{ width: 200, cursor: 'pointer' }}
+                onClick={() => setDropOpen(o => !o)}
+              >
+                <Icon name="filter" size={14} />
+                <input
+                  placeholder="Filter by category…"
+                  value={dropOpen ? catSearch : (catFilter === 'All' ? '' : catFilter)}
+                  onChange={e => { setCatSearch(e.target.value); setDropOpen(true) }}
+                  onClick={e => { e.stopPropagation(); setDropOpen(true) }}
+                  onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+                  readOnly={!dropOpen}
+                  style={{ cursor: dropOpen ? 'text' : 'pointer' }}
+                />
+                <Icon name="chevD" size={13} />
+              </div>
+              {dropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                  borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                  minWidth: 200, maxHeight: 240, overflowY: 'auto', padding: '4px 0',
+                }}>
+                  {dropOptions.length === 0 ? (
+                    <div style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--fg-muted)' }}>No categories found</div>
+                  ) : dropOptions.map(c => (
+                    <button
+                      key={c}
+                      onMouseDown={() => handleCatSelect(c)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: 13, fontWeight: catFilter === c ? 700 : 400,
+                        color: catFilter === c ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                        background: catFilter === c ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                      }}
+                    >
+                      <span>{c}</span>
+                      {c !== 'All' && (
+                        <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                          {rows.filter(r => r.category === c).length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {catFilter !== 'All' && (
+              <button className="btn btn-ghost btn-sm" onClick={() => handleCatSelect('All')} style={{ flexShrink: 0 }}>
+                <Icon name="x" size={12} /> {catFilter}
+              </button>
+            )}
+
+            <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setModalOpen(true)}>
+              <Icon name="plus" size={14} /> Add service
+            </button>
+          </div>
         </div>
+
         <table className="data">
           <thead>
             <tr><th>Service name</th><th>Category</th><th>Code</th><th>Price (₹)</th><th>GST %</th><th style={{ textAlign:'right' }}>Actions</th></tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {paginated.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight:600 }}>{r.name}</td>
                 <td><span className="badge muted">{r.category}</span></td>
@@ -333,7 +762,39 @@ function ServicesTab() {
             ))}
           </tbody>
         </table>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderTop: '1px solid var(--border-light)',
+          fontSize: 12.5, color: 'var(--fg-secondary)',
+        }}>
+          <span>
+            Showing {filtered.length === 0 ? 0 : (page - 1) * MED_PAGE_SIZE + 1}–{Math.min(page * MED_PAGE_SIZE, filtered.length)} of {filtered.length} services
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <Icon name="chevL" size={13} /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid',
+                  borderColor: p === page ? 'transparent' : 'var(--border-soft)',
+                  background: p === page ? 'var(--brand-gradient)' : 'var(--bg-surface)',
+                  color: p === page ? 'white' : 'var(--fg-secondary)',
+                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                }}
+                onClick={() => setPage(p)}
+              >{p}</button>
+            ))}
+            <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+              Next <Icon name="chevR" size={13} />
+            </button>
+          </div>
+        </div>
       </div>
+
       {modalOpen && (
         <Modal title="Add service" onClose={() => setModalOpen(false)} size="md"
           footer={<div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
@@ -370,8 +831,20 @@ function ServicesTab() {
 function InsuranceTab() {
   const [rows, setRows]           = useState<Insurance[]>(INSURERS)
   const [modalOpen, setModalOpen] = useState(false)
+  const [catFilter, setCatFilter] = useState('All')
+  const [dropOpen, setDropOpen]   = useState(false)
+  const [page, setPage]           = useState(1)
   const empty: Omit<Insurance,'id'> = { name:'', policies:'', cashless: false, contact:'' }
   const [form, setForm]           = useState(empty)
+
+  const DROP_OPTIONS = ['All', 'Cashless', 'Non-cashless']
+  const filtered    = catFilter === 'All' ? rows
+    : catFilter === 'Cashless' ? rows.filter(r => r.cashless)
+    : rows.filter(r => !r.cashless)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / MED_PAGE_SIZE))
+  const paginated   = filtered.slice((page - 1) * MED_PAGE_SIZE, page * MED_PAGE_SIZE)
+
+  const handleCatSelect = (c: string) => { setCatFilter(c); setDropOpen(false); setPage(1) }
 
   const add = () => {
     setRows(r => [...r, { ...form, id: r.length + 1 }])
@@ -382,17 +855,78 @@ function InsuranceTab() {
     <>
       <div className="table-card">
         <div className="table-toolbar">
-          <div style={{ fontSize:14, fontWeight:700, color:'var(--fg-primary)' }}>Insurance providers</div>
-          <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)}>
-            <Icon name="plus" size={14} /> Add insurer
-          </button>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', flexShrink: 0 }}>
+            Insurance providers
+            <span className="badge muted" style={{ marginLeft: 6, fontWeight: 500 }}>{rows.length}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div
+                className="table-search"
+                style={{ width: 200, cursor: 'pointer' }}
+                onClick={() => setDropOpen(o => !o)}
+              >
+                <Icon name="filter" size={14} />
+                <input
+                  placeholder="Filter by cashless…"
+                  value={catFilter === 'All' ? '' : catFilter}
+                  readOnly
+                  style={{ cursor: 'pointer' }}
+                />
+                <Icon name="chevD" size={13} />
+              </div>
+              {dropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                  borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                  minWidth: 200, padding: '4px 0',
+                }}
+                onMouseLeave={() => setDropOpen(false)}
+                >
+                  {DROP_OPTIONS.map(c => (
+                    <button
+                      key={c}
+                      onMouseDown={() => handleCatSelect(c)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: 13, fontWeight: catFilter === c ? 700 : 400,
+                        color: catFilter === c ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                        background: catFilter === c ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                      }}
+                    >
+                      <span>{c}</span>
+                      {c !== 'All' && (
+                        <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                          {c === 'Cashless' ? rows.filter(r => r.cashless).length : rows.filter(r => !r.cashless).length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {catFilter !== 'All' && (
+              <button className="btn btn-ghost btn-sm" onClick={() => handleCatSelect('All')} style={{ flexShrink: 0 }}>
+                <Icon name="x" size={12} /> {catFilter}
+              </button>
+            )}
+
+            <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setModalOpen(true)}>
+              <Icon name="plus" size={14} /> Add insurer
+            </button>
+          </div>
         </div>
+
         <table className="data">
           <thead>
             <tr><th>Insurer name</th><th>Policy types</th><th>Cashless</th><th>Contact</th><th style={{ textAlign:'right' }}>Actions</th></tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {paginated.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight:600 }}>{r.name}</td>
                 <td style={{ fontSize:12.5, color:'var(--fg-secondary)' }}>{r.policies}</td>
@@ -403,7 +937,39 @@ function InsuranceTab() {
             ))}
           </tbody>
         </table>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderTop: '1px solid var(--border-light)',
+          fontSize: 12.5, color: 'var(--fg-secondary)',
+        }}>
+          <span>
+            Showing {filtered.length === 0 ? 0 : (page - 1) * MED_PAGE_SIZE + 1}–{Math.min(page * MED_PAGE_SIZE, filtered.length)} of {filtered.length} insurers
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <Icon name="chevL" size={13} /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid',
+                  borderColor: p === page ? 'transparent' : 'var(--border-soft)',
+                  background: p === page ? 'var(--brand-gradient)' : 'var(--bg-surface)',
+                  color: p === page ? 'white' : 'var(--fg-secondary)',
+                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                }}
+                onClick={() => setPage(p)}
+              >{p}</button>
+            ))}
+            <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+              Next <Icon name="chevR" size={13} />
+            </button>
+          </div>
+        </div>
       </div>
+
       {modalOpen && (
         <Modal title="Add insurer" onClose={() => setModalOpen(false)} size="md"
           footer={<div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
@@ -435,8 +1001,20 @@ function InsuranceTab() {
 function PrefixesTab() {
   const [rows, setRows]           = useState<TokenPrefix[]>(TOKEN_PREFIXES)
   const [modalOpen, setModalOpen] = useState(false)
+  const [catFilter, setCatFilter] = useState('All')
+  const [catSearch, setCatSearch] = useState('')
+  const [dropOpen, setDropOpen]   = useState(false)
+  const [page, setPage]           = useState(1)
   const empty: Omit<TokenPrefix,'id'> = { prefix:'', dept:'', color:'#3b82f6', doctor:'' }
   const [form, setForm]           = useState(empty)
+
+  const departments = ['All', ...Array.from(new Set(rows.map(r => r.dept))).sort()]
+  const dropOptions = departments.filter(d => d === 'All' || d.toLowerCase().includes(catSearch.toLowerCase()))
+  const filtered    = catFilter === 'All' ? rows : rows.filter(r => r.dept === catFilter)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / MED_PAGE_SIZE))
+  const paginated   = filtered.slice((page - 1) * MED_PAGE_SIZE, page * MED_PAGE_SIZE)
+
+  const handleCatSelect = (c: string) => { setCatFilter(c); setCatSearch(''); setDropOpen(false); setPage(1) }
 
   const add = () => {
     setRows(r => [...r, { ...form, id: r.length + 1 }])
@@ -447,17 +1025,81 @@ function PrefixesTab() {
     <>
       <div className="table-card">
         <div className="table-toolbar">
-          <div style={{ fontSize:14, fontWeight:700, color:'var(--fg-primary)' }}>Token prefixes</div>
-          <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)}>
-            <Icon name="plus" size={14} /> Add prefix
-          </button>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', flexShrink: 0 }}>
+            Token prefixes
+            <span className="badge muted" style={{ marginLeft: 6, fontWeight: 500 }}>{rows.length}</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div
+                className="table-search"
+                style={{ width: 200, cursor: 'pointer' }}
+                onClick={() => setDropOpen(o => !o)}
+              >
+                <Icon name="filter" size={14} />
+                <input
+                  placeholder="Filter by department…"
+                  value={dropOpen ? catSearch : (catFilter === 'All' ? '' : catFilter)}
+                  onChange={e => { setCatSearch(e.target.value); setDropOpen(true) }}
+                  onClick={e => { e.stopPropagation(); setDropOpen(true) }}
+                  onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+                  readOnly={!dropOpen}
+                  style={{ cursor: dropOpen ? 'text' : 'pointer' }}
+                />
+                <Icon name="chevD" size={13} />
+              </div>
+              {dropOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                  borderRadius: 10, boxShadow: 'var(--shadow-md)',
+                  minWidth: 200, maxHeight: 240, overflowY: 'auto', padding: '4px 0',
+                }}>
+                  {dropOptions.length === 0 ? (
+                    <div style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--fg-muted)' }}>No departments found</div>
+                  ) : dropOptions.map(c => (
+                    <button
+                      key={c}
+                      onMouseDown={() => handleCatSelect(c)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: 13, fontWeight: catFilter === c ? 700 : 400,
+                        color: catFilter === c ? 'var(--brand-500, #3b82f6)' : 'var(--fg-primary)',
+                        background: catFilter === c ? 'var(--brand-soft, rgba(59,130,246,0.08))' : 'transparent',
+                      }}
+                    >
+                      <span>{c}</span>
+                      {c !== 'All' && (
+                        <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 8 }}>
+                          {rows.filter(r => r.dept === c).length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {catFilter !== 'All' && (
+              <button className="btn btn-ghost btn-sm" onClick={() => handleCatSelect('All')} style={{ flexShrink: 0 }}>
+                <Icon name="x" size={12} /> {catFilter}
+              </button>
+            )}
+
+            <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setModalOpen(true)}>
+              <Icon name="plus" size={14} /> Add prefix
+            </button>
+          </div>
         </div>
+
         <table className="data">
           <thead>
             <tr><th>Prefix</th><th>Department</th><th>Color</th><th>Doctor assignment</th><th style={{ textAlign:'right' }}>Actions</th></tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {paginated.map(r => (
               <tr key={r.id}>
                 <td>
                   <span style={{
@@ -479,7 +1121,39 @@ function PrefixesTab() {
             ))}
           </tbody>
         </table>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderTop: '1px solid var(--border-light)',
+          fontSize: 12.5, color: 'var(--fg-secondary)',
+        }}>
+          <span>
+            Showing {filtered.length === 0 ? 0 : (page - 1) * MED_PAGE_SIZE + 1}–{Math.min(page * MED_PAGE_SIZE, filtered.length)} of {filtered.length} prefixes
+          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <Icon name="chevL" size={13} /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid',
+                  borderColor: p === page ? 'transparent' : 'var(--border-soft)',
+                  background: p === page ? 'var(--brand-gradient)' : 'var(--bg-surface)',
+                  color: p === page ? 'white' : 'var(--fg-secondary)',
+                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer',
+                }}
+                onClick={() => setPage(p)}
+              >{p}</button>
+            ))}
+            <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+              Next <Icon name="chevR" size={13} />
+            </button>
+          </div>
+        </div>
       </div>
+
       {modalOpen && (
         <Modal title="Add token prefix" onClose={() => setModalOpen(false)} size="md"
           footer={<div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>

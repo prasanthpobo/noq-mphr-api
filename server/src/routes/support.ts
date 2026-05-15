@@ -64,13 +64,17 @@ router.post('/', protect, async (req: Request, res: Response, next: NextFunction
 // PUT /api/support/:id
 router.put('/:id', protect, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { subject, category, priority, assignedTo } = req.body
+    const { subject, category, priority, assignedTo, status } = req.body
     const updateFields: Record<string, unknown> = {}
 
     if (subject !== undefined) updateFields.subject = subject
     if (category !== undefined) updateFields.category = category
     if (priority !== undefined) updateFields.priority = priority
-    if (assignedTo !== undefined) updateFields.assignedTo = assignedTo
+    if (assignedTo !== undefined) updateFields.assignedTo = assignedTo || null
+    if (status !== undefined) {
+      updateFields.status = status
+      if (status === 'resolved' || status === 'closed') updateFields.resolvedAt = new Date()
+    }
 
     const ticket = await SupportTicket.findByIdAndUpdate(req.params.id, updateFields, { new: true, runValidators: true })
       .populate('submittedBy', 'name email')

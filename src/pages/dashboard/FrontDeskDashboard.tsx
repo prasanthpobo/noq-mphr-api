@@ -3,9 +3,16 @@ import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { doctorsService } from '@/services/doctors.service'
 import { tokensService } from '@/services/tokens.service'
 import dayjs from 'dayjs'
+
+function greeting(name: string): string {
+  const h = new Date().getHours()
+  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${period}, ${name}`
+}
 
 interface HourBar {
   hour: string
@@ -55,6 +62,7 @@ function doctorStatusBadge(status: string): { cls: string; label: string } {
 
 export default function FrontDeskDashboard() {
   const { setRoute } = useAppStore()
+  const user         = useAuthStore(s => s.user)
   const [tokens, setTokens] = useState<any[]>([])
   const [doctors, setDoctors] = useState<any[]>([])
   const [stats, setStats] = useState({ total: 0, waiting: 0, completed: 0 })
@@ -86,10 +94,8 @@ export default function FrontDeskDashboard() {
   return (
     <>
       <Header
-        title="Front desk · Live"
-        crumbs="Today · Sunshine Clinic · Morning shift"
-        onAdd={() => setRoute('book')}
-        addLabel="Book appointment"
+        title={greeting(user?.name ?? 'Front Desk')}
+        crumbs={`Front desk · ${dayjs().format('dddd, D MMM YYYY')}`}
       />
       <div className="main">
         {/* Stat cards */}

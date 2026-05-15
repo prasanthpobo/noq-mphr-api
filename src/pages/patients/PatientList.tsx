@@ -79,8 +79,6 @@ export default function PatientList() {
       <Header
         title="Patient management"
         crumbs={`${items.length} total`}
-        onAdd={() => setRoute('patient-new')}
-        addLabel="Add patient"
       />
 
       <div className="main">
@@ -117,10 +115,17 @@ export default function PatientList() {
               </button>
             ))}
           </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setRoute('patient-new')}
+          >
+            <Icon name="plus" size={14}/> Add patient
+          </button>
         </div>
 
         {error && (
-          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+          <div style={{ padding: '12px 16px', color: 'var(--danger-500)', fontSize: 13 }}>{error}</div>
         )}
 
         <table className="data">

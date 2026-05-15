@@ -14,7 +14,9 @@ export const appointmentsService = {
   updatePrescription: (id: string, prescription: unknown[]) =>
     api.put(`${base}/${id}/prescription`, { prescription }).then(r => r.data.data),
   updateVitals: (id: string, vitals: unknown) =>
-    api.put(`${base}/${id}/vitals`, { vitals }).then(r => r.data.data),
+    api.put(`${base}/${id}/vitals`, vitals).then(r => r.data.data),
   remove: (id: string) =>
     api.delete(`${base}/${id}`).then(r => r.data),
+  slots: (doctorId: string, date: string) =>
+    api.get(`${base}/slots`, { params: { doctorId, date } }).then(r => r.data),
 }

@@ -13,6 +13,7 @@ import Patient from './models/Patient'
 import Appointment from './models/Appointment'
 import Token from './models/Token'
 import User from './models/User'
+import MasterData from './models/MasterData'
 
 async function seed() {
   const uri = process.env.MONGO_URI
@@ -197,8 +198,16 @@ async function seed() {
     console.log('– Token already exists for today')
   }
 
-  // ── 9. Extra User accounts (nurse + frontdesk logins) ─────────────────────
+  // ── 9. All role user accounts ──────────────────────────────────────────────
   const extraUsers = [
+    {
+      name: 'Dr. Arun Kumar',
+      email: 'doctor@clinic.com',
+      password: 'doctor@123',
+      role: 'doctor' as const,
+      phone: '9876543218',
+      clinicId: clinic._id
+    },
     {
       name: 'Priya Lakshmi',
       email: 'nurse@clinic.com',
@@ -216,11 +225,27 @@ async function seed() {
       clinicId: clinic._id
     },
     {
-      name: 'Dr. Arun Kumar',
-      email: 'doctor@clinic.com',
-      password: 'doctor@123',
-      role: 'doctor' as const,
-      phone: '9876543218',
+      name: 'Clinic Admin',
+      email: 'clinicadmin@clinic.com',
+      password: 'clinic@123',
+      role: 'clinic_admin' as const,
+      phone: '9876543219',
+      clinicId: clinic._id
+    },
+    {
+      name: 'Raj Pharmacist',
+      email: 'pharmacy@clinic.com',
+      password: 'pharmacy@123',
+      role: 'pharmacist' as const,
+      phone: '9876543220',
+      clinicId: clinic._id
+    },
+    {
+      name: 'Lab Technician',
+      email: 'lab@clinic.com',
+      password: 'lab@123',
+      role: 'lab_tech' as const,
+      phone: '9876543221',
       clinicId: clinic._id
     }
   ]
@@ -235,12 +260,191 @@ async function seed() {
     }
   }
 
+  // ── 10. Medicine master data ───────────────────────────────────────────────
+  const medicines = [
+    // Analgesics / Antipyretics
+    { value: 'paracetamol-500mg',      label: 'Paracetamol 500mg',        order: 1 },
+    { value: 'paracetamol-650mg',      label: 'Paracetamol 650mg',        order: 2 },
+    { value: 'ibuprofen-400mg',        label: 'Ibuprofen 400mg',          order: 3 },
+    { value: 'ibuprofen-600mg',        label: 'Ibuprofen 600mg',          order: 4 },
+    { value: 'diclofenac-50mg',        label: 'Diclofenac 50mg',          order: 5 },
+    { value: 'aspirin-75mg',           label: 'Aspirin 75mg',             order: 6 },
+    { value: 'aspirin-150mg',          label: 'Aspirin 150mg',            order: 7 },
+    { value: 'tramadol-50mg',          label: 'Tramadol 50mg',            order: 8 },
+    // Antibiotics
+    { value: 'amoxicillin-250mg',      label: 'Amoxicillin 250mg',        order: 10 },
+    { value: 'amoxicillin-500mg',      label: 'Amoxicillin 500mg',        order: 11 },
+    { value: 'amoxyclav-625mg',        label: 'Amoxycillin + Clavulanate 625mg', order: 12 },
+    { value: 'azithromycin-250mg',     label: 'Azithromycin 250mg',       order: 13 },
+    { value: 'azithromycin-500mg',     label: 'Azithromycin 500mg',       order: 14 },
+    { value: 'ciprofloxacin-500mg',    label: 'Ciprofloxacin 500mg',      order: 15 },
+    { value: 'doxycycline-100mg',      label: 'Doxycycline 100mg',        order: 16 },
+    { value: 'metronidazole-400mg',    label: 'Metronidazole 400mg',      order: 17 },
+    { value: 'cefixime-200mg',         label: 'Cefixime 200mg',           order: 18 },
+    { value: 'cephalexin-500mg',       label: 'Cephalexin 500mg',         order: 19 },
+    // Antacids / GI
+    { value: 'omeprazole-20mg',        label: 'Omeprazole 20mg',          order: 20 },
+    { value: 'pantoprazole-40mg',      label: 'Pantoprazole 40mg',        order: 21 },
+    { value: 'ranitidine-150mg',       label: 'Ranitidine 150mg',         order: 22 },
+    { value: 'domperidone-10mg',       label: 'Domperidone 10mg',         order: 23 },
+    { value: 'ondansetron-4mg',        label: 'Ondansetron 4mg',          order: 24 },
+    { value: 'metoclopramide-10mg',    label: 'Metoclopramide 10mg',      order: 25 },
+    // Antihistamines
+    { value: 'cetirizine-10mg',        label: 'Cetirizine 10mg',          order: 30 },
+    { value: 'fexofenadine-120mg',     label: 'Fexofenadine 120mg',       order: 31 },
+    { value: 'loratadine-10mg',        label: 'Loratadine 10mg',          order: 32 },
+    { value: 'chlorpheniramine-4mg',   label: 'Chlorpheniramine 4mg',     order: 33 },
+    { value: 'levocetrizine-5mg',      label: 'Levocetirizine 5mg',       order: 34 },
+    // Antidiabetics
+    { value: 'metformin-500mg',        label: 'Metformin 500mg',          order: 40 },
+    { value: 'metformin-1000mg',       label: 'Metformin 1000mg',         order: 41 },
+    { value: 'glimepiride-1mg',        label: 'Glimepiride 1mg',          order: 42 },
+    { value: 'glimepiride-2mg',        label: 'Glimepiride 2mg',          order: 43 },
+    { value: 'sitagliptin-100mg',      label: 'Sitagliptin 100mg',        order: 44 },
+    // Antihypertensives
+    { value: 'amlodipine-5mg',         label: 'Amlodipine 5mg',           order: 50 },
+    { value: 'amlodipine-10mg',        label: 'Amlodipine 10mg',          order: 51 },
+    { value: 'atenolol-50mg',          label: 'Atenolol 50mg',            order: 52 },
+    { value: 'losartan-50mg',          label: 'Losartan 50mg',            order: 53 },
+    { value: 'telmisartan-40mg',       label: 'Telmisartan 40mg',         order: 54 },
+    { value: 'enalapril-5mg',          label: 'Enalapril 5mg',            order: 55 },
+    { value: 'ramipril-5mg',           label: 'Ramipril 5mg',             order: 56 },
+    // Vitamins / Supplements
+    { value: 'vitamin-d3-60k',         label: 'Vitamin D3 60000 IU',      order: 60 },
+    { value: 'vitamin-b12-500mcg',     label: 'Vitamin B12 500mcg',       order: 61 },
+    { value: 'folic-acid-5mg',         label: 'Folic Acid 5mg',           order: 62 },
+    { value: 'calcium-500mg',          label: 'Calcium + D3 500mg',       order: 63 },
+    { value: 'ferrous-sulphate-200mg', label: 'Ferrous Sulphate 200mg',   order: 64 },
+    { value: 'zinc-20mg',              label: 'Zinc Sulphate 20mg',       order: 65 },
+    // Respiratory
+    { value: 'salbutamol-2mg',         label: 'Salbutamol 2mg',           order: 70 },
+    { value: 'montelukast-10mg',       label: 'Montelukast 10mg',         order: 71 },
+    { value: 'dextromethorphan-10mg',  label: 'Dextromethorphan 10mg',    order: 72 },
+    { value: 'guaifenesin-100mg',      label: 'Guaifenesin 100mg/5ml',    order: 73 },
+    // Steroids
+    { value: 'prednisolone-5mg',       label: 'Prednisolone 5mg',         order: 80 },
+    { value: 'prednisolone-10mg',      label: 'Prednisolone 10mg',        order: 81 },
+    { value: 'methylprednisolone-4mg', label: 'Methylprednisolone 4mg',   order: 82 },
+    // Thyroid
+    { value: 'levothyroxine-25mcg',    label: 'Levothyroxine 25mcg',      order: 90 },
+    { value: 'levothyroxine-50mcg',    label: 'Levothyroxine 50mcg',      order: 91 },
+    { value: 'levothyroxine-100mcg',   label: 'Levothyroxine 100mcg',     order: 92 },
+    // Cholesterol
+    { value: 'atorvastatin-10mg',      label: 'Atorvastatin 10mg',        order: 100 },
+    { value: 'atorvastatin-20mg',      label: 'Atorvastatin 20mg',        order: 101 },
+    { value: 'rosuvastatin-10mg',      label: 'Rosuvastatin 10mg',        order: 102 },
+  ]
+
+  const existingMeds = await MasterData.countDocuments({ category: 'medicine' })
+  if (existingMeds === 0) {
+    await MasterData.insertMany(
+      medicines.map(m => ({ category: 'medicine', ...m, isActive: true })),
+      { ordered: false }
+    )
+    console.log(`✔ Medicine master data seeded: ${medicines.length} entries`)
+  } else {
+    console.log(`– Medicine master data already exists (${existingMeds} entries)`)
+  }
+
+  // ── 11. Lab test master data ───────────────────────────────────────────────
+  const labTests = [
+    // Haematology
+    { value: 'cbc',              label: 'Complete Blood Count (CBC)',       order: 1  },
+    { value: 'esr',              label: 'ESR (Erythrocyte Sedimentation)',  order: 2  },
+    { value: 'peripheral-smear', label: 'Peripheral Blood Smear',          order: 3  },
+    { value: 'reticulocyte',     label: 'Reticulocyte Count',               order: 4  },
+    { value: 'pt-inr',           label: 'Prothrombin Time (PT/INR)',        order: 5  },
+    { value: 'aptt',             label: 'aPTT (Activated PTT)',             order: 6  },
+    { value: 'bleeding-time',    label: 'Bleeding Time & Clotting Time',    order: 7  },
+    { value: 'blood-group',      label: 'Blood Group & Rh Typing',          order: 8  },
+    // Biochemistry – Glucose & Diabetes
+    { value: 'fbg',              label: 'Fasting Blood Glucose',           order: 10 },
+    { value: 'ppbg',             label: 'Post Prandial Blood Sugar (PPBS)', order: 11 },
+    { value: 'rbs',              label: 'Random Blood Sugar',               order: 12 },
+    { value: 'hba1c',            label: 'HbA1c (Glycated Haemoglobin)',     order: 13 },
+    { value: 'insulin-fasting',  label: 'Insulin Fasting',                  order: 14 },
+    // Biochemistry – Lipids
+    { value: 'lipid-profile',    label: 'Lipid Profile (Complete)',         order: 20 },
+    { value: 'cholesterol-total','label': 'Total Cholesterol',              order: 21 },
+    { value: 'hdl',              label: 'HDL Cholesterol',                  order: 22 },
+    { value: 'ldl',              label: 'LDL Cholesterol',                  order: 23 },
+    { value: 'triglycerides',    label: 'Triglycerides',                    order: 24 },
+    // Biochemistry – Liver
+    { value: 'lft',              label: 'Liver Function Test (LFT)',        order: 30 },
+    { value: 'sgot',             label: 'SGOT (AST)',                       order: 31 },
+    { value: 'sgpt',             label: 'SGPT (ALT)',                       order: 32 },
+    { value: 'ggt',              label: 'GGT (Gamma GT)',                   order: 33 },
+    { value: 'bilirubin-total',  label: 'Bilirubin Total & Direct',         order: 34 },
+    { value: 'albumin',          label: 'Serum Albumin',                    order: 35 },
+    { value: 'total-protein',    label: 'Total Protein',                    order: 36 },
+    // Biochemistry – Kidney
+    { value: 'kft',              label: 'Kidney Function Test (KFT)',       order: 40 },
+    { value: 'creatinine',       label: 'Serum Creatinine',                 order: 41 },
+    { value: 'blood-urea',       label: 'Blood Urea',                       order: 42 },
+    { value: 'uric-acid',        label: 'Uric Acid',                        order: 43 },
+    { value: 'electrolytes',     label: 'Serum Electrolytes (Na/K/Cl)',     order: 44 },
+    { value: 'calcium',          label: 'Serum Calcium',                    order: 45 },
+    // Endocrinology
+    { value: 'tft',              label: 'Thyroid Function Test (TFT)',      order: 50 },
+    { value: 'tsh',              label: 'TSH (Thyroid Stimulating)',        order: 51 },
+    { value: 't3-free',          label: 'Free T3',                          order: 52 },
+    { value: 't4-free',          label: 'Free T4',                          order: 53 },
+    { value: 'cortisol',         label: 'Serum Cortisol',                   order: 54 },
+    { value: 'testosterone',     label: 'Testosterone (Total)',             order: 55 },
+    { value: 'fsh-lh',           label: 'FSH & LH',                         order: 56 },
+    { value: 'prolactin',        label: 'Prolactin',                        order: 57 },
+    // Microbiology / Urine
+    { value: 'urine-routine',    label: 'Urine Routine & Microscopy',       order: 60 },
+    { value: 'urine-culture',    label: 'Urine Culture & Sensitivity',      order: 61 },
+    { value: 'stool-routine',    label: 'Stool Routine Examination',        order: 62 },
+    { value: 'stool-culture',    label: 'Stool Culture',                    order: 63 },
+    { value: 'blood-culture',    label: 'Blood Culture & Sensitivity',      order: 64 },
+    { value: 'throat-swab',      label: 'Throat Swab Culture',              order: 65 },
+    // Serology / Immunology
+    { value: 'crp',              label: 'CRP (C-Reactive Protein)',         order: 70 },
+    { value: 'ra-factor',        label: 'RA Factor (Rheumatoid Arthritis)', order: 71 },
+    { value: 'widal',            label: 'Widal Test (Typhoid)',             order: 72 },
+    { value: 'malaria-antigen',  label: 'Malaria Antigen (P.f & P.v)',      order: 73 },
+    { value: 'dengue-ns1',       label: 'Dengue NS1 Antigen',               order: 74 },
+    { value: 'dengue-igg-igm',   label: 'Dengue IgM / IgG Antibody',       order: 75 },
+    { value: 'hiv-elisa',        label: 'HIV 1 & 2 ELISA',                  order: 76 },
+    { value: 'hbsag',            label: 'HBsAg (Hepatitis B Surface Ag)',   order: 77 },
+    { value: 'anti-hcv',         label: 'Anti HCV (Hepatitis C)',           order: 78 },
+    { value: 'typhoid-igm',      label: 'Typhoid IgM (Typhi dot)',          order: 79 },
+    // Others
+    { value: 'psa',              label: 'PSA (Prostate Specific Antigen)',  order: 80 },
+    { value: 'beta-hcg',         label: 'Beta HCG (Pregnancy Test)',        order: 81 },
+    { value: 'microalbumin',     label: 'Microalbumin (Urine)',             order: 82 },
+    { value: 'vitamin-d',        label: 'Vitamin D (25-OH)',                order: 83 },
+    { value: 'vitamin-b12',      label: 'Vitamin B12 (Cobalamin)',          order: 84 },
+    { value: 'ferritin',         label: 'Serum Ferritin',                   order: 85 },
+    { value: 'iron-tibc',        label: 'Iron & TIBC',                      order: 86 },
+    { value: 'ana',              label: 'ANA (Anti-Nuclear Antibody)',      order: 87 },
+  ]
+
+  const existingTests = await MasterData.countDocuments({ category: 'test' })
+  if (existingTests === 0) {
+    await MasterData.insertMany(
+      labTests.map(t => ({ category: 'test', ...t, isActive: true })),
+      { ordered: false }
+    )
+    console.log(`✔ Lab test master data seeded: ${labTests.length} entries`)
+  } else {
+    console.log(`– Lab test master data already exists (${existingTests} entries)`)
+  }
+
   console.log('\n✅ Seed complete.\n')
-  console.log('Login credentials:')
-  console.log('  Admin      → admin@clinic.com      / admin@123')
-  console.log('  Doctor     → doctor@clinic.com     / doctor@123')
-  console.log('  Nurse      → nurse@clinic.com      / nurse@123')
-  console.log('  Front desk → frontdesk@clinic.com  / frontdesk@123')
+  console.log('┌─────────────────┬──────────────────────────────┬─────────────────┬─────────────────────────┐')
+  console.log('│ Role            │ Email                        │ Password        │ Lands on                │')
+  console.log('├─────────────────┼──────────────────────────────┼─────────────────┼─────────────────────────┤')
+  console.log('│ super_admin     │ admin@clinic.com             │ admin@123       │ Admin dashboard         │')
+  console.log('│ clinic_admin    │ clinicadmin@clinic.com       │ clinic@123      │ Clinic dashboard        │')
+  console.log('│ doctor          │ doctor@clinic.com            │ doctor@123      │ Doctor dashboard        │')
+  console.log('│ nurse           │ nurse@clinic.com             │ nurse@123       │ Nurse dashboard         │')
+  console.log('│ frontdesk       │ frontdesk@clinic.com         │ frontdesk@123   │ Front desk dashboard    │')
+  console.log('│ pharmacist      │ pharmacy@clinic.com          │ pharmacy@123    │ Pharmacy page           │')
+  console.log('│ lab_tech        │ lab@clinic.com               │ lab@123         │ Lab page                │')
+  console.log('└─────────────────┴──────────────────────────────┴─────────────────┴─────────────────────────┘')
 
   await mongoose.disconnect()
 }

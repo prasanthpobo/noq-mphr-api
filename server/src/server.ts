@@ -15,6 +15,14 @@ import patientsRouter from './routes/patients'
 import nursesRouter from './routes/nurses'
 import clinicsRouter from './routes/clinics'
 import frontdeskRouter from './routes/frontdesk'
+import appointmentsRouter from './routes/appointments'
+import tokensRouter from './routes/tokens'
+import billingRouter from './routes/billing'
+import labRouter from './routes/lab'
+import pharmacyRouter from './routes/pharmacy'
+import reportsRouter from './routes/reports'
+import supportRouter from './routes/support'
+import masterdataRouter from './routes/masterdata'
 
 // Connect to MongoDB
 connectDB()
@@ -59,6 +67,14 @@ app.use('/api/patients', patientsRouter)
 app.use('/api/nurses', nursesRouter)
 app.use('/api/clinics', clinicsRouter)
 app.use('/api/frontdesk', frontdeskRouter)
+app.use('/api/appointments', appointmentsRouter)
+app.use('/api/tokens', tokensRouter)
+app.use('/api/billing', billingRouter)
+app.use('/api/lab', labRouter)
+app.use('/api/pharmacy', pharmacyRouter)
+app.use('/api/reports', reportsRouter)
+app.use('/api/support', supportRouter)
+app.use('/api/masterdata', masterdataRouter)
 
 // 404 handler for unmatched routes
 app.use((_req, res) => {

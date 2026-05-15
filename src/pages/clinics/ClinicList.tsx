@@ -90,8 +90,6 @@ export default function ClinicList() {
       <Header
         title="Clinic management"
         crumbs={`${active} active · ${total} total`}
-        onAdd={() => setRoute('clinic-new')}
-        addLabel="Add clinic"
       />
 
       <div className="main">
@@ -116,10 +114,17 @@ export default function ClinicList() {
               </button>
             ))}
           </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setRoute('clinic-new')}
+          >
+            <Icon name="plus" size={14}/> Add clinic
+          </button>
         </div>
 
         {error && (
-          <div style={{ padding: '12px 16px', color: 'var(--danger)', fontSize: 13 }}>{error}</div>
+          <div style={{ padding: '12px 16px', color: 'var(--danger-500)', fontSize: 13 }}>{error}</div>
         )}
 
         <table className="data">
@@ -144,10 +149,15 @@ export default function ClinicList() {
                 <tr key={c._id || c.id}>
                   <td>
                     <div className="cell-person">
-                      <div className={`av ${c.tone}`}>{c.logo}</div>
+                      <div
+                        className={`av ${c.tone || 'blue'}`}
+                        style={{ borderRadius: '50%', flexShrink: 0 }}
+                      >
+                        {c.name?.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'CL'}
+                      </div>
                       <div className="info">
-                        <div className="n">{c.name}</div>
-                        <div className="s">★ {c.rating} · Est. {c.established}</div>
+                        <div className="n">{c.name?.split(' ')[0] || '—'}</div>
+                        <div className="s">{c.name?.split(' ').slice(1).join(' ') || `★ ${c.rating} · Est. ${c.established}`}</div>
                       </div>
                     </div>
                   </td>

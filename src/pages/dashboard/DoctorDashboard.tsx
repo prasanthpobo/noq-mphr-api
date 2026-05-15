@@ -2,6 +2,14 @@ import Header from '@/components/layout/Header'
 import StatCard from '@/components/ui/StatCard'
 import Icon from '@/components/ui/Icon'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
+import dayjs from 'dayjs'
+
+function greeting(name: string): string {
+  const h = new Date().getHours()
+  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${period}, Dr. ${name}`
+}
 
 interface Appt {
   time: string
@@ -56,12 +64,13 @@ function statusBadge(s: Appt['status']): { cls: string; label: string } {
 
 export default function DoctorDashboard() {
   const { setRoute } = useAppStore()
+  const user         = useAuthStore(s => s.user)
 
   return (
     <>
       <Header
-        title="Good morning, Dr. Khanna"
-        crumbs="Saturday, 9 May 2026 · OPD-2 · Cardiology"
+        title={greeting(user?.name ?? 'Doctor')}
+        crumbs={`${dayjs().format('dddd, D MMM YYYY')} · Your OPD`}
       />
       <div className="main">
         {/* Stat cards */}

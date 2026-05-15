@@ -1,8 +1,18 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { body, validationResult } from 'express-validator'
+import crypto from 'crypto'
 import User from '../models/User'
 import { generateToken } from '../utils/generateToken'
 import { protect } from '../middleware/auth'
+
+/* ── Helpers ────────────────────────────────────────────────────────────── */
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+function generateResetToken(): string {
+  return crypto.randomBytes(32).toString('hex')
+}
 
 const router = Router()
 
@@ -198,6 +208,173 @@ router.put(
       await user.save()
 
       res.status(200).json({ success: true, message: 'Password changed successfully' })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// POST /api/auth/forgot-password
+// Accepts email or phone. Generates a 6-digit OTP valid for 10 minutes.
+router.post(
+  '/forgot-password',
+  [
+    body('identifier')
+      .notEmpty().withMessage('Email or mobile number is required')
+      .trim()
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+
+    try {
+      const { identifier } = req.body as { identifier: string }
+
+      // Find by email or phone
+      const user = await User.findOne({
+        $or: [
+          { email: identifier.toLowerCase().trim() },
+          { phone: identifier.trim() }
+        ]
+      }).select('+resetOtp +resetOtpExpiry +resetOtpVerified')
+
+      if (!user) {
+        // Return generic message to prevent enumeration
+        res.status(200).json({ success: true, message: 'If that account exists, an OTP has been sent.' })
+        return
+      }
+
+      const otp        = generateOtp()
+      const otpExpiry  = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+      user.resetOtp         = otp
+      user.resetOtpExpiry   = otpExpiry
+      user.resetOtpVerified = false
+      user.resetToken       = undefined
+      user.resetTokenExpiry = undefined
+      await user.save()
+
+      // ── In production: send via Nodemailer / SMS gateway ──────────────────
+      console.log(`\n📧 [OTP] To: ${identifier}  Code: ${otp}  Expires: ${otpExpiry.toISOString()}\n`)
+
+      res.status(200).json({
+        success: true,
+        message: 'OTP sent successfully',
+        // Only expose maskedContact in dev — never in production
+        ...(process.env.NODE_ENV !== 'production' && { _dev_otp: otp }),
+        maskedContact: user.email
+          ? user.email.replace(/(.{2}).+(@.+)/, '$1***$2')
+          : user.phone!.replace(/(\d{2})\d+(\d{3})/, '$1****$2'),
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// POST /api/auth/verify-otp
+// Verifies the OTP. On success returns a short-lived resetToken (15 min).
+router.post(
+  '/verify-otp',
+  [
+    body('identifier').notEmpty().withMessage('Identifier is required').trim(),
+    body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits').isNumeric()
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+
+    try {
+      const { identifier, otp } = req.body as { identifier: string; otp: string }
+
+      const user = await User.findOne({
+        $or: [
+          { email: identifier.toLowerCase().trim() },
+          { phone: identifier.trim() }
+        ]
+      }).select('+resetOtp +resetOtpExpiry +resetOtpVerified +resetToken +resetTokenExpiry')
+
+      if (!user || !user.resetOtp || !user.resetOtpExpiry) {
+        res.status(400).json({ success: false, message: 'No OTP request found. Please request a new OTP.' })
+        return
+      }
+
+      if (new Date() > user.resetOtpExpiry) {
+        res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' })
+        return
+      }
+
+      if (user.resetOtp !== otp) {
+        res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' })
+        return
+      }
+
+      const resetToken       = generateResetToken()
+      const resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+
+      user.resetOtp         = undefined
+      user.resetOtpExpiry   = undefined
+      user.resetOtpVerified = true
+      user.resetToken       = resetToken
+      user.resetTokenExpiry = resetTokenExpiry
+      await user.save()
+
+      res.status(200).json({ success: true, resetToken })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// POST /api/auth/reset-password
+// Uses the resetToken to set a new password.
+router.post(
+  '/reset-password',
+  [
+    body('resetToken').notEmpty().withMessage('Reset token is required'),
+    body('password')
+      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+      .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+      .matches(/[0-9]/).withMessage('Password must contain at least one number')
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+
+    try {
+      const { resetToken, password } = req.body as { resetToken: string; password: string }
+
+      const user = await User.findOne({
+        resetToken,
+        resetOtpVerified: true,
+      }).select('+resetToken +resetTokenExpiry +resetOtpVerified +password')
+
+      if (!user || !user.resetTokenExpiry) {
+        res.status(400).json({ success: false, message: 'Invalid or expired reset link. Please start over.' })
+        return
+      }
+
+      if (new Date() > user.resetTokenExpiry) {
+        res.status(400).json({ success: false, message: 'Reset session has expired. Please start over.' })
+        return
+      }
+
+      user.password         = password
+      user.resetToken       = undefined
+      user.resetTokenExpiry = undefined
+      user.resetOtpVerified = false
+      await user.save()
+
+      res.status(200).json({ success: true, message: 'Password reset successfully. You can now log in.' })
     } catch (error) {
       next(error)
     }

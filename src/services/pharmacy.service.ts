@@ -13,6 +13,8 @@ export const pharmacyService = {
     api.put(`${base}/${id}`, data).then(r => r.data.data),
   dispense: (id: string) =>
     api.put(`${base}/${id}/dispense`).then(r => r.data.data),
+  pay: (id: string, amount: number, method: string) =>
+    api.put(`${base}/${id}/pay`, { amount, method }).then(r => r.data.data),
   remove: (id: string) =>
     api.delete(`${base}/${id}`).then(r => r.data),
 }
