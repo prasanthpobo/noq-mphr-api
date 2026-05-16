@@ -1,8 +1,66 @@
 import { Router, Request, Response, NextFunction } from 'express'
+import { body, validationResult } from 'express-validator'
 import { protect } from '../middleware/auth'
 import Appointment from '../models/Appointment'
+import Doctor from '../models/Doctor'
+import Patient from '../models/Patient'
+import User from '../models/User'
+import FamilyMember from '../models/FamilyMember'
 
 const router = Router()
+
+// GET /api/appointments/mine?filter=upcoming|past
+// Returns all appointments belonging to the logged-in patient (matched by phone/email across clinics).
+router.get('/mine', protect, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = await User.findById(req.user!.id)
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' })
+      return
+    }
+
+    // Find all Patient records belonging to this user across clinics
+    const patientQuery: Record<string, unknown>[] = []
+    if (user.phone) patientQuery.push({ phone: user.phone })
+    if (user.email) patientQuery.push({ email: user.email })
+
+    if (patientQuery.length === 0) {
+      res.json({ success: true, count: 0, data: [] })
+      return
+    }
+
+    const patients = await Patient.find({ $or: patientQuery }).select('_id')
+    const patientIds = patients.map((p) => p._id)
+
+    if (patientIds.length === 0) {
+      res.json({ success: true, count: 0, data: [] })
+      return
+    }
+
+    const { filter } = req.query
+    const now = new Date()
+    const statusFilter: Record<string, unknown> = {}
+
+    if (filter === 'upcoming') {
+      statusFilter.status = { $in: ['scheduled', 'in-progress'] }
+    } else if (filter === 'past') {
+      statusFilter.status = { $in: ['completed', 'cancelled', 'no-show'] }
+    }
+
+    const appointments = await Appointment.find({
+      patientId: { $in: patientIds },
+      ...statusFilter,
+    })
+      .populate('patientId', 'name phone tag gender')
+      .populate('doctorId', 'name specialization consultationFee')
+      .populate('clinicId', 'name address')
+      .sort({ date: filter === 'past' ? -1 : 1, createdAt: -1 })
+
+    res.json({ success: true, count: appointments.length, data: appointments })
+  } catch (err) {
+    next(err)
+  }
+})
 
 // GET /api/appointments/slots?doctorId=&date=
 router.get('/slots', protect, async (req: Request, res: Response, next: NextFunction) => {
@@ -103,6 +161,113 @@ router.get('/', protect, async (req: Request, res: Response, next: NextFunction)
     next(err)
   }
 })
+
+// POST /api/appointments/book — patient-facing booking
+// Finds or creates a Patient record at the doctor's clinic, then creates the appointment.
+router.post(
+  '/book',
+  protect,
+  [
+    body('doctorId').notEmpty().withMessage('doctorId is required'),
+    body('date').notEmpty().withMessage('date is required'),
+    body('time').notEmpty().withMessage('time is required'),
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+    try {
+      const { doctorId, date, time, reason, familyMemberId } = req.body as {
+        doctorId: string
+        date: string
+        time: string
+        reason?: string
+        familyMemberId?: string
+      }
+
+      const doctor = await Doctor.findById(doctorId)
+      if (!doctor) {
+        res.status(404).json({ success: false, message: 'Doctor not found' })
+        return
+      }
+      const clinicId = doctor.clinicId
+
+      // Determine the person being booked for
+      let patientName: string
+      let patientPhone: string
+      let patientGender: 'M' | 'F' | 'Other'
+      let patientDob: Date | undefined
+      let patientEmail: string | undefined
+
+      if (familyMemberId) {
+        const fm = await FamilyMember.findOne({ _id: familyMemberId, userId: req.user!.id })
+        if (!fm) {
+          res.status(404).json({ success: false, message: 'Family member not found' })
+          return
+        }
+        patientName   = fm.name
+        patientPhone  = fm.phone || ''
+        patientGender = (fm.gender as 'M' | 'F' | 'Other') || 'Other'
+        patientDob    = fm.dob
+      } else {
+        const user = await User.findById(req.user!.id)
+        if (!user) {
+          res.status(404).json({ success: false, message: 'User not found' })
+          return
+        }
+        patientName   = user.name
+        patientPhone  = user.phone || ''
+        patientGender = (user.gender as 'M' | 'F' | 'Other') || 'Other'
+        patientDob    = user.dob
+        patientEmail  = user.email
+      }
+
+      if (!patientPhone) {
+        res.status(400).json({ success: false, message: 'Phone number is required for booking. Please update your profile.' })
+        return
+      }
+
+      // Find or create Patient record for this clinic
+      let patient = await Patient.findOne({ phone: patientPhone, clinicId })
+      if (!patient) {
+        patient = await Patient.create({
+          name: patientName,
+          phone: patientPhone,
+          gender: patientGender,
+          dob: patientDob,
+          email: patientEmail,
+          clinicId,
+          tag: 'new',
+        })
+      }
+
+      const appointmentDate = new Date(date)
+
+      const appointment = await Appointment.create({
+        patientId: patient._id,
+        doctorId,
+        clinicId,
+        date: appointmentDate,
+        time,
+        notes: reason || '',
+        symptoms: reason ? [reason] : [],
+        status: 'scheduled',
+        type: 'consultation',
+      })
+
+      const populated = await Appointment.findById(appointment._id)
+        .populate('patientId', 'name phone tag')
+        .populate('doctorId', 'name specialization consultationFee')
+        .populate('clinicId', 'name address')
+
+      res.status(201).json({ success: true, data: populated })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
 
 // GET /api/appointments/:id
 router.get('/:id', protect, async (req: Request, res: Response, next: NextFunction) => {

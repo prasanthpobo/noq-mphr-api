@@ -9,6 +9,7 @@ export type UserRole =
   | 'frontdesk'
   | 'pharmacist'
   | 'lab_tech'
+  | 'patient'
 
 export type UserStatus = 'active' | 'inactive' | 'on-leave' | 'pending'
 
@@ -21,6 +22,8 @@ export interface IUser extends Document {
   clinicId?: mongoose.Types.ObjectId
   avatar?: string
   phone?: string
+  gender?: 'M' | 'F' | 'Other'
+  dob?: Date
   createdAt: Date
   // Password reset flow
   resetOtp?: string
@@ -54,7 +57,7 @@ const UserSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['super_admin', 'clinic_admin', 'doctor', 'nurse', 'frontdesk', 'pharmacist', 'lab_tech'],
+      enum: ['super_admin', 'clinic_admin', 'doctor', 'nurse', 'frontdesk', 'pharmacist', 'lab_tech', 'patient'],
       default: 'clinic_admin'
     },
     status: {
@@ -72,6 +75,13 @@ const UserSchema = new Schema<IUser>(
     },
     phone: {
       type: String
+    },
+    gender: {
+      type: String,
+      enum: ['M', 'F', 'Other']
+    },
+    dob: {
+      type: Date
     },
     createdAt: {
       type: Date,

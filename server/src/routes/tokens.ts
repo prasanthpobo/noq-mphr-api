@@ -1,8 +1,82 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { protect } from '../middleware/auth'
 import Token from '../models/Token'
+import Patient from '../models/Patient'
+import User from '../models/User'
 
 const router = Router()
+
+// GET /api/tokens/mine — active token for the logged-in patient today
+router.get('/mine', protect, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = await User.findById(req.user!.id)
+    if (!user) { res.status(404).json({ success: false, message: 'User not found' }); return }
+
+    const patientQuery: Record<string, unknown>[] = []
+    if (user.phone) patientQuery.push({ phone: user.phone })
+    if (user.email) patientQuery.push({ email: user.email })
+
+    if (patientQuery.length === 0) {
+      res.json({ success: true, data: null })
+      return
+    }
+
+    const patients = await Patient.find({ $or: patientQuery }).select('_id')
+    const patientIds = patients.map((p) => p._id)
+
+    if (patientIds.length === 0) {
+      res.json({ success: true, data: null })
+      return
+    }
+
+    const now = new Date()
+    const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay   = new Date(now); endOfDay.setHours(23, 59, 59, 999)
+
+    // Find the most recent active token for today
+    const token = await Token.findOne({
+      patientId: { $in: patientIds },
+      status: { $in: ['waiting', 'in-room', 'in-consultation', 'priority'] },
+      issuedAt: { $gte: startOfDay, $lte: endOfDay },
+    })
+      .populate('doctorId', 'name specialization')
+      .populate('clinicId', 'name address')
+      .sort({ issuedAt: -1 })
+
+    if (!token) {
+      res.json({ success: true, data: null })
+      return
+    }
+
+    // Count tokens ahead in queue for the same doctor today
+    const aheadCount = await Token.countDocuments({
+      doctorId: token.doctorId,
+      clinicId: token.clinicId,
+      tokenNumber: { $lt: token.tokenNumber },
+      status: { $in: ['waiting', 'priority'] },
+      issuedAt: { $gte: startOfDay, $lte: endOfDay },
+    })
+
+    // Currently being served token number
+    const serving = await Token.findOne({
+      doctorId: token.doctorId,
+      clinicId: token.clinicId,
+      status: { $in: ['in-room', 'in-consultation'] },
+      issuedAt: { $gte: startOfDay, $lte: endOfDay },
+    }).sort({ tokenNumber: -1 }).select('tokenNumber')
+
+    res.json({
+      success: true,
+      data: token,
+      meta: {
+        aheadCount,
+        currentlyServing: serving?.tokenNumber ?? null,
+      },
+    })
+  } catch (err) {
+    next(err)
+  }
+})
 
 // GET /api/tokens
 router.get('/', protect, async (req: Request, res: Response, next: NextFunction) => {
