@@ -36,6 +36,10 @@ export function getFamilyMembers(): Promise<ListResponse> {
   return api.get<never, ListResponse>('/family-members')
 }
 
+export function getFamilyMemberById(id: string): Promise<SingleResponse> {
+  return api.get<never, SingleResponse>(`/family-members/${id}`)
+}
+
 export function addFamilyMember(payload: FamilyMemberPayload): Promise<SingleResponse> {
   return api.post<never, SingleResponse>('/family-members', payload)
 }

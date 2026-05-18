@@ -13,6 +13,29 @@ export type UserRole =
 
 export type UserStatus = 'active' | 'inactive' | 'on-leave' | 'pending'
 
+export interface ICondition {
+  _id: mongoose.Types.ObjectId
+  name: string
+  diagnosedAt?: Date
+  notes?: string
+}
+
+export interface IAllergy {
+  _id: mongoose.Types.ObjectId
+  name: string
+  severity?: 'mild' | 'moderate' | 'severe'
+  reaction?: string
+}
+
+export interface IMedication {
+  _id: mongoose.Types.ObjectId
+  name: string
+  dose: string
+  frequency: string
+  since: string
+  notes?: string
+}
+
 export interface IUser extends Document {
   name: string
   email: string
@@ -24,6 +47,12 @@ export interface IUser extends Document {
   phone?: string
   gender?: 'M' | 'F' | 'Other'
   dob?: Date
+  bloodGroup?: string
+  height?: number
+  weight?: number
+  conditions: ICondition[]
+  allergies: IAllergy[]
+  medications: IMedication[]
   createdAt: Date
   // Password reset flow
   resetOtp?: string
@@ -83,6 +112,35 @@ const UserSchema = new Schema<IUser>(
     dob: {
       type: Date
     },
+    bloodGroup: {
+      type: String,
+      enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+    },
+    height: {
+      type: Number,
+      min: 0
+    },
+    weight: {
+      type: Number,
+      min: 0
+    },
+    conditions: [{
+      name: { type: String, required: true, trim: true },
+      diagnosedAt: { type: Date },
+      notes: { type: String, trim: true },
+    }],
+    allergies: [{
+      name: { type: String, required: true, trim: true },
+      severity: { type: String, enum: ['mild', 'moderate', 'severe'] },
+      reaction: { type: String, trim: true },
+    }],
+    medications: [{
+      name: { type: String, required: true, trim: true },
+      dose: { type: String, required: true, trim: true },
+      frequency: { type: String, required: true, trim: true },
+      since: { type: String, required: true, trim: true },
+      notes: { type: String, trim: true },
+    }],
     createdAt: {
       type: Date,
       default: Date.now

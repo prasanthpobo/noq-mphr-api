@@ -1,76 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import dayjs from 'dayjs'
+import {
+  HiSearch, HiBell, HiCalendar, HiDocumentText, HiChevronRight,
+} from 'react-icons/hi'
+import {
+  MdEventNote, MdQueuePlayNext, MdLocalHospital, MdFavorite,
+  MdShield,
+} from 'react-icons/md'
 import { useAuthStore } from '../../store/authStore'
+import { useQueueStore } from '../../store/queueStore'
 import { getMyAppointments } from '../../services/bookingService'
 import { getMyActiveToken } from '../../services/queueService'
 import type { Appointment } from '../../services/bookingService'
 import type { QueueToken } from '../../services/queueService'
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-const SearchIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-300)' }}>
-    <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
-  </svg>
-)
-const PlusIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 5v14M5 12h14"/>
-  </svg>
-)
-const CalIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
-  </svg>
-)
-const QueueIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="6" width="18" height="4" rx="1"/><rect x="3" y="14" width="18" height="4" rx="1"/>
-  </svg>
-)
-const FileIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>
-  </svg>
-)
-const HeartIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20.84 4.6a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 10-7.78 7.78l8.84 8.84 8.84-8.84a5.5 5.5 0 000-7.78z"/>
-  </svg>
-)
-const StethoIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 3v5a4 4 0 008 0V3"/><path d="M10 12v3a4 4 0 008 0v-3"/><circle cx="18" cy="19" r="2"/>
-  </svg>
-)
-const UserIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1"/>
-  </svg>
-)
-const ActivityIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-  </svg>
-)
-const ChevronIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 6l6 6-6 6"/>
-  </svg>
-)
-const BellIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-    <path d="M13.73 21a2 2 0 01-3.46 0"/>
-  </svg>
-)
-const WaveOverlay = () => (
-  <svg className="wave" viewBox="0 0 390 80" preserveAspectRatio="none">
-    <path d="M0,40 C100,80 200,0 300,40 C340,56 370,50 390,30 L390,80 L0,80 Z" fill="#fff"/>
-    <path d="M0,55 C80,80 180,20 280,55 C340,75 370,70 390,60 L390,80 L0,80 Z" fill="#fff" opacity="0.4"/>
-  </svg>
-)
+const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -97,114 +43,156 @@ function formatApptDate(dateStr: string): string {
 // ── Quick actions ─────────────────────────────────────────────────────────────
 
 const QUICK_ACTIONS = [
-  { key: 'book',  name: 'Book token',   icon: <PlusIcon />,  path: '/app/booking'      },
-  { key: 'apts',  name: 'Appointments', icon: <CalIcon />,   path: '/app/appointments' },
-  { key: 'queue', name: 'Queue status', icon: <QueueIcon />, path: '/app/queue'        },
-  { key: 'phr',   name: 'Records',      icon: <FileIcon />,  path: '/app/records'      },
+  { key: 'book',  name: 'Book Token',    icon: <MdEventNote size={22} />,       path: '/app/booking',      color: '#2C6ED5', bg: '#EBF2FF', border: '#BFDBFE' },
+  { key: 'apts',  name: 'Appointments',  icon: <HiCalendar size={22} />,        path: '/app/appointments', color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
+  { key: 'queue', name: "Today's Queue",  icon: <MdQueuePlayNext size={22} />,   path: '/app/today-queue',  color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+  { key: 'phr',   name: 'My Records',    icon: <HiDocumentText size={22} />,    path: '/app/records',      color: '#7C3AED', bg: '#F3EEFF', border: '#DDD6FE' },
 ]
 
-const DEPTS = [
-  { n: 'Cardiology',  icon: <HeartIcon />    },
-  { n: 'General',     icon: <StethoIcon />   },
-  { n: 'Pediatric',   icon: <UserIcon />     },
-  { n: 'Ortho',       icon: <ActivityIcon /> },
-  { n: 'Dental',      icon: <PlusIcon />     },
-  { n: 'Derma',       icon: <FileIcon />     },
-]
 
-// ── Active Token Card ─────────────────────────────────────────────────────────
+// ── My Token Section ──────────────────────────────────────────────────────────
 
-function ActiveTokenCard({
-  token,
-  aheadCount,
-  currentlyServing,
+function MyTokenSection({
+  token, aheadCount, currentlyServing, loading,
 }: {
-  token: QueueToken
-  aheadCount: number
-  currentlyServing: number | null
+  token: QueueToken | null; aheadCount: number; currentlyServing: number | null; loading: boolean
 }) {
   const navigate = useNavigate()
-  const doc     = typeof token.doctorId  === 'object' ? token.doctorId  : null
-  const clinic  = typeof token.clinicId  === 'object' ? token.clinicId  : null
-  const docName = doc ? `Dr. ${doc.name}` : 'Doctor'
-  const spec    = doc?.specialization ?? ''
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', margin: '20px 0 12px' }}>
+        <span style={{ fontSize: 16, fontWeight: 700, color: '#1A1A1A' }}>My Token</span>
+        <span
+          onClick={() => navigate('/app/queue')}
+          style={{ fontSize: 13, color: '#2C6ED5', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+        >
+          View All →
+        </span>
+      </div>
+      <div style={{ padding: '0 16px' }}>
+        {loading ? (
+          <div style={{ height: 130, borderRadius: 20, background: '#FFFFFF', boxShadow: '0 2px 12px rgba(30,79,163,0.06)' }} />
+        ) : token ? (
+          <ActiveTokenCard token={token} aheadCount={aheadCount} currentlyServing={currentlyServing} />
+        ) : (
+          <NoTokenBanner />
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+function ActiveTokenCard({
+  token, aheadCount, currentlyServing,
+}: {
+  token: QueueToken; aheadCount: number; currentlyServing: number | null
+}) {
+  const navigate   = useNavigate()
+  const doc        = typeof token.doctorId === 'object' ? token.doctorId : null
+  const clinic     = typeof token.clinicId === 'object' ? token.clinicId : null
+  const docName    = doc ? `Dr. ${doc.name}` : 'Doctor'
+  const spec       = doc?.specialization ?? ''
   const clinicName = clinic?.name ?? ''
-  const label   = `${spec}${spec && clinicName ? ' · ' : ''}${clinicName}`
+  const subLabel   = `${spec}${spec && clinicName ? ' · ' : ''}${clinicName}`
   const tokenLabel = String(token.tokenNumber).padStart(3, '0')
-  const progress = currentlyServing && token.tokenNumber > 0
+  const progress   = currentlyServing && token.tokenNumber > 0
     ? Math.min(100, Math.round((currentlyServing / token.tokenNumber) * 100))
     : 10
 
   const statusLabels: Record<string, string> = {
-    waiting: 'ACTIVE TOKEN',
-    priority: 'PRIORITY TOKEN',
-    'in-room': 'IN ROOM',
-    'in-consultation': 'IN CONSULTATION',
+    waiting: 'ACTIVE TOKEN', priority: 'PRIORITY TOKEN',
+    'in-room': 'IN ROOM', 'in-consultation': 'IN CONSULTATION',
   }
   const statusLabel = statusLabels[token.status] ?? 'ACTIVE TOKEN'
 
   return (
-    <div className="active-token-card" onClick={() => navigate('/app/queue')}>
-      <div className="atc-head">
-        <div className="atc-label">
-          <span className="atc-live-dot" />
+    <div onClick={() => navigate('/app/queue')} style={{
+      background: BRAND_GRADIENT, borderRadius: 20, padding: '18px 18px 16px',
+      boxShadow: '0 8px 28px rgba(44,110,213,0.32)', cursor: 'pointer',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Decorative circles */}
+      <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: -20, left: -20, width: 90, height: 90, borderRadius: '50%', background: 'rgba(31,163,168,0.25)', pointerEvents: 'none' }} />
+
+      {/* Status + wait time */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, position: 'relative', zIndex: 1 }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          fontSize: 10, fontWeight: 800, letterSpacing: '0.1em',
+          color: '#FFFFFF', background: 'rgba(255,255,255,0.20)',
+          border: '1px solid rgba(255,255,255,0.30)',
+          padding: '5px 10px', borderRadius: 999,
+        }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%', background: '#4ADE80',
+            boxShadow: '0 0 0 3px rgba(74,222,128,0.35)', display: 'inline-block', flexShrink: 0,
+          }} />
           {statusLabel}
         </div>
-        <div className="atc-time">
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
           {aheadCount > 0 ? `~${aheadCount * 5} min` : 'Almost your turn'}
+        </span>
+      </div>
+
+      {/* Token number + doctor */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, position: 'relative', zIndex: 1 }}>
+        <div style={{
+          fontSize: 38, fontWeight: 800, letterSpacing: '-0.03em', color: '#FFFFFF', lineHeight: 1,
+          paddingRight: 16, borderRight: '1px solid rgba(255,255,255,0.25)',
+        }}>
+          T‑{tokenLabel}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#FFFFFF' }}>{docName}</div>
+          {subLabel && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>{subLabel}</div>}
         </div>
       </div>
-      <div className="atc-body">
-        <div className="atc-token">T‑{tokenLabel}</div>
-        <div className="atc-meta">
-          <div className="atc-doc">{docName}</div>
-          {label && <div className="atc-clinic">{label}</div>}
-        </div>
+
+      {/* Progress bar */}
+      <div style={{ height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.20)', overflow: 'hidden', marginBottom: 8, position: 'relative', zIndex: 1 }}>
+        <div style={{ height: '100%', borderRadius: 999, background: 'rgba(255,255,255,0.90)', width: `${progress}%` }} />
       </div>
-      <div className="atc-progress">
-        <div className="atc-progress-bar">
-          <div className="atc-progress-fill" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="atc-progress-row">
-          <span><b>{aheadCount}</b> ahead of you</span>
-          {currentlyServing !== null && <span>Serving T‑{String(currentlyServing).padStart(3, '0')}</span>}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 500, marginBottom: 14, position: 'relative', zIndex: 1 }}>
+        <span><b style={{ color: '#FFFFFF', fontWeight: 800 }}>{aheadCount}</b> ahead of you</span>
+        {currentlyServing !== null && <span>Serving T‑{String(currentlyServing).padStart(3, '0')}</span>}
       </div>
-      <div className="atc-cta">
+
+      {/* CTA */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.20)',
+        fontSize: 13, fontWeight: 700, color: '#FFFFFF',
+        position: 'relative', zIndex: 1,
+      }}>
         <span>Track live queue</span>
-        <ChevronIcon />
+        <HiChevronRight size={16} />
       </div>
     </div>
   )
 }
 
-function BookTokenBanner() {
+function NoTokenBanner() {
   const navigate = useNavigate()
   return (
-    <div
-      onClick={() => navigate('/app/booking')}
-      style={{
-        background: 'linear-gradient(135deg, rgba(44,110,213,0.08) 0%, rgba(31,163,168,0.08) 100%)',
-        border: '1.5px dashed var(--blue-300)',
-        borderRadius: 20,
-        padding: '14px 16px',
-        display: 'flex', alignItems: 'center', gap: 12,
-        cursor: 'pointer',
-      }}
-    >
+    <div onClick={() => navigate('/app/booking')} style={{
+      background: '#FFFFFF', borderRadius: 20, padding: 16,
+      border: '1.5px dashed #BFDBFE', boxShadow: '0 2px 12px rgba(30,79,163,0.05)',
+      display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+    }}>
       <div style={{
-        width: 44, height: 44, borderRadius: 14,
-        background: 'var(--brand-gradient)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
+        width: 48, height: 48, borderRadius: 14, background: BRAND_GRADIENT,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        boxShadow: '0 4px 14px rgba(44,110,213,0.30)',
       }}>
-        <PlusIcon />
+        <MdEventNote size={22} color="#FFFFFF" />
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--blue-800)' }}>No active queue token</div>
-        <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>Tap to book an appointment now</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#1E4FA3' }}>No active queue token</div>
+        <div style={{ fontSize: 12, color: '#6B7C93', marginTop: 2 }}>Tap to book an appointment now</div>
       </div>
-      <ChevronIcon />
+      <HiChevronRight size={18} color="#A0AEC0" />
     </div>
   )
 }
@@ -212,52 +200,46 @@ function BookTokenBanner() {
 // ── Upcoming Appointment Card ─────────────────────────────────────────────────
 
 function UpcomingCard({ appt }: { appt: Appointment }) {
-  const navigate = useNavigate()
-  const doc    = typeof appt.doctorId  === 'object' ? appt.doctorId  : null
-  const clinic = typeof appt.clinicId  === 'object' ? appt.clinicId  : null
+  const navigate  = useNavigate()
+  const doc       = typeof appt.doctorId === 'object' ? appt.doctorId : null
+  const clinic    = typeof appt.clinicId === 'object' ? appt.clinicId : null
   const docName   = doc ? `Dr. ${doc.name}` : 'Doctor'
   const spec      = doc?.specialization ?? ''
   const clinicName = clinic?.name ?? ''
-  const label = `${spec}${spec && clinicName ? ' · ' : ''}${clinicName}`
-  const initials = doc ? getInitials(doc.name) : 'DR'
+  const label     = `${spec}${spec && clinicName ? ' · ' : ''}${clinicName}`
+  const initials  = doc ? getInitials(doc.name) : 'DR'
   const dateLabel = formatApptDate(appt.date)
 
   return (
-    <div
-      className="noq-card"
-      style={{
-        background: 'linear-gradient(135deg, #E4F3F4, #F5FAFB)',
-        border: '1px solid var(--teal-200)',
-        display: 'flex', alignItems: 'center', gap: 12,
-        cursor: 'pointer',
-      }}
-      onClick={() => navigate('/app/appointments')}
-    >
+    <div onClick={() => navigate('/app/appointments')} style={{
+      background: '#FFFFFF', borderRadius: 20, padding: 16,
+      border: '1px solid #F0F4F8', boxShadow: '0 2px 12px rgba(30,79,163,0.06)',
+      display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+    }}>
       <div style={{
-        width: 44, height: 44, borderRadius: '50%',
-        background: 'var(--teal-100)', color: 'var(--teal-800)',
+        width: 50, height: 50, borderRadius: 14,
+        background: '#E6F7F7', border: '2px solid #BFE3E5',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 700, fontSize: 15, flexShrink: 0,
+        fontWeight: 800, fontSize: 15, color: '#0F766E', flexShrink: 0,
       }}>
         {initials}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {docName}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 12, color: '#6B7C93', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {label}
         </div>
         <div style={{
           marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5,
-          fontSize: 11, fontWeight: 700,
-          background: 'var(--teal-100)', color: 'var(--teal-800)',
+          fontSize: 11, fontWeight: 700, background: '#E6F7F7', color: '#0F766E',
           padding: '4px 10px', borderRadius: 999,
         }}>
           {dateLabel}{appt.time ? ` · ${appt.time}` : ''}
         </div>
       </div>
-      <ChevronIcon />
+      <HiChevronRight size={16} color="#A0AEC0" />
     </div>
   )
 }
@@ -265,46 +247,19 @@ function UpcomingCard({ appt }: { appt: Appointment }) {
 function NoUpcomingBanner() {
   const navigate = useNavigate()
   return (
-    <div
-      onClick={() => navigate('/app/booking')}
-      style={{
-        background: '#fff', borderRadius: 20, padding: '16px',
-        border: '1px solid var(--border-soft)',
-        boxShadow: 'var(--sh-card)',
-        display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
-      }}
-    >
-      <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <CalIcon />
+    <div onClick={() => navigate('/app/booking')} style={{
+      background: '#FFFFFF', borderRadius: 20, padding: 16,
+      border: '1.5px dashed #BFDBFE', boxShadow: '0 2px 12px rgba(30,79,163,0.05)',
+      display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+    }}>
+      <div style={{ width: 46, height: 46, borderRadius: 13, background: '#EBF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <HiCalendar size={22} color="#2C6ED5" />
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)' }}>No upcoming appointments</div>
-        <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>Tap to book your next visit</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#1A1A1A' }}>No upcoming appointments</div>
+        <div style={{ fontSize: 12, color: '#6B7C93', marginTop: 2 }}>Tap to book your next visit</div>
       </div>
-      <ChevronIcon />
-    </div>
-  )
-}
-
-// ── Stats Row ─────────────────────────────────────────────────────────────────
-
-function StatsRow({ upcomingCount, pastCount }: { upcomingCount: number; pastCount: number }) {
-  const navigate = useNavigate()
-  return (
-    <div style={{ display: 'flex', gap: 10, padding: '0 16px' }}>
-      {[
-        { label: 'Upcoming', value: upcomingCount, color: '#2C6ED5', bg: '#EBF2FF', path: '/app/appointments' },
-        { label: 'Completed', value: pastCount,    color: '#059669', bg: '#ECFDF5', path: '/app/appointments' },
-      ].map((s) => (
-        <div key={s.label} onClick={() => navigate(s.path)} style={{
-          flex: 1, background: '#fff', borderRadius: 16, padding: '14px 16px',
-          boxShadow: 'var(--sh-card)', cursor: 'pointer',
-          borderLeft: `4px solid ${s.color}`,
-        }}>
-          <div style={{ fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
-          <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 4, fontWeight: 500 }}>{s.label}</div>
-        </div>
-      ))}
+      <HiChevronRight size={16} color="#A0AEC0" />
     </div>
   )
 }
@@ -312,8 +267,9 @@ function StatsRow({ upcomingCount, pastCount }: { upcomingCount: number; pastCou
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
-  const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
+  const navigate         = useNavigate()
+  const user             = useAuthStore((s) => s.user)
+  const setStoreToken    = useQueueStore((s) => s.setActiveToken)
 
   const [upcomingAppts, setUpcomingAppts] = useState<Appointment[]>([])
   const [pastCount, setPastCount]         = useState(0)
@@ -335,6 +291,7 @@ export default function DashboardScreen() {
     getMyActiveToken()
       .then((r) => {
         setActiveToken(r.data)
+        setStoreToken(r.data)
         if (r.meta) setTokenMeta(r.meta)
       })
       .catch(() => undefined)
@@ -343,140 +300,215 @@ export default function DashboardScreen() {
 
   const { label: greetLabel, emoji: greetEmoji } = getGreeting()
   const firstName = user?.name?.split(' ')[0] ?? 'there'
-  const nextAppt = upcomingAppts[0] ?? null
+  const nextAppt  = upcomingAppts[0] ?? null
 
   return (
-    <div style={{ paddingBottom: 96, background: 'var(--bg-app)', minHeight: '100%' }}>
+    <div style={{ paddingBottom: 96, background: '#F5F8FC', minHeight: '100%', fontFamily: 'Roboto, system-ui, sans-serif' }}>
 
-      {/* ── Greeting header ── */}
-      <div className="noq-header greeting">
-        <WaveOverlay />
-        <div className="top-row">
-          <div className="h-brand">
-            <div className="h-logo">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E4FA3" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L3 7v6c0 5 3.8 8.5 9 10 5.2-1.5 9-5 9-10V7l-9-5z"/>
-                <path d="M9 12l2 2 4-4"/>
-              </svg>
+      {/* ── Single merged hero card: gradient header + white token section ─── */}
+      <motion.div
+        initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+        style={{ borderRadius: '0 0 28px 28px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(30,79,163,0.20)' }}
+      >
+        {/* Gradient section */}
+        <div style={{ background: BRAND_GRADIENT, padding: '14px 18px 22px', position: 'relative', overflow: 'hidden' }}>
+          {/* Decorative circles */}
+          <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: -50, left: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(31,163,168,0.25)', pointerEvents: 'none' }} />
+
+          {/* Top row: brand + action buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 2 }}>
+            {/* NoQ branding */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 12, background: '#FFFFFF',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+              }}>
+                <MdShield size={20} color="#1E4FA3" />
+              </div>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: '#FFFFFF', lineHeight: 1 }}>NoQ</div>
+                <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.72)', marginTop: 3 }}>skip the queue</div>
+              </div>
             </div>
-            <div>
-              <div className="h-wordmark-top">NoQ</div>
-              <div className="h-wordmark-sub">skip the queue</div>
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => navigate('/app/search')} style={{
+                width: 38, height: 38, borderRadius: 12,
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer',
+              }}>
+                <HiSearch size={18} color="#FFFFFF" />
+              </button>
+              <button style={{
+                width: 38, height: 38, borderRadius: 12,
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', position: 'relative',
+              }}>
+                <HiBell size={18} color="#FFFFFF" />
+                <span style={{
+                  position: 'absolute', top: 7, right: 7, width: 8, height: 8,
+                  borderRadius: '50%', background: '#FFD166', border: '2px solid #2558BC',
+                }} />
+              </button>
             </div>
           </div>
-          <div className="h-actions">
-            <button className="h-icon-btn" onClick={() => navigate('/app/search')} aria-label="Search" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
-              </svg>
-            </button>
-            <button className="h-icon-btn" aria-label="Notifications" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-              <BellIcon />
-            </button>
+
+          {/* Greeting */}
+          <div style={{ marginTop: 20, position: 'relative', zIndex: 2 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: 999, padding: '4px 10px',
+              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.85)',
+              letterSpacing: '0.02em', marginBottom: 10,
+            }}>
+              {greetLabel} {greetEmoji}
+            </div>
+            <div style={{ fontSize: 27, fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.01em', textShadow: '0 2px 10px rgba(0,0,0,0.1)', marginBottom: 4 }}>
+              {firstName}
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
+              How are you feeling today?
+            </div>
           </div>
         </div>
-        <div className="greet">
-          <div className="greet-label">{greetLabel} {greetEmoji}</div>
-          <div className="greet-name">{firstName}</div>
-          <div className="greet-sub">How are you feeling today?</div>
-        </div>
-      </div>
 
-      {/* ── Active token card ── */}
-      <div className="floating-wrap">
-        {loadingToken ? (
-          <div style={{ background: '#fff', borderRadius: 20, height: 148, boxShadow: '0 16px 40px -12px rgba(30,79,163,0.18)' }} />
-        ) : activeToken ? (
-          <ActiveTokenCard
-            token={activeToken}
-            aheadCount={tokenMeta?.aheadCount ?? 0}
-            currentlyServing={tokenMeta?.currentlyServing ?? null}
-          />
-        ) : (
-          <BookTokenBanner />
-        )}
-      </div>
-
-      {/* ── Search bar ── */}
-      <div style={{ padding: '16px 16px 0' }}>
-        <button
-          onClick={() => navigate('/app/search')}
-          style={{
+        {/* White section: search bar only */}
+        <div style={{ background: '#FFFFFF', padding: '18px 16px 20px' }}>
+          <button onClick={() => navigate('/app/search')} style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            background: '#fff', border: '1.5px solid var(--border-soft)',
-            borderRadius: 14, padding: '0 16px 0 44px', height: 48,
-            cursor: 'pointer', position: 'relative',
-            boxShadow: '0 2px 8px rgba(30,79,163,0.05)', textAlign: 'left',
-          }}
-          aria-label="Search"
-        >
-          <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }}>
-            <SearchIcon />
-          </span>
-          <span style={{ fontSize: 14, color: 'var(--ink-300)', fontFamily: 'inherit' }}>
-            Search doctors, clinics, specialties
-          </span>
-        </button>
-      </div>
+            background: '#F5F8FC', border: '1.5px solid #E3EAF2',
+            borderRadius: 14, padding: '0 16px', height: 46,
+            cursor: 'pointer', textAlign: 'left',
+          }}>
+            <HiSearch size={17} color="#A0AEC0" />
+            <span style={{ fontSize: 14, color: '#A0AEC0', fontFamily: 'inherit', fontWeight: 500 }}>
+              Search doctors, clinics, specialties…
+            </span>
+          </button>
+        </div>
+      </motion.div>
 
-      {/* ── Stats ── */}
+      {/* ── My Token ─────────────────────────────────────────────────────────── */}
+      <MyTokenSection
+        token={activeToken}
+        aheadCount={tokenMeta?.aheadCount ?? 0}
+        currentlyServing={tokenMeta?.currentlyServing ?? null}
+        loading={loadingToken}
+      />
+
+      {/* ── My Health stats ─────────────────────────────────────────────────── */}
       {!loadingAppts && (
-        <>
-          <div className="sec-head">
-            <div className="t">My Health</div>
-            <div className="a" onClick={() => navigate('/app/appointments')}>View all →</div>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', margin: '22px 0 12px' }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#1A1A1A' }}>My Health</span>
+            <span onClick={() => navigate('/app/appointments')} style={{ fontSize: 13, color: '#2C6ED5', fontWeight: 600, cursor: 'pointer' }}>View all →</span>
           </div>
-          <StatsRow upcomingCount={upcomingAppts.length} pastCount={pastCount} />
-        </>
+          <div style={{ display: 'flex', gap: 10, padding: '0 16px' }}>
+            {[
+              { label: 'Upcoming',  value: upcomingAppts.length, color: '#2C6ED5', bg: '#EBF2FF', border: '#BFDBFE', icon: <HiCalendar size={18} color="#2C6ED5" /> },
+              { label: 'Completed', value: pastCount,            color: '#059669', bg: '#ECFDF5', border: '#A7F3D0', icon: <MdLocalHospital size={18} color="#059669" /> },
+            ].map((s) => (
+              <div key={s.label} onClick={() => navigate('/app/appointments')} style={{
+                flex: 1, background: '#FFFFFF', borderRadius: 18,
+                padding: '14px 16px', cursor: 'pointer',
+                boxShadow: '0 2px 12px rgba(30,79,163,0.06)',
+                border: `1.5px solid ${s.border}`,
+                position: 'relative', overflow: 'hidden',
+              }}>
+                {/* Absolute color strip — no borderLeft bug */}
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: s.color }} />
+                <div style={{ paddingLeft: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {s.icon}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 12, color: '#6B7C93', marginTop: 4, fontWeight: 500 }}>{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
       )}
       {loadingAppts && (
         <div style={{ display: 'flex', gap: 10, padding: '22px 16px 0' }}>
-          <div style={{ flex: 1, height: 72, borderRadius: 16, background: '#fff', boxShadow: 'var(--sh-card)' }} />
-          <div style={{ flex: 1, height: 72, borderRadius: 16, background: '#fff', boxShadow: 'var(--sh-card)' }} />
+          <div style={{ flex: 1, height: 100, borderRadius: 18, background: '#FFFFFF', boxShadow: '0 2px 12px rgba(30,79,163,0.06)' }} />
+          <div style={{ flex: 1, height: 100, borderRadius: 18, background: '#FFFFFF', boxShadow: '0 2px 12px rgba(30,79,163,0.06)' }} />
         </div>
       )}
 
-      {/* ── Quick actions ── */}
-      <div className="sec-head">
-        <div className="t">Quick Actions</div>
-      </div>
-      <div className="quick-grid">
-        {QUICK_ACTIONS.map((a) => (
-          <div key={a.key} className="quick-tile" onClick={() => navigate(a.path)}>
-            <div className="q-ic">{a.icon}</div>
-            <div className="q-name">{a.name}</div>
-          </div>
-        ))}
-      </div>
+      {/* ── Quick Actions ────────────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <div style={{ padding: '0 16px', margin: '22px 0 12px' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#1A1A1A' }}>Quick Actions</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: '0 16px' }}>
+          {QUICK_ACTIONS.map((a) => (
+            <div key={a.key} onClick={() => navigate(a.path)} style={{
+              background: '#FFFFFF', borderRadius: 18, padding: '14px 6px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+              boxShadow: '0 2px 8px rgba(30,79,163,0.06)',
+              border: `1.5px solid ${a.border}`,
+              cursor: 'pointer',
+            }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 13, background: a.bg,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: a.color,
+              }}>
+                {a.icon}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center', color: '#3D4A5B', lineHeight: 1.3 }}>
+                {a.name}
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
 
-      {/* ── Upcoming appointment ── */}
-      <div className="sec-head">
-        <div className="t">Upcoming</div>
-        <div className="a" onClick={() => navigate('/app/appointments')}>View all →</div>
-      </div>
-      <div style={{ padding: '0 16px' }}>
-        {loadingAppts ? (
-          <div style={{ height: 80, borderRadius: 20, background: '#fff', boxShadow: 'var(--sh-card)' }} />
-        ) : nextAppt ? (
-          <UpcomingCard appt={nextAppt} />
-        ) : (
-          <NoUpcomingBanner />
-        )}
-      </div>
+      {/* ── Upcoming appointment ─────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', margin: '22px 0 12px' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#1A1A1A' }}>Upcoming</span>
+          <span onClick={() => navigate('/app/appointments')} style={{ fontSize: 13, color: '#2C6ED5', fontWeight: 600, cursor: 'pointer' }}>View all →</span>
+        </div>
+        <div style={{ padding: '0 16px' }}>
+          {loadingAppts ? (
+            <div style={{ height: 80, borderRadius: 20, background: '#FFFFFF', boxShadow: '0 2px 12px rgba(30,79,163,0.06)' }} />
+          ) : nextAppt ? (
+            <UpcomingCard appt={nextAppt} />
+          ) : (
+            <NoUpcomingBanner />
+          )}
+        </div>
+      </motion.div>
 
-      {/* ── Departments ── */}
-      <div className="sec-head">
-        <div className="t">Departments</div>
-        <div className="a" onClick={() => navigate('/app/search')}>See all →</div>
-      </div>
-      <div className="dept-grid">
-        {DEPTS.map((d) => (
-          <div key={d.n} className="dept-tile" onClick={() => navigate('/app/search')}>
-            <div className="d-ic">{d.icon}</div>
-            <div className="d-name">{d.n}</div>
+{/* ── Health tip banner ────────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+        <div style={{ margin: '22px 16px 0' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #ECFDF5 0%, #E6F7F7 100%)',
+            border: '1.5px solid #A7F3D0', borderRadius: 18,
+            padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <MdFavorite size={20} color="#059669" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#065F46', marginBottom: 2 }}>Health tip of the day</div>
+              <div style={{ fontSize: 11, color: '#047857', lineHeight: 1.4 }}>
+                Stay hydrated — drink at least 8 glasses of water daily for optimal health.
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      </motion.div>
 
     </div>
   )

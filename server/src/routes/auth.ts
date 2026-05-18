@@ -223,6 +223,69 @@ router.get(
           phone: user.phone,
           gender: user.gender,
           dob: user.dob,
+          bloodGroup: user.bloodGroup,
+          height: user.height,
+          weight: user.weight,
+          clinicId: user.clinicId,
+          createdAt: user.createdAt
+        }
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// PUT /api/auth/me — update own profile
+router.put(
+  '/me',
+  protect,
+  [
+    body('name').optional().notEmpty().withMessage('Name cannot be empty').trim(),
+    body('phone').optional().trim(),
+    body('gender').optional().isIn(['M', 'F', 'Other']).withMessage('Invalid gender'),
+    body('dob').optional().isISO8601().withMessage('Invalid date format'),
+    body('bloodGroup').optional().isIn(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']).withMessage('Invalid blood group'),
+    body('height').optional().isFloat({ min: 0 }).withMessage('Invalid height'),
+    body('weight').optional().isFloat({ min: 0 }).withMessage('Invalid weight'),
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+    try {
+      const { name, phone, gender, dob, bloodGroup, height, weight } = req.body
+      const update: Record<string, unknown> = {}
+      if (name       !== undefined) update.name       = name
+      if (phone      !== undefined) update.phone      = phone
+      if (gender     !== undefined) update.gender     = gender
+      if (dob        !== undefined) update.dob        = dob ? new Date(dob) : undefined
+      if (bloodGroup !== undefined) update.bloodGroup = bloodGroup
+      if (height     !== undefined) update.height     = height
+      if (weight     !== undefined) update.weight     = weight
+
+      const user = await User.findByIdAndUpdate(req.user!.id, update, { new: true, runValidators: true })
+      if (!user) {
+        res.status(404).json({ success: false, message: 'User not found' })
+        return
+      }
+      res.json({
+        success: true,
+        data: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          avatar: user.avatar,
+          phone: user.phone,
+          gender: user.gender,
+          dob: user.dob,
+          bloodGroup: user.bloodGroup,
+          height: user.height,
+          weight: user.weight,
           clinicId: user.clinicId,
           createdAt: user.createdAt
         }

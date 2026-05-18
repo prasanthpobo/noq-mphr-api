@@ -3,6 +3,7 @@ import { protect } from '../middleware/auth'
 import Token from '../models/Token'
 import Patient from '../models/Patient'
 import User from '../models/User'
+import Appointment from '../models/Appointment'
 
 const router = Router()
 
@@ -127,6 +128,107 @@ router.get('/:id', protect, async (req: Request, res: Response, next: NextFuncti
     }
 
     res.json({ success: true, data: token })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// POST /api/tokens/assign-today
+// Bulk-assign queue tokens to today's scheduled appointments in appointment-time order.
+// Only processes appointments belonging to the logged-in user's patient records.
+router.post('/assign-today', protect, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { clinicId, doctorId } = req.body as { clinicId?: string; doctorId?: string }
+
+    // Resolve the logged-in user's patient IDs (same as /mine)
+    const user = await User.findById(req.user!.id)
+    if (!user) { res.status(404).json({ success: false, message: 'User not found' }); return }
+
+    const patientQuery: Record<string, unknown>[] = []
+    if (user.phone) patientQuery.push({ phone: user.phone })
+    if (user.email) patientQuery.push({ email: user.email })
+    if (patientQuery.length === 0) { res.json({ success: true, created: 0, existing: 0, tokens: [] }); return }
+
+    const patients = await Patient.find({ $or: patientQuery }).select('_id')
+    const patientIds = patients.map((p) => p._id)
+    if (patientIds.length === 0) { res.json({ success: true, created: 0, existing: 0, tokens: [] }); return }
+
+    // Build today date range
+    const today = new Date()
+    const startOfDay = new Date(today); startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay   = new Date(today); endOfDay.setHours(23, 59, 59, 999)
+
+    const apptFilter: Record<string, unknown> = {
+      patientId: { $in: patientIds },
+      date: { $gte: startOfDay, $lte: endOfDay },
+      status: { $in: ['scheduled', 'in-progress'] },
+    }
+    if (clinicId) apptFilter.clinicId = clinicId
+    if (doctorId) apptFilter.doctorId = doctorId
+
+    const appointments = await Appointment.find(apptFilter)
+      .populate('patientId', 'name phone tag')
+      .populate('doctorId', 'name specialization')
+      .populate('clinicId', 'name')
+      .lean()
+
+    if (appointments.length === 0) {
+      res.json({ success: true, created: 0, existing: 0, tokens: [] })
+      return
+    }
+
+    // Sort by appointment time (parse "HH:MM AM/PM" to minutes since midnight)
+    const timeToMins = (t?: string) => {
+      if (!t) return 9999
+      const m = t.match(/^(\d{1,2}):(\d{2})\s+(AM|PM)$/i)
+      if (!m) return 9999
+      let h = parseInt(m[1]); const min = parseInt(m[2]); const p = m[3].toUpperCase()
+      if (p === 'PM' && h !== 12) h += 12
+      if (p === 'AM' && h === 12) h = 0
+      return h * 60 + min
+    }
+    appointments.sort((a, b) => timeToMins(a.time) - timeToMins(b.time))
+
+    // Find which appointments already have a token
+    const apptIds = appointments.map((a) => a._id)
+    const existingTokens = await Token.find({ appointmentId: { $in: apptIds } }).lean()
+    const existingApptIds = new Set(existingTokens.map((t) => t.appointmentId?.toString()))
+
+    const toCreate = appointments.filter((a) => !existingApptIds.has(String(a._id)))
+
+    // Create tokens sequentially (preserves time-order numbering)
+    let createdCount = 0
+    for (const appt of toCreate) {
+      const apptClinicId  = (appt.clinicId  as any)?._id ?? appt.clinicId
+      const apptDoctorId  = (appt.doctorId  as any)?._id ?? appt.doctorId
+      const apptPatientId = (appt.patientId as any)?._id ?? appt.patientId
+      const tokenNumber   = await Token.getNextTokenNumber(apptClinicId, today)
+      await Token.create({
+        patientId: apptPatientId,
+        doctorId:  apptDoctorId,
+        clinicId:  apptClinicId,
+        appointmentId: appt._id,
+        tokenNumber,
+        status:   'waiting',
+        priority: 'normal',
+        issuedAt: today,
+      })
+      createdCount++
+    }
+
+    // Return all tokens for today's appointments sorted by token number
+    const allTokens = await Token.find({ appointmentId: { $in: apptIds } })
+      .populate('patientId', 'name phone tag')
+      .populate('doctorId', 'name specialization')
+      .populate('clinicId', 'name')
+      .sort({ tokenNumber: 1 })
+
+    res.json({
+      success: true,
+      created:  createdCount,
+      existing: existingTokens.length,
+      tokens:   allTokens,
+    })
   } catch (err) {
     next(err)
   }

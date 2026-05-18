@@ -18,17 +18,50 @@ export interface AppointmentClinic {
   name: string
 }
 
+export interface PrescriptionItem {
+  medicine: string
+  dosage: string
+  duration: string
+  instructions: string
+}
+
+export interface Vitals {
+  bp?: string
+  pulse?: number
+  temp?: number
+  weight?: number
+  height?: number
+}
+
+export interface AppointmentDoctorFull extends AppointmentDoctor {
+  phone?: string
+  email?: string
+}
+
+export interface AppointmentClinicFull extends AppointmentClinic {
+  address?: string
+  phone?: string
+}
+
+export interface AppointmentPatientFull extends AppointmentPatient {
+  gender?: string
+  dob?: string
+  bloodGroup?: string
+}
+
 export interface Appointment {
   _id: string
-  patientId: AppointmentPatient | string
-  doctorId: AppointmentDoctor | string
-  clinicId: AppointmentClinic | string
+  patientId: AppointmentPatientFull | string
+  doctorId: AppointmentDoctorFull | string
+  clinicId: AppointmentClinicFull | string
   date: string
   time?: string
   type?: string
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
   symptoms?: string[]
   notes?: string
+  vitals?: Vitals
+  prescription?: PrescriptionItem[]
   followUpOf?: string
   followUpReason?: string
   createdAt: string

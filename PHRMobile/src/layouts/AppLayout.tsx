@@ -11,6 +11,7 @@ export default function AppLayout() {
         height: '100dvh',
         background: 'var(--bg-app)',
         overflow: 'hidden',
+        position: 'relative',
       }}
     >
       {/* Scrollable content area */}
@@ -27,6 +28,9 @@ export default function AppLayout() {
 
       {/* Bottom navigation — flex child, not fixed */}
       <BottomNav />
+
+      {/* Portal root — modals render here so they stay inside the shell */}
+      <div id="modal-portal" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 200 }} />
     </div>
   )
 }

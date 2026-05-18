@@ -58,9 +58,13 @@ function renderIcon(key: string, isCenter: boolean) {
   return null
 }
 
+const HIDE_NAV_PATHS = ['/app/booking', '/app/today-queue']
+
 export default function BottomNav() {
   const location = useLocation()
   const navigate = useNavigate()
+
+  if (HIDE_NAV_PATHS.some((p) => location.pathname.startsWith(p))) return null
 
   const getActive = (item: NavItem) => {
     if (item.key === 'home') return location.pathname === '/app/dashboard' || location.pathname === '/app'

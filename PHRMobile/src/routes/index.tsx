@@ -19,11 +19,22 @@ const ClinicDetailScreen   = lazy(() => import('../modules/clinics/ClinicDetailS
 const DoctorProfileScreen  = lazy(() => import('../modules/doctors/DoctorProfileScreen'))
 const BookingScreen        = lazy(() => import('../modules/booking/BookingScreen'))
 const QueueScreen          = lazy(() => import('../modules/queue/QueueScreen'))
-const AppointmentsScreen   = lazy(() => import('../modules/appointments/AppointmentsScreen'))
+const TodayQueueScreen     = lazy(() => import('../modules/queue/TodayQueueScreen'))
+const AppointmentsScreen        = lazy(() => import('../modules/appointments/AppointmentsScreen'))
+const AppointmentDetailScreen   = lazy(() => import('../modules/appointments/AppointmentDetailScreen'))
 const RecordsScreen        = lazy(() => import('../modules/records/RecordsScreen'))
 const ProfileScreen        = lazy(() => import('../modules/profile/ProfileScreen'))
-const FamilyScreen         = lazy(() => import('../modules/profile/FamilyScreen'))
-const SettingsScreen       = lazy(() => import('../modules/settings/SettingsScreen'))
+const FamilyScreen               = lazy(() => import('../modules/profile/FamilyScreen'))
+const FamilyMemberDetailScreen   = lazy(() => import('../modules/profile/FamilyMemberDetailScreen'))
+const PersonalInfoScreen   = lazy(() => import('../modules/profile/PersonalInfoScreen'))
+const MedicalHistoryScreen = lazy(() => import('../modules/profile/MedicalHistoryScreen'))
+const SettingsScreen          = lazy(() => import('../modules/settings/SettingsScreen'))
+const TermsOfServiceScreen    = lazy(() => import('../modules/settings/TermsOfServiceScreen'))
+const PrivacyPolicyScreen     = lazy(() => import('../modules/settings/PrivacyPolicyScreen'))
+const LicensesScreen          = lazy(() => import('../modules/settings/LicensesScreen'))
+const SupportScreen           = lazy(() => import('../modules/support/SupportScreen'))
+const NewTicketScreen      = lazy(() => import('../modules/support/NewTicketScreen'))
+const TicketDetailScreen   = lazy(() => import('../modules/support/TicketDetailScreen'))
 
 // ── Suspense wrapper ──────────────────────────────────────────────────────────
 function SuspenseScreen({ children }: { children: React.ReactNode }) {
@@ -88,11 +99,22 @@ export const router = createBrowserRouter([
       { path: 'book',        element: <SuspenseScreen><BookingScreen /></SuspenseScreen> },
       { path: 'booking',     element: <SuspenseScreen><BookingScreen /></SuspenseScreen> },
       { path: 'queue',       element: <SuspenseScreen><QueueScreen /></SuspenseScreen> },
-      { path: 'appointments',element: <SuspenseScreen><AppointmentsScreen /></SuspenseScreen> },
+      { path: 'today-queue', element: <SuspenseScreen><TodayQueueScreen /></SuspenseScreen> },
+      { path: 'appointments',       element: <SuspenseScreen><AppointmentsScreen /></SuspenseScreen> },
+      { path: 'appointments/:id',   element: <SuspenseScreen><AppointmentDetailScreen /></SuspenseScreen> },
       { path: 'records',     element: <SuspenseScreen><RecordsScreen /></SuspenseScreen> },
-      { path: 'profile',     element: <SuspenseScreen><ProfileScreen /></SuspenseScreen> },
-      { path: 'family',      element: <SuspenseScreen><FamilyScreen /></SuspenseScreen> },
-      { path: 'settings',    element: <SuspenseScreen><SettingsScreen /></SuspenseScreen> },
+      { path: 'profile',        element: <SuspenseScreen><ProfileScreen /></SuspenseScreen> },
+      { path: 'personal-info',  element: <SuspenseScreen><PersonalInfoScreen /></SuspenseScreen> },
+      { path: 'family',         element: <SuspenseScreen><FamilyScreen /></SuspenseScreen> },
+      { path: 'family/:id',    element: <SuspenseScreen><FamilyMemberDetailScreen /></SuspenseScreen> },
+      { path: 'medical-history',element: <SuspenseScreen><MedicalHistoryScreen /></SuspenseScreen> },
+      { path: 'settings',        element: <SuspenseScreen><SettingsScreen /></SuspenseScreen> },
+      { path: 'settings/terms',    element: <SuspenseScreen><TermsOfServiceScreen /></SuspenseScreen> },
+      { path: 'settings/privacy',  element: <SuspenseScreen><PrivacyPolicyScreen /></SuspenseScreen> },
+      { path: 'settings/licenses', element: <SuspenseScreen><LicensesScreen /></SuspenseScreen> },
+      { path: 'support',        element: <SuspenseScreen><SupportScreen /></SuspenseScreen> },
+      { path: 'support/new',    element: <SuspenseScreen><NewTicketScreen /></SuspenseScreen> },
+      { path: 'support/:id',    element: <SuspenseScreen><TicketDetailScreen /></SuspenseScreen> },
     ],
   },
 ])

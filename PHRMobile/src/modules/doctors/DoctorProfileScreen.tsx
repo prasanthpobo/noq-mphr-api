@@ -8,8 +8,6 @@ import {
   HiStar,
   HiUsers,
   HiBadgeCheck,
-  HiVideoCamera,
-  HiOfficeBuilding,
 } from 'react-icons/hi'
 
 const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
@@ -134,194 +132,91 @@ export default function DoctorProfileScreen() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
-  const [appointmentType, setAppointmentType] = useState<'inperson' | 'video'>('inperson')
 
   const doctor = (id && MOCK_DOCTORS[id]) ? MOCK_DOCTORS[id] : FALLBACK_DOCTOR
   const selectedDay = doctor.availability[selectedDayIndex]
 
   return (
-    <div
-      style={{
-        minHeight: '100dvh',
-        background: '#F5F8FC',
-        fontFamily: 'Roboto, system-ui, sans-serif',
-        overflowX: 'hidden',
-        paddingBottom: '120px',
-      }}
-    >
-      {/* ── Gradient Header ─────────────────────────────────────────────────── */}
-      <div
-        style={{
-          height: '208px',
-          background: BRAND_GRADIENT,
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Decorative circles */}
-        <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '140px', height: '140px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
-        <div style={{ position: 'absolute', bottom: '-30px', left: '20px', width: '100px', height: '100px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+    <div style={{ height: '100%', background: '#F5F8FC', fontFamily: 'Roboto, system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
 
-        {/* Action buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', position: 'relative', zIndex: 1 }}>
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              width: '36px', height: '36px', borderRadius: '50%',
-              background: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-            aria-label="Go back"
-          >
-            <HiArrowLeft size={20} color="#FFFFFF" />
+      {/* ── White nav bar ───────────────────────────────────────────────────── */}
+      <div style={{
+        background: '#FFFFFF', padding: '12px 16px 10px', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: '1px solid #F0F4F8',
+      }}>
+        <button onClick={() => navigate(-1)} style={{ width: 36, height: 36, borderRadius: 10, background: '#F5F8FC', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <HiArrowLeft size={18} color="#1A1A1A" />
+        </button>
+        <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1A1A' }}>Doctor Profile</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => {}} style={{ width: 36, height: 36, borderRadius: 10, background: '#F5F8FC', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <HiShare size={17} color="#6B7C93" />
           </button>
+          <button onClick={() => setIsFavorite((v) => !v)} style={{ width: 36, height: 36, borderRadius: 10, background: isFavorite ? '#FFF0F0' : '#F5F8FC', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <HiHeart size={17} color={isFavorite ? '#E05B5B' : '#6B7C93'} />
+          </button>
+        </div>
+      </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => {}}
-              style={{
-                width: '36px', height: '36px', borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-              aria-label="Share"
-            >
-              <HiShare size={18} color="#FFFFFF" />
-            </button>
-            <button
-              onClick={() => setIsFavorite((v) => !v)}
-              style={{
-                width: '36px', height: '36px', borderRadius: '50%',
-                background: isFavorite ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.2)',
-                border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'background 0.2s',
-              }}
-              aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
-            >
-              <HiHeart size={18} color={isFavorite ? '#EF4444' : '#FFFFFF'} />
-            </button>
+      {/* ── Merged hero card ────────────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}
+        style={{ borderRadius: '0 0 24px 24px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(30,79,163,0.13)', marginBottom: 16, flexShrink: 0 }}
+      >
+        {/* Gradient section */}
+        <div style={{ background: BRAND_GRADIENT, padding: '20px 18px 22px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.09)' }} />
+          <div style={{ position: 'absolute', bottom: -24, left: -24, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, position: 'relative', zIndex: 1 }}>
+            {/* Avatar */}
+            <div style={{
+              width: 68, height: 68, borderRadius: 22, flexShrink: 0,
+              background: 'rgba(255,255,255,0.22)', border: '2.5px solid rgba(255,255,255,0.45)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 22, fontWeight: 800, color: '#FFFFFF',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            }}>
+              {doctor.initials}
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#FFFFFF', marginBottom: 2, lineHeight: 1.2 }}>{doctor.name}</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 600, marginBottom: 10 }}>{doctor.specialty}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 20, padding: '3px 10px', background: 'rgba(255,255,255,0.18)', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <HiStar size={10} /> {doctor.rating} ({doctor.reviewCount})
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 20, padding: '3px 10px', background: 'rgba(255,255,255,0.18)', color: '#FFFFFF' }}>
+                  {doctor.hospital}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Doctor Avatar + Name ─────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-40px', position: 'relative', zIndex: 5, padding: '0 16px' }}>
-        <div
-          style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '50%',
-            background: BRAND_GRADIENT,
-            border: '4px solid #FFFFFF',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '26px',
-            fontWeight: 700,
-            color: '#FFFFFF',
-            boxShadow: '0 4px 20px rgba(30,79,163,0.25)',
-          }}
-        >
-          {doctor.initials}
-        </div>
-
-        <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#1A1A1A', margin: '12px 0 4px', textAlign: 'center' }}>
-          {doctor.name}
-        </h1>
-        <p style={{ fontSize: '15px', color: '#2C6ED5', fontWeight: 600, margin: '0 0 4px' }}>{doctor.specialty}</p>
-        <p style={{ fontSize: '13px', color: '#6B7C93', margin: '0 0 16px', textAlign: 'center' }}>{doctor.hospital}</p>
-
-        {/* Stats row */}
-        <div
-          style={{
-            display: 'flex',
-            background: '#FFFFFF',
-            borderRadius: '16px',
-            boxShadow: '0 4px 12px rgba(30,79,163,0.08)',
-            overflow: 'hidden',
-            width: '100%',
-            marginBottom: '16px',
-          }}
-        >
+        {/* White — stats row */}
+        <div style={{ background: '#FFFFFF', display: 'flex', overflow: 'hidden' }}>
           <StatBox icon={<HiUsers size={18} color="#2C6ED5" />} value={doctor.patients} label="Patients" />
           <StatBox icon={<HiBadgeCheck size={18} color="#1FA3A8" />} value={doctor.experience} label="Experience" borderX />
-          <StatBox
-            icon={<HiStar size={18} color="#F59E0B" />}
-            value={`${doctor.rating}`}
-            label={`${doctor.reviewCount} reviews`}
-          />
+          <StatBox icon={<HiStar size={18} color="#F59E0B" />} value={`${doctor.rating}`} label={`${doctor.reviewCount} reviews`} />
         </div>
-      </div>
+      </motion.div>
+
+      {/* ── Scrollable content ──────────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
 
       {/* ── About ───────────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.35 }}
-        style={{ padding: '0 16px 16px' }}
+        style={{ marginBottom: 16 }}
       >
         <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 12px rgba(30,79,163,0.08)' }}>
           <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1A1A1A', margin: '0 0 10px' }}>About</h3>
           <p style={{ fontSize: '14px', color: '#6B7C93', margin: 0, lineHeight: 1.7 }}>{doctor.bio}</p>
-        </div>
-      </motion.div>
-
-      {/* ── Appointment Type ─────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, duration: 0.35 }}
-        style={{ padding: '0 16px 16px' }}
-      >
-        <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 12px rgba(30,79,163,0.08)' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1A1A1A', margin: '0 0 12px' }}>Appointment Type</h3>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => setAppointmentType('inperson')}
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '12px',
-                borderRadius: '12px',
-                border: '1.5px solid',
-                borderColor: appointmentType === 'inperson' ? '#2C6ED5' : '#E3EAF2',
-                background: appointmentType === 'inperson' ? '#EBF2FF' : '#FFFFFF',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              <HiOfficeBuilding size={18} color={appointmentType === 'inperson' ? '#2C6ED5' : '#A0AEC0'} />
-              <span style={{ fontSize: '13px', fontWeight: 600, color: appointmentType === 'inperson' ? '#2C6ED5' : '#6B7C93' }}>
-                In-person
-              </span>
-            </button>
-            <button
-              onClick={() => setAppointmentType('video')}
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '12px',
-                borderRadius: '12px',
-                border: '1.5px solid',
-                borderColor: appointmentType === 'video' ? '#1FA3A8' : '#E3EAF2',
-                background: appointmentType === 'video' ? '#E6F6F6' : '#FFFFFF',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              <HiVideoCamera size={18} color={appointmentType === 'video' ? '#1FA3A8' : '#A0AEC0'} />
-              <span style={{ fontSize: '13px', fontWeight: 600, color: appointmentType === 'video' ? '#1FA3A8' : '#6B7C93' }}>
-                Video
-              </span>
-            </button>
-          </div>
         </div>
       </motion.div>
 
@@ -330,7 +225,7 @@ export default function DoctorProfileScreen() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35 }}
-        style={{ padding: '0 16px 16px' }}
+        style={{ marginBottom: 16 }}
       >
         <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 12px rgba(30,79,163,0.08)' }}>
           <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1A1A1A', margin: '0 0 14px' }}>Availability</h3>
@@ -420,7 +315,7 @@ export default function DoctorProfileScreen() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25, duration: 0.35 }}
-        style={{ padding: '0 16px 16px' }}
+        style={{ marginBottom: 16 }}
       >
         <div
           style={{
@@ -454,15 +349,16 @@ export default function DoctorProfileScreen() {
         </div>
       </motion.div>
 
-      {/* ── Fixed Book Button ────────────────────────────────────────────────── */}
+      </div>{/* end scrollable content */}
+
+      {/* ── Book Button ─────────────────────────────────────────────────────── */}
       <div
         style={{
-          position: 'fixed',
-          bottom: '80px',
-          left: 0,
-          right: 0,
-          padding: '0 16px',
-          zIndex: 40,
+          flexShrink: 0,
+          padding: '12px 16px 16px',
+          background: '#FFFFFF',
+          borderTop: '1px solid #F0F4F8',
+          boxShadow: '0 -4px 20px rgba(30,79,163,0.08)',
         }}
       >
         <button

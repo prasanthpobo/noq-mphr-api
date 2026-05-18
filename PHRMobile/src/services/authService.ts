@@ -13,6 +13,9 @@ export interface AuthUser {
   gender?: 'M' | 'F' | 'Other'
   dob?: string
   clinicId?: string
+  bloodGroup?: string
+  height?: number
+  weight?: number
 }
 
 export interface LoginResponse {
@@ -92,6 +95,21 @@ export async function patientRegister(payload: PatientRegisterPayload): Promise<
 /** GET /auth/me — fetch authenticated user profile */
 export async function getMe(): Promise<MeResponse> {
   return api.get<never, MeResponse>('/auth/me')
+}
+
+export interface UpdateProfilePayload {
+  name?: string
+  phone?: string
+  gender?: 'M' | 'F' | 'Other'
+  dob?: string
+  bloodGroup?: string
+  height?: number
+  weight?: number
+}
+
+/** PUT /auth/me — update own profile */
+export async function updateProfile(payload: UpdateProfilePayload): Promise<MeResponse> {
+  return api.put<never, MeResponse>('/auth/me', payload)
 }
 
 /**

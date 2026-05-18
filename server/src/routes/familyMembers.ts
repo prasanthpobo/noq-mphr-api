@@ -18,6 +18,24 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
   }
 })
 
+// GET /api/family-members/:id
+router.get('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      res.status(400).json({ success: false, message: 'Invalid ID' })
+      return
+    }
+    const member = await FamilyMember.findOne({ _id: req.params.id, userId: req.user!.id })
+    if (!member) {
+      res.status(404).json({ success: false, message: 'Family member not found' })
+      return
+    }
+    res.json({ success: true, data: member })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // POST /api/family-members
 router.post(
   '/',

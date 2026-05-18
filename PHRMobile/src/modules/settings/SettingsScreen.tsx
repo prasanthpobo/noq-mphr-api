@@ -316,15 +316,15 @@ export default function SettingsScreen() {
           <NavRow label="App Version" valueText="1.0.0" isLast={false} />
           <NavRow
             label="Terms of Service"
-            onTap={() => navigate('/terms')}
+            onTap={() => navigate('/app/settings/terms')}
           />
           <NavRow
             label="Privacy Policy"
-            onTap={() => navigate('/privacy')}
+            onTap={() => navigate('/app/settings/privacy')}
           />
           <NavRow
             label="Licenses"
-            onTap={() => navigate('/licenses')}
+            onTap={() => navigate('/app/settings/licenses')}
             isLast
           />
         </SectionCard>

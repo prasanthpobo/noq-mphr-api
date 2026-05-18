@@ -24,6 +24,7 @@ import reportsRouter from './routes/reports'
 import supportRouter from './routes/support'
 import masterdataRouter from './routes/masterdata'
 import familyMembersRouter from './routes/familyMembers'
+import medicalHistoryRouter from './routes/medicalHistory'
 
 // Connect to MongoDB
 connectDB()
@@ -77,6 +78,7 @@ app.use('/api/reports', reportsRouter)
 app.use('/api/support', supportRouter)
 app.use('/api/masterdata', masterdataRouter)
 app.use('/api/family-members', familyMembersRouter)
+app.use('/api/medical-history', medicalHistoryRouter)
 
 // 404 handler for unmatched routes
 app.use((_req, res) => {

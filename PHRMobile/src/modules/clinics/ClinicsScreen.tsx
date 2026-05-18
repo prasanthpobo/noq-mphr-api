@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { HiSearch, HiStar, HiLocationMarker, HiAdjustments } from 'react-icons/hi'
+import { HiSearch, HiLocationMarker, HiPhone, HiClock } from 'react-icons/hi'
+import { MdLocalHospital } from 'react-icons/md'
 import MobileHeader from '../../components/MobileHeader'
 import { getClinics } from '../../services/clinicService'
 import type { Clinic as ServerClinic } from '../../services/clinicService'
@@ -87,28 +88,7 @@ export default function ClinicsScreen() {
       }}
     >
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <MobileHeader
-        title="Clinics"
-        rightAction={
-          <button
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              background: '#F5F8FC',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#1E4FA3',
-            }}
-            aria-label="Filter clinics"
-          >
-            <HiAdjustments size={20} />
-          </button>
-        }
-      />
+      <MobileHeader title="Clinics" showBack />
 
       {/* ── Search Bar ──────────────────────────────────────────────────────── */}
       <div style={{ padding: '12px 16px 0' }}>
@@ -194,7 +174,22 @@ export default function ClinicsScreen() {
           </div>
         ) : isLoading ? (
           [0, 1, 2].map((i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 16, padding: 14, boxShadow: '0 4px 12px rgba(30,79,163,0.08)', height: 110, opacity: 0.5 + i * 0.15 }}/>
+            <div key={i} style={{ background: '#fff', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 12px rgba(30,79,163,0.08)', opacity: 0.5 + i * 0.15 }}>
+              <div style={{ height: 4, background: '#EEF2F7' }} />
+              <div style={{ padding: 14 }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: '#EEF2F7' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ height: 14, borderRadius: 6, background: '#EEF2F7', marginBottom: 8, width: '60%' }} />
+                    <div style={{ height: 10, borderRadius: 6, background: '#EEF2F7', width: '35%' }} />
+                  </div>
+                </div>
+                <div style={{ height: 1, background: '#F0F4F8', marginBottom: 10 }} />
+                <div style={{ height: 10, borderRadius: 6, background: '#EEF2F7', marginBottom: 7, width: '80%' }} />
+                <div style={{ height: 10, borderRadius: 6, background: '#EEF2F7', width: '55%' }} />
+              </div>
+              <div style={{ height: 44, background: '#F9FAFB', borderTop: '1px solid #F0F4F8' }} />
+            </div>
           ))
         ) : filteredClinics.length === 0 ? (
           <div style={{ textAlign: 'center', paddingTop: '48px' }}>
@@ -209,83 +204,120 @@ export default function ClinicsScreen() {
               transition={{ delay: index * 0.07, duration: 0.35 }}
               style={{
                 background: '#FFFFFF',
-                borderRadius: '16px',
-                padding: '14px',
-                boxShadow: '0 4px 12px rgba(30,79,163,0.08)',
+                borderRadius: '18px',
+                boxShadow: '0 2px 12px rgba(30,79,163,0.08)',
+                overflow: 'hidden',
+                position: 'relative',
               }}
             >
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '50px', height: '50px', borderRadius: '50%',
-                    background: BRAND_GRADIENT,
+              {/* Top accent bar */}
+              <div style={{
+                height: 4,
+                background: clinic.status === 'active' ? BRAND_GRADIENT : '#E5E7EB',
+              }} />
+
+              <div style={{ padding: '14px 14px 0' }}>
+                {/* Header row: avatar + name + status */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+                  {/* Avatar */}
+                  <div style={{
+                    width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+                    background: clinic.status === 'active' ? BRAND_GRADIENT : '#F1F5F9',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '16px', fontWeight: 700, color: '#FFFFFF',
-                    flexShrink: 0, letterSpacing: '0.5px',
-                  }}
-                >
-                  {clinic.initials}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                    <p style={{ fontSize: '15px', fontWeight: 700, color: '#1A1A1A', margin: '0 0 3px', lineHeight: 1.3 }}>
-                      {clinic.name}
-                    </p>
-                    <span
-                      style={{
-                        display: 'inline-block', fontSize: '10px', fontWeight: 600,
-                        padding: '2px 8px', borderRadius: '10px',
-                        background: clinic.status === 'active' ? '#ECFDF5' : '#FEF2F2',
-                        color: clinic.status === 'active' ? '#16A34A' : '#DC2626',
-                        flexShrink: 0, whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {clinic.status === 'active' ? 'Active' : 'Inactive'}
-                    </span>
+                    boxShadow: clinic.status === 'active' ? '0 4px 12px rgba(44,110,213,0.25)' : 'none',
+                  }}>
+                    {clinic.status === 'active'
+                      ? <span style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', letterSpacing: 0.5 }}>{clinic.initials}</span>
+                      : <MdLocalHospital size={22} color="#9CA3AF" />
+                    }
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
-                    <HiLocationMarker size={11} color="#A0AEC0" />
-                    <span style={{ fontSize: '12px', color: '#6B7C93', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {clinic.address}, {clinic.city}
-                    </span>
-                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A', margin: '0 0 4px', lineHeight: 1.3, flex: 1, minWidth: 0 }}>
+                        {clinic.name}
+                      </p>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                        fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                        background: clinic.status === 'active' ? '#ECFDF5' : '#F9FAFB',
+                        color: clinic.status === 'active' ? '#16A34A' : '#6B7280',
+                        border: `1px solid ${clinic.status === 'active' ? '#BBF7D0' : '#E5E7EB'}`,
+                      }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: clinic.status === 'active' ? '#16A34A' : '#9CA3AF' }} />
+                        {clinic.status === 'active' ? 'Open' : 'Closed'}
+                      </span>
+                    </div>
 
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '11px', color: '#2C6ED5', background: '#EBF2FF', borderRadius: '6px', padding: '3px 8px', fontWeight: 500 }}>
+                    {/* Type chip */}
+                    <span style={{
+                      display: 'inline-block', fontSize: 11, fontWeight: 600,
+                      background: '#EBF2FF', color: '#2C6ED5',
+                      borderRadius: 6, padding: '2px 8px',
+                    }}>
                       {clinic.type}
                     </span>
-                    {clinic.openTime && clinic.closeTime && (
-                      <span style={{ fontSize: '11px', color: '#6B7C93', background: '#F5F8FC', borderRadius: '6px', padding: '3px 8px' }}>
-                        {clinic.openTime} – {clinic.closeTime}
-                      </span>
-                    )}
-                    {clinic.phone && (
-                      <span style={{ fontSize: '11px', color: '#6B7C93', background: '#F5F8FC', borderRadius: '6px', padding: '3px 8px' }}>
-                        {clinic.phone}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <HiStar size={13} color="#F59E0B" />
-                      <span style={{ fontSize: '12px', color: '#6B7C93' }}>{clinic.state}</span>
-                    </div>
-                    <button
-                      onClick={() => navigate(`/app/clinic/${clinic.id}`)}
-                      style={{
-                        background: '#2C6ED5', color: '#FFFFFF', border: 'none',
-                        borderRadius: '20px', padding: '7px 16px',
-                        fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-                      }}
-                    >
-                      View
-                    </button>
                   </div>
                 </div>
+
+                {/* Divider */}
+                <div style={{ height: 1, background: '#F0F4F8', marginBottom: 10 }} />
+
+                {/* Info rows */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 7, background: '#F5F8FC', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <HiLocationMarker size={12} color="#2C6ED5" />
+                    </div>
+                    <span style={{ fontSize: 12, color: '#6B7C93', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {clinic.address}, {clinic.city}, {clinic.state}
+                    </span>
+                  </div>
+
+                  {clinic.openTime && clinic.closeTime && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 7, background: '#F5F8FC', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <HiClock size={12} color="#D97706" />
+                      </div>
+                      <span style={{ fontSize: 12, color: '#6B7C93' }}>
+                        {clinic.openTime} – {clinic.closeTime}
+                      </span>
+                    </div>
+                  )}
+
+                  {clinic.phone && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 7, background: '#F5F8FC', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <HiPhone size={11} color="#059669" />
+                      </div>
+                      <span style={{ fontSize: 12, color: '#6B7C93' }}>{clinic.phone}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Footer action */}
+              <button
+                onClick={() => navigate(`/app/clinic/${clinic.id}`)}
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  background: clinic.status === 'active' ? '#F0F6FF' : '#F9FAFB',
+                  border: 'none', borderTop: '1px solid #F0F4F8',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 700, color: clinic.status === 'active' ? '#2C6ED5' : '#9CA3AF' }}>
+                  View Clinic
+                </span>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 8,
+                  background: clinic.status === 'active' ? '#2C6ED5' : '#E5E7EB',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: 14, color: clinic.status === 'active' ? '#FFFFFF' : '#9CA3AF', fontWeight: 700, lineHeight: 1 }}>›</span>
+                </div>
+              </button>
             </motion.div>
           ))
         )}
