@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import User from '../models/User'
 import { generateToken } from '../utils/generateToken'
 import { protect } from '../middleware/auth'
+import { normalizePhone, sendWactoOtp, sendWelcomeMessage } from '../utils/wacto'
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 function generateOtp(): string {
@@ -242,6 +243,7 @@ router.put(
   protect,
   [
     body('name').optional().notEmpty().withMessage('Name cannot be empty').trim(),
+    body('email').optional().isEmail().withMessage('Please provide a valid email address').normalizeEmail(),
     body('phone').optional().trim(),
     body('gender').optional().isIn(['M', 'F', 'Other']).withMessage('Invalid gender'),
     body('dob').optional().isISO8601().withMessage('Invalid date format'),
@@ -256,7 +258,7 @@ router.put(
       return
     }
     try {
-      const { name, phone, gender, dob, bloodGroup, height, weight } = req.body
+      const { name, email, phone, gender, dob, bloodGroup, height, weight } = req.body
       const update: Record<string, unknown> = {}
       if (name       !== undefined) update.name       = name
       if (phone      !== undefined) update.phone      = phone
@@ -265,6 +267,15 @@ router.put(
       if (bloodGroup !== undefined) update.bloodGroup = bloodGroup
       if (height     !== undefined) update.height     = height
       if (weight     !== undefined) update.weight     = weight
+      if (email !== undefined) {
+        // Check uniqueness — reject if another user already owns this email
+        const conflict = await User.findOne({ email, _id: { $ne: req.user!.id } })
+        if (conflict) {
+          res.status(400).json({ success: false, message: 'This email is already in use by another account' })
+          return
+        }
+        update.email = email
+      }
 
       const user = await User.findByIdAndUpdate(req.user!.id, update, { new: true, runValidators: true })
       if (!user) {
@@ -386,17 +397,22 @@ router.post(
       user.resetTokenExpiry = undefined
       await user.save()
 
-      // ── In production: send via Nodemailer / SMS gateway ──────────────────
-      console.log(`\n📧 [OTP] To: ${identifier}  Code: ${otp}  Expires: ${otpExpiry.toISOString()}\n`)
+      // Send OTP via WhatsApp if user has a phone, otherwise fall back to console log
+      if (user.phone) {
+        const phone = normalizePhone(user.phone)
+        await sendWactoOtp(phone, otp)
+        console.log(`\n📱 [Reset OTP] +${phone}  Code: ${otp}\n`)
+      } else {
+        console.log(`\n📧 [Reset OTP] To: ${identifier}  Code: ${otp}  Expires: ${otpExpiry.toISOString()}\n`)
+      }
 
       res.status(200).json({
         success: true,
         message: 'OTP sent successfully',
-        // Only expose maskedContact in dev — never in production
         ...(process.env.NODE_ENV !== 'production' && { _dev_otp: otp }),
-        maskedContact: user.email
-          ? user.email.replace(/(.{2}).+(@.+)/, '$1***$2')
-          : user.phone!.replace(/(\d{2})\d+(\d{3})/, '$1****$2'),
+        maskedContact: user.phone
+          ? user.phone.replace(/(\d{2})\d+(\d{2})$/, '$1******$2')
+          : user.email!.replace(/(.{2}).+(@.+)/, '$1***$2'),
       })
     } catch (error) {
       next(error)
@@ -504,6 +520,266 @@ router.post(
       await user.save()
 
       res.status(200).json({ success: true, message: 'Password reset successfully. You can now log in.' })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// ── Registration OTP store (server-side, for users who don't exist yet) ──────
+interface RegOtpEntry { otp: string; expiry: number }
+const registerOtpStore = new Map<string, RegOtpEntry>()
+const REGISTER_OTP_TTL = 5 * 60 * 1000  // 5 minutes
+
+// POST /api/auth/send-register-otp
+// Sends an OTP to a phone number that is NOT yet registered.
+router.post(
+  '/send-register-otp',
+  [body('phone').notEmpty().withMessage('Phone number is required').trim()],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+    try {
+      const raw   = (req.body as { phone: string }).phone
+      const phone = normalizePhone(raw)
+
+      const existing = await User.findOne({ phone: { $in: [phone, raw] } })
+      if (existing) {
+        res.status(400).json({ success: false, message: 'This mobile number is already registered. Please log in.' })
+        return
+      }
+
+      const otp = generateOtp()
+      registerOtpStore.set(phone, { otp, expiry: Date.now() + REGISTER_OTP_TTL })
+
+      await sendWactoOtp(phone, otp)
+
+      console.log(`\n📱 [Register OTP] +${phone}  Code: ${otp}\n`)
+
+      res.status(200).json({
+        success: true,
+        message: `OTP sent to WhatsApp +${phone}`,
+        ...(process.env.NODE_ENV !== 'production' && { _dev_otp: otp }),
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// POST /api/auth/otp-register
+// Verifies register OTP and creates a new patient account.
+router.post(
+  '/otp-register',
+  [
+    body('name').notEmpty().withMessage('Full name is required').trim(),
+    body('email').isEmail().withMessage('Enter a valid email address').normalizeEmail(),
+    body('phone').notEmpty().withMessage('Phone number is required').trim(),
+    body('gender').isIn(['M', 'F', 'Other']).withMessage('Gender is required'),
+    body('dob').notEmpty().withMessage('Date of birth is required').isISO8601().withMessage('Invalid date'),
+    body('otp').isLength({ min: 6, max: 6 }).isNumeric().withMessage('OTP must be 6 digits'),
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+    try {
+      const { name, email, phone: rawPhone, gender, dob, otp } = req.body as {
+        name: string; email: string; phone: string; gender: string; dob: string; otp: string
+      }
+      const phone  = normalizePhone(rawPhone)
+      const entry  = registerOtpStore.get(phone)
+
+      if (!entry) {
+        res.status(400).json({ success: false, message: 'No OTP found. Please request a new one.' })
+        return
+      }
+      if (Date.now() > entry.expiry) {
+        registerOtpStore.delete(phone)
+        res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' })
+        return
+      }
+      if (entry.otp !== otp.trim()) {
+        res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' })
+        return
+      }
+
+      registerOtpStore.delete(phone)
+
+      // Double-check phone & email not already taken (race condition guard)
+      const existing = await User.findOne({ $or: [{ phone: { $in: [phone, rawPhone] } }, { email }] })
+      if (existing) {
+        const conflict = existing.phone === phone || existing.phone === rawPhone
+          ? 'This mobile number is already registered. Please log in.'
+          : 'This email address is already registered. Please log in.'
+        res.status(400).json({ success: false, message: conflict })
+        return
+      }
+
+      // Age validation (≥ 18)
+      const dobDate = new Date(dob)
+      const age18   = new Date()
+      age18.setFullYear(age18.getFullYear() - 18)
+      if (dobDate > age18) {
+        res.status(400).json({ success: false, message: 'You must be at least 18 years old to register.' })
+        return
+      }
+
+      // Create patient — random password (never exposed; OTP login only)
+      const { randomBytes } = await import('crypto')
+      const user = await User.create({
+        name: name.trim(),
+        email,
+        phone,
+        gender,
+        dob: dobDate,
+        role: 'patient',
+        status: 'active',
+        password: randomBytes(24).toString('hex'),
+      })
+
+      const token = generateToken(user._id.toString(), user.role)
+
+      // Send welcome message fire-and-forget — never block or fail the response
+      sendWelcomeMessage(phone, user.name).catch((e) =>
+        console.error('[Welcome msg error]', e?.message)
+      )
+
+      res.status(201).json({
+        success: true,
+        token,
+        user: {
+          id:     user._id,
+          name:   user.name,
+          email:  user.email,
+          role:   user.role,
+          status: user.status,
+          phone:  user.phone,
+          gender: user.gender,
+          dob:    user.dob,
+          avatar: user.avatar,
+        },
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+const LOGIN_OTP_TTL = 5 * 60 * 1000  // 5 minutes
+
+// POST /api/auth/send-otp
+// Generates a login OTP, stores it in the DB, and sends it via WhatsApp (Wacto).
+router.post(
+  '/send-otp',
+  [body('phone').notEmpty().withMessage('Phone number is required').trim()],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+
+    try {
+      const raw = (req.body as { phone: string }).phone
+      const phone = normalizePhone(raw)
+
+      const user = await User.findOne({ phone: { $in: [phone, raw] } })
+      if (!user) {
+        // Generic response to avoid enumeration — still send a 200
+        res.status(200).json({ success: true, message: 'If that number is registered, an OTP has been sent.' })
+        return
+      }
+
+      const otp    = generateOtp()
+      const expiry = new Date(Date.now() + LOGIN_OTP_TTL)
+
+      await User.findByIdAndUpdate(user._id, { loginOtp: otp, loginOtpExpiry: expiry })
+
+      await sendWactoOtp(phone, otp)
+
+      console.log(`\n📱 [Login OTP] +${phone}  Code: ${otp}\n`)
+
+      res.status(200).json({
+        success: true,
+        message: `OTP sent to WhatsApp +${phone}`,
+        ...(process.env.NODE_ENV !== 'production' && { _dev_otp: otp }),
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// POST /api/auth/phone-login
+// Verifies the WhatsApp OTP and returns a JWT on success.
+router.post(
+  '/phone-login',
+  [
+    body('phone').notEmpty().withMessage('Phone number is required').trim(),
+    body('otp').isLength({ min: 6, max: 6 }).isNumeric().withMessage('OTP must be 6 digits'),
+  ],
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, message: errors.array()[0].msg })
+      return
+    }
+
+    try {
+      const { phone: rawPhone, otp } = req.body as { phone: string; otp: string }
+      const phone = normalizePhone(rawPhone)
+
+      const user = await User.findOne({ phone: { $in: [phone, rawPhone] } })
+        .select('+loginOtp +loginOtpExpiry')
+
+      if (!user || !user.loginOtp || !user.loginOtpExpiry) {
+        res.status(400).json({ success: false, message: 'No OTP found for this number. Please request a new one.' })
+        return
+      }
+
+      if (new Date() > user.loginOtpExpiry) {
+        await User.findByIdAndUpdate(user._id, { $unset: { loginOtp: 1, loginOtpExpiry: 1 } })
+        res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' })
+        return
+      }
+
+      if (user.loginOtp !== otp.trim()) {
+        res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' })
+        return
+      }
+
+      // Consume the OTP
+      await User.findByIdAndUpdate(user._id, { $unset: { loginOtp: 1, loginOtpExpiry: 1 } })
+
+      if (user.status === 'inactive' || user.status === 'pending') {
+        res.status(403).json({ success: false, message: 'Your account is not active. Please contact the administrator.' })
+        return
+      }
+
+      const token = generateToken(user._id.toString(), user.role)
+
+      res.status(200).json({
+        success: true,
+        token,
+        user: {
+          id:       user._id,
+          name:     user.name,
+          email:    user.email,
+          role:     user.role,
+          status:   user.status,
+          avatar:   user.avatar,
+          phone:    user.phone,
+          gender:   user.gender,
+          dob:      user.dob,
+          clinicId: user.clinicId,
+        },
+      })
     } catch (error) {
       next(error)
     }

@@ -82,6 +82,57 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return api.post<never, LoginResponse>('/auth/login', { email, password })
 }
 
+/**
+ * Send login OTP via WhatsApp.
+ * The backend generates the OTP, stores it in the DB, and calls Wacto server-side.
+ */
+export async function sendLoginOtp(
+  phone: string
+): Promise<{ success: boolean; message: string; _dev_otp?: string }> {
+  return api.post<never, { success: boolean; message: string; _dev_otp?: string }>(
+    '/auth/send-otp',
+    { phone }
+  )
+}
+
+/**
+ * Verify the WhatsApp OTP and receive a JWT + user on success.
+ * The backend verifies the OTP against the DB and returns the token.
+ */
+export async function verifyLoginOtp(phone: string, otp: string): Promise<LoginResponse> {
+  return api.post<never, LoginResponse>('/auth/phone-login', { phone, otp })
+}
+
+export interface OtpRegisterPayload {
+  name: string
+  email: string
+  phone: string
+  gender: 'M' | 'F' | 'Other'
+  dob: string
+  otp: string
+}
+
+/**
+ * Send registration OTP to a phone number that is not yet in the system.
+ * Backend generates the OTP, stores it, and delivers it via WhatsApp (Wacto).
+ */
+export async function sendRegisterOtp(
+  phone: string
+): Promise<{ success: boolean; message: string; _dev_otp?: string }> {
+  return api.post<never, { success: boolean; message: string; _dev_otp?: string }>(
+    '/auth/send-register-otp',
+    { phone }
+  )
+}
+
+/**
+ * Verify the registration OTP and create the patient account.
+ * Returns a JWT + user on success, exactly like a normal login.
+ */
+export async function otpRegister(payload: OtpRegisterPayload): Promise<RegisterResponse> {
+  return api.post<never, RegisterResponse>('/auth/otp-register', payload)
+}
+
 /** POST /auth/register — create new staff user */
 export async function register(payload: RegisterPayload): Promise<RegisterResponse> {
   return api.post<never, RegisterResponse>('/auth/register', payload)
@@ -99,6 +150,7 @@ export async function getMe(): Promise<MeResponse> {
 
 export interface UpdateProfilePayload {
   name?: string
+  email?: string
   phone?: string
   gender?: 'M' | 'F' | 'Other'
   dob?: string

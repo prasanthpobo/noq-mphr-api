@@ -12,6 +12,7 @@ import { getAppointmentById } from '../../services/bookingService'
 import type { Appointment, PrescriptionItem, Vitals } from '../../services/bookingService'
 import { getTokens, createToken } from '../../services/queueService'
 import type { QueueToken } from '../../services/queueService'
+import { formatDoctorName } from '../../services/doctorService'
 
 const BRAND_GRADIENT  = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
 const AVATAR_COLORS   = ['#2C6ED5', '#E05B5B', '#9B59B6', '#1FA3A8', '#E07A5B', '#16A34A', '#D97706']
@@ -239,10 +240,11 @@ function PaymentCard({ consultationFee, paymentMethod, paymentStatus }: {
 
 // ── Token Section ─────────────────────────────────────────────────────────────
 
-function TokenSection({ token, loading, booking, onGetToken }: {
+function TokenSection({ token, loading, booking, canGetToken, onGetToken }: {
   token: QueueToken | null
   loading: boolean
   booking: boolean
+  canGetToken: boolean
   onGetToken: () => void
 }) {
   const tsc = token ? (TOKEN_STATUS_CFG[token.status] ?? TOKEN_STATUS_CFG['waiting']) : null
@@ -329,8 +331,8 @@ function TokenSection({ token, loading, booking, onGetToken }: {
             </div>
           )}
         </div>
-      ) : (
-        /* No token placeholder + Get Token button */
+      ) : canGetToken ? (
+        /* No token yet — eligible to get one */
         <div style={{ padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div style={{
             width: 64, height: 64, borderRadius: 18, background: '#F3EEFF',
@@ -361,7 +363,7 @@ function TokenSection({ token, loading, booking, onGetToken }: {
             {booking ? 'Booking Token…' : 'Get Queue Token'}
           </button>
         </div>
-      )}
+      ) : null}
     </SectionCard>
   )
 }
@@ -452,7 +454,7 @@ export default function AppointmentDetailScreen() {
   const clinic    = typeof appt.clinicId  === 'object' ? appt.clinicId  : null
   const patient   = typeof appt.patientId === 'object' ? appt.patientId : null
 
-  const docName    = doc ? `Dr. ${doc.name}` : 'Doctor'
+  const docName    = doc ? formatDoctorName(doc.name) : 'Doctor'
   const initials   = doc ? getInitials(doc.name) : 'DR'
   const avatarColor = doc?._id ? getAvatarColor(doc._id) : '#2C6ED5'
   const sc         = STATUS_CFG[appt.status] ?? STATUS_CFG.scheduled
@@ -461,6 +463,8 @@ export default function AppointmentDetailScreen() {
   const hasRx      = appt.prescription && appt.prescription.length > 0
   const hasSymptoms = appt.symptoms && appt.symptoms.length > 0
   const typeLabel  = appt.type ? appt.type.charAt(0).toUpperCase() + appt.type.slice(1).replace('-', ' ') : 'Consultation'
+  const isToday    = dayjs(appt.date).isSame(dayjs(), 'day')
+  const isTokenEligible = isToday && appt.status === 'scheduled'
 
   return (
     <div style={{ minHeight: '100dvh', background: '#F5F8FC', fontFamily: 'Roboto, system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
@@ -565,20 +569,24 @@ export default function AppointmentDetailScreen() {
 
         {/* ── Payment ────────────────────────────────────────────────────── */}
         <PaymentCard
-          consultationFee={doc?.consultationFee ?? (appt as unknown as { consultationFee?: number }).consultationFee ?? 0}
+          consultationFee={doc?.consultationFee ?? 0}
           paymentMethod={(appt as unknown as { paymentMethod?: string }).paymentMethod}
           paymentStatus={(appt as unknown as { paymentStatus?: string }).paymentStatus}
         />
 
-        {/* ── Queue Token ────────────────────────────────────────────────── */}
-        <TokenSection token={token} loading={tokenLoading} booking={bookingToken} onGetToken={handleGetToken} />
-        {tokenError && (
-          <div style={{
-            background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12,
-            padding: '11px 14px', marginBottom: 14, fontSize: 13, fontWeight: 600, color: '#B91C1C',
-          }}>
-            ⚠️ {tokenError}
-          </div>
+        {/* ── Queue Token — only shown when today + scheduled, or a token already exists ── */}
+        {(isTokenEligible || token) && (
+          <>
+            <TokenSection token={token} loading={tokenLoading} booking={bookingToken} canGetToken={isTokenEligible} onGetToken={handleGetToken} />
+            {tokenError && (
+              <div style={{
+                background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12,
+                padding: '11px 14px', marginBottom: 14, fontSize: 13, fontWeight: 600, color: '#B91C1C',
+              }}>
+                ⚠️ {tokenError}
+              </div>
+            )}
+          </>
         )}
 
         {/* ── Doctor contact (if available) ──────────────────────────────── */}

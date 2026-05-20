@@ -17,7 +17,8 @@ import {
 } from 'react-icons/hi'
 import { MdEventNote, MdEdit } from 'react-icons/md'
 import { getMyAppointments, updateAppointment, getSlots } from '../../services/bookingService'
-import type { Appointment as ServerAppointment } from '../../services/bookingService'
+import type { Appointment as ServerAppointment, AppointmentToken } from '../../services/bookingService'
+import { formatDoctorName } from '../../services/doctorService'
 import ModalSheet from '../../components/ModalSheet'
 
 const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
@@ -41,6 +42,7 @@ interface DisplayAppointment {
   status: DisplayStatus
   rawStatus: string
   consultationFee?: number
+  token?: AppointmentToken | null
 }
 
 function toDisplay(a: ServerAppointment, idx: number): DisplayAppointment {
@@ -63,7 +65,7 @@ function toDisplay(a: ServerAppointment, idx: number): DisplayAppointment {
   return {
     id:             a._id,
     doctorId:       doc?._id ?? (typeof a.doctorId === 'string' ? a.doctorId : ''),
-    doctorName:     `Dr. ${doctorName}`,
+    doctorName:     formatDoctorName(doctorName),
     doctorInitials: initials || 'DR',
     doctorColor:    AVATAR_COLORS[idx % AVATAR_COLORS.length],
     specialty:      doc?.specialization ?? '',
@@ -74,6 +76,7 @@ function toDisplay(a: ServerAppointment, idx: number): DisplayAppointment {
     status:         statusMap[a.status] ?? 'Scheduled',
     rawStatus:      a.status,
     consultationFee: (doc as Record<string, unknown>)?.consultationFee as number | undefined,
+    token:          a.token ?? null,
   }
 }
 
@@ -85,6 +88,16 @@ function formatDateLabel(dateStr: string): string {
   if (dateStr === today)    return 'Today'
   if (dateStr === tomorrow) return 'Tomorrow'
   return dayjs(dateStr).format('D MMM YYYY')
+}
+
+const TOKEN_STATUS_CFG: Record<string, { label: string; bg: string; text: string; border: string; dot: string }> = {
+  'waiting':         { label: 'Waiting',      bg: '#FFFBEB', text: '#B45309', border: '#FDE68A', dot: '#F59E0B' },
+  'priority':        { label: 'Priority',     bg: '#FFF7ED', text: '#C2410C', border: '#FED7AA', dot: '#F97316' },
+  'in-room':         { label: 'In Room',      bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE', dot: '#3B82F6' },
+  'in-consultation': { label: 'Consulting',   bg: '#F0FDF4', text: '#15803D', border: '#BBF7D0', dot: '#22C55E' },
+  'completed':       { label: 'Done',         bg: '#F9FAFB', text: '#374151', border: '#E5E7EB', dot: '#9CA3AF' },
+  'cancelled':       { label: 'Cancelled',    bg: '#FEF2F2', text: '#DC2626', border: '#FECACA', dot: '#EF4444' },
+  'not-visited':     { label: 'Not Visited',  bg: '#F5F3FF', text: '#6D28D9', border: '#DDD6FE', dot: '#8B5CF6' },
 }
 
 const STATUS_CFG: Record<DisplayStatus, { dot: string; bg: string; text: string; border: string }> = {
@@ -330,15 +343,31 @@ function AppointmentCard({
 
       <div style={{ padding: '14px 14px 10px 18px' }}>
 
-        {/* Top row: date pill + status badge */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{
-            background: isToday ? BRAND_GRADIENT : isTomorrow ? '#EEF5FF' : type === 'past' ? '#F1F5F9' : '#EEF5FF',
-            color: isToday ? '#FFFFFF' : isTomorrow ? '#2C6ED5' : type === 'past' ? '#64748B' : '#2C6ED5',
-            fontSize: 12, fontWeight: 700, padding: '4px 11px', borderRadius: 20,
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}>
-            <HiCalendar size={12} /> {dateLabel}
+        {/* Top row: date pill + time pill + status badge */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Date pill */}
+            <div style={{
+              background: isToday ? BRAND_GRADIENT : isTomorrow ? '#EEF5FF' : type === 'past' ? '#F1F5F9' : '#EEF5FF',
+              color: isToday ? '#FFFFFF' : isTomorrow ? '#2C6ED5' : type === 'past' ? '#64748B' : '#2C6ED5',
+              fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              <HiCalendar size={12} />
+              <span>{dateLabel}</span>
+            </div>
+            {/* Time pill */}
+            {appt.time && (
+              <div style={{
+                background: '#F5F8FC', border: '1px solid #E3EAF2',
+                color: '#4A5568',
+                fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 20,
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                <HiClock size={11} color="#2C6ED5" />
+                <span>{appt.time}</span>
+              </div>
+            )}
           </div>
           <span style={{
             fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 10px',
@@ -367,27 +396,13 @@ function AppointmentCard({
               <div style={{ fontSize: 12, color: '#2C6ED5', fontWeight: 600, marginTop: 2 }}>{appt.specialty}</div>
             )}
           </div>
-          {appt.consultationFee !== undefined && (
-            <div style={{
-              background: '#F0FDF4', borderRadius: 10, padding: '4px 10px',
-              fontSize: 14, fontWeight: 800, color: '#15803D', flexShrink: 0,
-            }}>
-              RM {appt.consultationFee}
-            </div>
-          )}
         </div>
 
         {/* Meta chips */}
         <div style={{
           display: 'flex', flexWrap: 'wrap', gap: 8,
-          padding: '10px 12px', background: '#F5F8FC', borderRadius: 12, marginBottom: 12,
+          padding: '10px 12px', background: '#F5F8FC', borderRadius: 12, marginBottom: 10,
         }}>
-          {appt.time && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4A5568' }}>
-              <HiClock size={13} color="#2C6ED5" />
-              <span style={{ fontWeight: 600 }}>{appt.time}</span>
-            </div>
-          )}
           {appt.clinic && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4A5568' }}>
               <HiLocationMarker size={13} color="#E05B5B" />
@@ -401,6 +416,37 @@ function AppointmentCard({
             </div>
           )}
         </div>
+
+        {/* Token badge row */}
+        {appt.token && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: BRAND_GRADIENT,
+              borderRadius: 20, padding: '5px 12px',
+              flexShrink: 0,
+            }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.80)', fontWeight: 600 }}>Queue</span>
+              <span style={{ fontSize: 16, fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>
+                #{appt.token.tokenNumber}
+              </span>
+            </div>
+            {(() => {
+              const tc = TOKEN_STATUS_CFG[appt.token.tokenStatus] ?? TOKEN_STATUS_CFG['waiting']
+              return (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  background: tc.bg, border: `1px solid ${tc.border}`,
+                  borderRadius: 20, padding: '4px 10px',
+                  fontSize: 11, fontWeight: 700, color: tc.text,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: tc.dot, flexShrink: 0 }} />
+                  {tc.label}
+                </div>
+              )
+            })()}
+          </div>
+        )}
 
       </div>
 
@@ -747,53 +793,84 @@ export default function AppointmentsScreen() {
         />
       )}
 
-      {/* Cancel confirmation portal */}
+      {/* Cancel confirmation portal — bottom sheet */}
       {cancelTarget && createPortal(
-        <div
-          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.50)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, pointerEvents: 'all' }}
-          onClick={() => !cancelling && setCancelTarget(null)}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-            transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: '#FFFFFF', borderRadius: 24, padding: '28px 24px 24px', width: '100%', maxWidth: 300, textAlign: 'center' }}
-          >
-            {/* Icon */}
-            <div style={{ width: 64, height: 64, borderRadius: 20, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <HiTrash size={28} color="#DC2626" />
-            </div>
-
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#1A1A1A', marginBottom: 8 }}>
-              Cancel Appointment?
-            </div>
-            <div style={{ fontSize: 13, color: '#6B7C93', lineHeight: 1.6, marginBottom: 24 }}>
-              This action cannot be undone. Are you sure you want to cancel this appointment?
-            </div>
-
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                onClick={() => setCancelTarget(null)}
-                disabled={cancelling}
-                style={{ flex: 1, height: 48, borderRadius: 14, border: '1.5px solid #E8EDF2', background: '#F5F8FC', color: '#4A5568', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+        (() => {
+          const appt = upcoming.find((a) => a.id === cancelTarget)
+          return (
+            <div
+              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.50)', zIndex: 950, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', pointerEvents: 'all' }}
+              onClick={() => !cancelling && setCancelTarget(null)}
+            >
+              <motion.div
+                initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{ background: '#FFFFFF', borderRadius: '24px 24px 0 0', padding: '12px 24px 32px', width: '100%', maxWidth: 430, textAlign: 'center' }}
               >
-                No, Keep
-              </button>
-              <button
-                onClick={confirmCancel}
-                disabled={cancelling}
-                style={{ flex: 1, height: 48, borderRadius: 14, border: 'none', background: '#DC2626', color: '#FFFFFF', fontSize: 15, fontWeight: 700, cursor: cancelling ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(220,38,38,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              >
-                {cancelling ? (
-                  <motion.span
-                    animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                    style={{ display: 'inline-block', width: 16, height: 16, border: '2.5px solid rgba(255,255,255,0.4)', borderTopColor: '#FFFFFF', borderRadius: '50%' }}
-                  />
-                ) : 'Yes, Cancel'}
-              </button>
+                {/* Drag handle */}
+                <div style={{ width: 40, height: 4, borderRadius: 2, background: '#D1D9E0', margin: '0 auto 24px' }} />
+
+                {/* Icon */}
+                <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 26, fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>!</span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#1A1A1A', marginBottom: 6 }}>
+                  Cancel Appointment?
+                </div>
+                <div style={{ fontSize: 13, color: '#6B7C93', lineHeight: 1.6, marginBottom: 20 }}>
+                  Are you sure you want to cancel
+                </div>
+
+                {/* Appointment info card */}
+                {appt && (
+                  <div style={{ background: '#FFF5F5', border: '1.5px solid #FECACA', borderRadius: 16, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, textAlign: 'left' }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                      background: appt.doctorColor,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF' }}>{appt.doctorInitials}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1A1A1A', marginBottom: 2 }}>{appt.doctorName}</div>
+                      <div style={{ fontSize: 12, color: '#6B7C93' }}>{appt.date} · {appt.time}</div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.6, marginBottom: 24 }}>
+                  This will permanently cancel the appointment.<br />This action cannot be undone.
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    onClick={() => setCancelTarget(null)}
+                    disabled={cancelling}
+                    style={{ flex: 1, height: 52, borderRadius: 14, border: '1.5px solid #E8EDF2', background: '#F5F8FC', color: '#374151', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    No, Keep
+                  </button>
+                  <button
+                    onClick={confirmCancel}
+                    disabled={cancelling}
+                    style={{ flex: 1, height: 52, borderRadius: 14, border: 'none', background: '#DC2626', color: '#FFFFFF', fontSize: 15, fontWeight: 700, cursor: cancelling ? 'not-allowed' : 'pointer', boxShadow: '0 4px 16px rgba(220,38,38,0.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    {cancelling ? (
+                      <motion.span
+                        animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                        style={{ display: 'inline-block', width: 16, height: 16, border: '2.5px solid rgba(255,255,255,0.4)', borderTopColor: '#FFFFFF', borderRadius: '50%' }}
+                      />
+                    ) : 'Yes, Cancel'}
+                  </button>
+                </div>
+              </motion.div>
             </div>
-          </motion.div>
-        </div>,
+          )
+        })(),
         document.getElementById('modal-portal') || document.body
       )}
     </div>

@@ -323,8 +323,8 @@ export default function SettingsScreen() {
             onTap={() => navigate('/app/settings/privacy')}
           />
           <NavRow
-            label="Licenses"
-            onTap={() => navigate('/app/settings/licenses')}
+            label="Payment Policy"
+            onTap={() => navigate('/app/settings/payment-policy')}
             isLast
           />
         </SectionCard>

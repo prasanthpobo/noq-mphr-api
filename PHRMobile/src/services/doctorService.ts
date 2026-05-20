@@ -10,6 +10,7 @@ export interface Doctor {
   consultationFee?: number
   availableDays: string[]
   shift: string
+  workingHours?: { start: number; end: number }[]
   bio?: string
   avatar?: string
   clinicId: { _id: string; name: string; code?: string; city?: string } | string
@@ -53,4 +54,21 @@ export interface BookingPayload {
 
 export function bookAppointment(payload: BookingPayload): Promise<{ success: boolean; data: unknown }> {
   return api.post('/appointments/book', payload)
+}
+
+export function getFavouriteDoctors(): Promise<{ success: boolean; count: number; data: Doctor[] }> {
+  return api.get('/doctors/favourites')
+}
+
+export function toggleFavouriteDoctor(doctorId: string): Promise<{ success: boolean; isFavourite: boolean; count: number }> {
+  return api.post(`/doctors/${doctorId}/favourite`, {})
+}
+
+export function getFavouriteDoctorIds(): Promise<string[]> {
+  return getFavouriteDoctors().then((r) => r.data.map((d) => d._id))
+}
+
+export function formatDoctorName(name: string): string {
+  const stripped = name.replace(/^Dr\.?\s*/i, '')
+  return `Dr. ${stripped}`
 }

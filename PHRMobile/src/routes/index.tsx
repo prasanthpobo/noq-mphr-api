@@ -31,10 +31,12 @@ const MedicalHistoryScreen = lazy(() => import('../modules/profile/MedicalHistor
 const SettingsScreen          = lazy(() => import('../modules/settings/SettingsScreen'))
 const TermsOfServiceScreen    = lazy(() => import('../modules/settings/TermsOfServiceScreen'))
 const PrivacyPolicyScreen     = lazy(() => import('../modules/settings/PrivacyPolicyScreen'))
-const LicensesScreen          = lazy(() => import('../modules/settings/LicensesScreen'))
+const PaymentPolicyScreen     = lazy(() => import('../modules/settings/PaymentPolicyScreen'))
 const SupportScreen           = lazy(() => import('../modules/support/SupportScreen'))
 const NewTicketScreen      = lazy(() => import('../modules/support/NewTicketScreen'))
 const TicketDetailScreen   = lazy(() => import('../modules/support/TicketDetailScreen'))
+const MyDoctorsScreen        = lazy(() => import('../modules/profile/MyDoctorsScreen'))
+const NotificationsScreen    = lazy(() => import('../modules/notifications/NotificationsScreen'))
 
 // ── Suspense wrapper ──────────────────────────────────────────────────────────
 function SuspenseScreen({ children }: { children: React.ReactNode }) {
@@ -108,10 +110,12 @@ export const router = createBrowserRouter([
       { path: 'family',         element: <SuspenseScreen><FamilyScreen /></SuspenseScreen> },
       { path: 'family/:id',    element: <SuspenseScreen><FamilyMemberDetailScreen /></SuspenseScreen> },
       { path: 'medical-history',element: <SuspenseScreen><MedicalHistoryScreen /></SuspenseScreen> },
+      { path: 'my-doctors',     element: <SuspenseScreen><MyDoctorsScreen /></SuspenseScreen> },
+      { path: 'notifications',  element: <SuspenseScreen><NotificationsScreen /></SuspenseScreen> },
       { path: 'settings',        element: <SuspenseScreen><SettingsScreen /></SuspenseScreen> },
       { path: 'settings/terms',    element: <SuspenseScreen><TermsOfServiceScreen /></SuspenseScreen> },
       { path: 'settings/privacy',  element: <SuspenseScreen><PrivacyPolicyScreen /></SuspenseScreen> },
-      { path: 'settings/licenses', element: <SuspenseScreen><LicensesScreen /></SuspenseScreen> },
+      { path: 'settings/payment-policy', element: <SuspenseScreen><PaymentPolicyScreen /></SuspenseScreen> },
       { path: 'support',        element: <SuspenseScreen><SupportScreen /></SuspenseScreen> },
       { path: 'support/new',    element: <SuspenseScreen><NewTicketScreen /></SuspenseScreen> },
       { path: 'support/:id',    element: <SuspenseScreen><TicketDetailScreen /></SuspenseScreen> },

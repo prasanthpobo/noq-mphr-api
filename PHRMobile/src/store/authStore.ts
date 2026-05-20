@@ -8,6 +8,7 @@ interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
   token: string
+  loginPhone: string
   resetIdentifier: string
   resetToken: string
 }
@@ -15,6 +16,7 @@ interface AuthState {
 interface AuthActions {
   setToken: (token: string) => void
   setUser: (user: AuthUser) => void
+  setLoginPhone: (phone: string) => void
   setResetIdentifier: (identifier: string) => void
   setResetToken: (token: string) => void
   logout: () => void
@@ -26,6 +28,7 @@ const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
   token: '',
+  loginPhone: '',
   resetIdentifier: '',
   resetToken: '',
 }
@@ -41,6 +44,8 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       setUser: (user: AuthUser) => set({ user, isAuthenticated: true }),
+
+      setLoginPhone: (phone: string) => set({ loginPhone: phone }),
 
       setResetIdentifier: (identifier: string) => set({ resetIdentifier: identifier }),
 

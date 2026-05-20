@@ -7,6 +7,7 @@ import {
 } from 'react-icons/hi'
 import { MdLocalHospital } from 'react-icons/md'
 import { getClinicById, getDoctorsByClinic, type Clinic, type ClinicDoctor } from '../../services/clinicService'
+import { formatDoctorName } from '../../services/doctorService'
 
 const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
 const AVATAR_COLORS  = ['#2C6ED5', '#1FA3A8', '#7C3AED', '#E05B5B', '#D97706', '#059669']
@@ -161,7 +162,7 @@ function DoctorCard({ doctor, index, onView, onBook }: {
           {/* Info */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A', marginBottom: 2, lineHeight: 1.3 }}>
-              Dr. {doctor.name}
+              {formatDoctorName(doctor.name)}
             </div>
             <div style={{ fontSize: 12, color, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />

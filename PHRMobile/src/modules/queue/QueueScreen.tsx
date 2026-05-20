@@ -9,6 +9,7 @@ import { MdConfirmationNumber } from 'react-icons/md'
 import { getMyActiveToken, getTokens } from '../../services/queueService'
 import { useQueueStore } from '../../store/queueStore'
 import type { QueueToken } from '../../services/queueService'
+import { formatDoctorName } from '../../services/doctorService'
 
 const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
 const POLL_INTERVAL  = 12000
@@ -186,7 +187,7 @@ export default function QueueScreen() {
   const doc    = myToken && typeof myToken.doctorId === 'object' ? myToken.doctorId : null
   const clinic = myToken && typeof myToken.clinicId === 'object' ? myToken.clinicId : null
 
-  const docName    = doc   ? `Dr. ${doc.name}` : 'Doctor'
+  const docName    = doc   ? formatDoctorName(doc.name) : 'Doctor'
   const clinicName = clinic?.name ?? ''
   const docInitials = docName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
 

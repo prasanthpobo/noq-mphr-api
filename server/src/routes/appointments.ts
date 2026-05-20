@@ -4,8 +4,16 @@ import { protect } from '../middleware/auth'
 import Appointment from '../models/Appointment'
 import Doctor from '../models/Doctor'
 import Patient from '../models/Patient'
+import Token from '../models/Token'
 import User from '../models/User'
 import FamilyMember from '../models/FamilyMember'
+import { normalizePhone, sendAppointmentMessage } from '../utils/wacto'
+import { createAppointmentNotification } from '../utils/notificationHelper'
+
+function fmtDate(d: Date | string): string {
+  const dt = new Date(d)
+  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+}
 
 const router = Router()
 
@@ -56,7 +64,19 @@ router.get('/mine', protect, async (req: Request, res: Response, next: NextFunct
       .populate('clinicId', 'name address')
       .sort({ date: filter === 'past' ? -1 : 1, createdAt: -1 })
 
-    res.json({ success: true, count: appointments.length, data: appointments })
+    // Attach token info (doctor-based queue number) to each appointment
+    const apptIds = appointments.map((a) => a._id)
+    const tokens = await Token.find({ appointmentId: { $in: apptIds } })
+      .select('tokenNumber status appointmentId')
+      .lean()
+    const tokenMap = new Map(tokens.map((t) => [String(t.appointmentId), { tokenNumber: t.tokenNumber, tokenStatus: t.status }]))
+
+    const enriched = appointments.map((a) => ({
+      ...(a as any).toObject(),
+      token: tokenMap.get(String(a._id)) ?? null,
+    }))
+
+    res.json({ success: true, count: enriched.length, data: enriched })
   } catch (err) {
     next(err)
   }
@@ -75,6 +95,23 @@ router.get('/slots', protect, async (req: Request, res: Response, next: NextFunc
     const start = new Date(d); start.setHours(0, 0, 0, 0)
     const end   = new Date(d); end.setHours(23, 59, 59, 999)
 
+    // Fetch doctor to read working hours
+    const doctor = await Doctor.findById(doctorId).select('shift workingHours')
+    if (!doctor) {
+      res.status(404).json({ success: false, message: 'Doctor not found' })
+      return
+    }
+
+    // Determine slot ranges: use workingHours array if set, otherwise derive from shift
+    const SHIFT_DEFAULTS: Record<string, { start: number; end: number }[]> = {
+      morning: [{ start: 9,  end: 14 }],           // 9:00 AM – 1:30 PM
+      evening: [{ start: 17, end: 21 }],           // 5:00 PM – 8:30 PM
+      night:   [{ start: 21, end: 24 }],           // 9:00 PM – 11:30 PM
+    }
+    const ranges = (doctor.workingHours && doctor.workingHours.length > 0)
+      ? doctor.workingHours
+      : (SHIFT_DEFAULTS[doctor.shift] ?? [{ start: 9, end: 14 }])
+
     const booked = await Appointment.find({
       doctorId,
       date: { $gte: start, $lte: end },
@@ -83,16 +120,18 @@ router.get('/slots', protect, async (req: Request, res: Response, next: NextFunc
 
     const bookedTimes = new Set(booked.map(a => a.time).filter(Boolean))
 
-    // Generate 30-min slots from 09:00 to 18:00
+    // Generate 30-min slots for each working hours range (sorted by start time)
     const slots: { time: string; available: boolean }[] = []
-    for (let h = 9; h < 18; h++) {
-      for (const m of [0, 30]) {
-        const hh   = String(h).padStart(2, '0')
-        const mm   = String(m).padStart(2, '0')
-        const ampm = h < 12 ? 'AM' : 'PM'
-        const h12  = h > 12 ? h - 12 : h === 0 ? 12 : h
-        const time = `${String(h12).padStart(2, '0')}:${mm} ${ampm}`
-        slots.push({ time, available: !bookedTimes.has(time) })
+    const sortedRanges = [...ranges].sort((a, b) => a.start - b.start)
+    for (const range of sortedRanges) {
+      for (let h = range.start; h < range.end; h++) {
+        for (const m of [0, 30]) {
+          const mm   = String(m).padStart(2, '0')
+          const ampm = h < 12 ? 'AM' : 'PM'
+          const h12  = h > 12 ? h - 12 : h === 0 ? 12 : h
+          const time = `${String(h12).padStart(2, '0')}:${mm} ${ampm}`
+          slots.push({ time, available: !bookedTimes.has(time) })
+        }
       }
     }
 
@@ -262,6 +301,21 @@ router.post(
         .populate('doctorId', 'name specialization consultationFee')
         .populate('clinicId', 'name address')
 
+      const doctorName = (populated?.doctorId as { name?: string })?.name ?? 'Doctor'
+      const dateLabel  = fmtDate(appointmentDate)
+
+      // WhatsApp booking confirmation — fire-and-forget
+      if (patientPhone) {
+        sendAppointmentMessage(normalizePhone(patientPhone), patientName, doctorName, appointmentDate, time, 'booked')
+          .catch((e: Error) => console.error('[Appt msg error]', e?.message))
+      }
+
+      // In-app notification — fire-and-forget
+      createAppointmentNotification({
+        userId: req.user!.id, type: 'appointment_booked',
+        appointmentId: appointment._id, doctorName, date: dateLabel, time,
+      }).catch((e: Error) => console.error('[Notif error]', e?.message))
+
       res.status(201).json({ success: true, data: populated })
     } catch (err) {
       next(err)
@@ -274,7 +328,7 @@ router.get('/:id', protect, async (req: Request, res: Response, next: NextFuncti
   try {
     const appointment = await Appointment.findById(req.params.id)
       .populate('patientId', 'name phone tag gender dob bloodGroup')
-      .populate('doctorId', 'name specialization phone email')
+      .populate('doctorId', 'name specialization phone email consultationFee')
       .populate('clinicId', 'name address phone')
 
     if (!appointment) {
@@ -326,6 +380,32 @@ router.put('/:id', protect, async (req: Request, res: Response, next: NextFuncti
     if (!appointment) {
       res.status(404).json({ success: false, message: 'Appointment not found' })
       return
+    }
+
+    // Status-change side-effects — fire-and-forget
+    if (status === 'cancelled' || status === 'completed' || status === 'scheduled') {
+      const patientPhone = (appointment.patientId as { phone?: string })?.phone
+      const patientName  = (appointment.patientId as { name?: string })?.name  ?? 'Patient'
+      const doctorName   = (appointment.doctorId  as { name?: string })?.name  ?? 'Doctor'
+      const dateLabel    = fmtDate(appointment.date)
+
+      if (status === 'cancelled' && patientPhone) {
+        sendAppointmentMessage(
+          normalizePhone(patientPhone), patientName, doctorName,
+          appointment.date, appointment.time ?? '', 'cancelled'
+        ).catch((e: Error) => console.error('[Appt cancel msg error]', e?.message))
+      }
+
+      const notifType =
+        status === 'cancelled'  ? 'appointment_cancelled'  :
+        status === 'completed'  ? 'appointment_completed'  :
+        'appointment_rescheduled'
+
+      createAppointmentNotification({
+        userId: req.user!.id, type: notifType,
+        appointmentId: appointment._id, doctorName,
+        date: dateLabel, time: appointment.time ?? undefined,
+      }).catch((e: Error) => console.error('[Notif error]', e?.message))
     }
 
     res.json({ success: true, data: appointment })

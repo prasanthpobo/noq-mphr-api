@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import dayjs from 'dayjs'
 import {
   HiSearch, HiBell, HiCalendar, HiDocumentText, HiChevronRight,
+  HiClock, HiLocationMarker,
 } from 'react-icons/hi'
 import {
   MdEventNote, MdQueuePlayNext, MdLocalHospital, MdFavorite,
@@ -15,8 +16,17 @@ import { getMyAppointments } from '../../services/bookingService'
 import { getMyActiveToken } from '../../services/queueService'
 import type { Appointment } from '../../services/bookingService'
 import type { QueueToken } from '../../services/queueService'
+import { formatDoctorName } from '../../services/doctorService'
+import { getUnreadCount } from '../../services/notificationService'
 
 const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
+
+const AVATAR_COLORS = ['#2C6ED5', '#1FA3A8', '#7C3AED', '#E05B5B', '#D97706', '#059669']
+function getAvatarColor(id: string) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h)
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,7 +101,7 @@ function ActiveTokenCard({
   const navigate   = useNavigate()
   const doc        = typeof token.doctorId === 'object' ? token.doctorId : null
   const clinic     = typeof token.clinicId === 'object' ? token.clinicId : null
-  const docName    = doc ? `Dr. ${doc.name}` : 'Doctor'
+  const docName    = doc ? formatDoctorName(doc.name) : 'Doctor'
   const spec       = doc?.specialization ?? ''
   const clinicName = clinic?.name ?? ''
   const subLabel   = `${spec}${spec && clinicName ? ' · ' : ''}${clinicName}`
@@ -199,48 +209,121 @@ function NoTokenBanner() {
 
 // ── Upcoming Appointment Card ─────────────────────────────────────────────────
 
+const UPCOMING_STATUS_CFG: Record<string, { label: string; dot: string; bg: string; text: string; border: string }> = {
+  'scheduled':   { label: 'Scheduled',   dot: '#22C55E', bg: '#F0FDF4', text: '#15803D', border: '#BBF7D0' },
+  'in-progress': { label: 'In Progress', dot: '#3B82F6', bg: '#EFF6FF', text: '#1E40AF', border: '#BFDBFE' },
+  'completed':   { label: 'Completed',   dot: '#9CA3AF', bg: '#F9FAFB', text: '#374151', border: '#E5E7EB' },
+  'cancelled':   { label: 'Cancelled',   dot: '#EF4444', bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' },
+  'no-show':     { label: 'No Show',     dot: '#EF4444', bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' },
+}
+
 function UpcomingCard({ appt }: { appt: Appointment }) {
-  const navigate  = useNavigate()
-  const doc       = typeof appt.doctorId === 'object' ? appt.doctorId : null
-  const clinic    = typeof appt.clinicId === 'object' ? appt.clinicId : null
-  const docName   = doc ? `Dr. ${doc.name}` : 'Doctor'
-  const spec      = doc?.specialization ?? ''
+  const navigate   = useNavigate()
+  const doc        = typeof appt.doctorId === 'object' ? appt.doctorId : null
+  const clinic     = typeof appt.clinicId === 'object' ? appt.clinicId : null
+  const docName    = doc ? formatDoctorName(doc.name) : 'Doctor'
+  const spec       = doc?.specialization ?? ''
   const clinicName = clinic?.name ?? ''
-  const label     = `${spec}${spec && clinicName ? ' · ' : ''}${clinicName}`
-  const initials  = doc ? getInitials(doc.name) : 'DR'
-  const dateLabel = formatApptDate(appt.date)
+  const inits      = doc ? getInitials(doc.name) : 'DR'
+  const color      = doc?._id ? getAvatarColor(doc._id) : '#2C6ED5'
+  const dateLabel  = formatApptDate(appt.date)
+  const sc         = UPCOMING_STATUS_CFG[appt.status] ?? UPCOMING_STATUS_CFG['scheduled']
 
   return (
-    <div onClick={() => navigate('/app/appointments')} style={{
-      background: '#FFFFFF', borderRadius: 20, padding: 16,
-      border: '1px solid #F0F4F8', boxShadow: '0 2px 12px rgba(30,79,163,0.06)',
-      display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
-    }}>
+    <motion.div
+      whileTap={{ scale: 0.985 }}
+      onClick={() => navigate('/app/appointments')}
+      style={{
+        background: '#FFFFFF', borderRadius: 20,
+        boxShadow: '0 2px 14px rgba(30,79,163,0.09)',
+        overflow: 'hidden', cursor: 'pointer',
+      }}
+    >
+      {/* Accent bar */}
+      <div style={{ height: 4, background: `linear-gradient(90deg, ${color} 0%, ${color}88 100%)` }} />
+
+      <div style={{ padding: '14px 14px 0' }}>
+        {/* Doctor row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+          {/* Circle avatar */}
+          <div style={{
+            width: 54, height: 54, borderRadius: '50%', flexShrink: 0,
+            background: `${color}1A`, border: `2.5px solid ${color}44`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 17, fontWeight: 800, color,
+            boxShadow: `0 4px 12px ${color}22`,
+          }}>
+            {inits}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+              {docName}
+            </div>
+            {spec && (
+              <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, background: `${color}18`, color, borderRadius: 20, padding: '2px 9px' }}>
+                {spec}
+              </span>
+            )}
+          </div>
+
+          {/* Status badge */}
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontSize: 11, fontWeight: 700,
+            background: sc.bg, color: sc.text,
+            border: `1px solid ${sc.border}`,
+            borderRadius: 20, padding: '3px 10px', flexShrink: 0,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc.dot }} />
+            {sc.label}
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: '#F0F4F8', marginBottom: 10 }} />
+
+        {/* Info chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 7, background: '#F5F8FC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <HiCalendar size={12} color="#2C6ED5" />
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#3D4A5B' }}>{dateLabel}</span>
+          </div>
+
+          {appt.time && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 7, background: '#F5F8FC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <HiClock size={12} color="#D97706" />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#3D4A5B' }}>{appt.time}</span>
+            </div>
+          )}
+
+          {clinicName && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 7, background: '#F5F8FC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <HiLocationMarker size={12} color="#E05B5B" />
+              </div>
+              <span style={{ fontSize: 12, color: '#6B7C93', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{clinicName}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
       <div style={{
-        width: 50, height: 50, borderRadius: 14,
-        background: '#E6F7F7', border: '2px solid #BFE3E5',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 800, fontSize: 15, color: '#0F766E', flexShrink: 0,
+        padding: '10px 14px', background: '#F0F6FF',
+        borderTop: '1px solid #F0F4F8',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        {initials}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {docName}
-        </div>
-        <div style={{ fontSize: 12, color: '#6B7C93', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {label}
-        </div>
-        <div style={{
-          marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5,
-          fontSize: 11, fontWeight: 700, background: '#E6F7F7', color: '#0F766E',
-          padding: '4px 10px', borderRadius: 999,
-        }}>
-          {dateLabel}{appt.time ? ` · ${appt.time}` : ''}
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#2C6ED5' }}>View Appointment</span>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: '#2C6ED5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <HiChevronRight size={14} color="#FFFFFF" />
         </div>
       </div>
-      <HiChevronRight size={16} color="#A0AEC0" />
-    </div>
+    </motion.div>
   )
 }
 
@@ -277,6 +360,11 @@ export default function DashboardScreen() {
   const [tokenMeta, setTokenMeta]         = useState<{ aheadCount: number; currentlyServing: number | null } | null>(null)
   const [loadingAppts, setLoadingAppts]   = useState(true)
   const [loadingToken, setLoadingToken]   = useState(true)
+  const [unreadCount,  setUnreadCount]    = useState(0)
+
+  useEffect(() => {
+    getUnreadCount().then((r) => setUnreadCount(r.count)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     getMyAppointments('upcoming')
@@ -299,7 +387,8 @@ export default function DashboardScreen() {
   }, [])
 
   const { label: greetLabel, emoji: greetEmoji } = getGreeting()
-  const firstName = user?.name?.split(' ')[0] ?? 'there'
+  const fullName  = user?.name ?? 'there'
+  const initials  = getInitials(fullName)
   const nextAppt  = upcomingAppts[0] ?? null
 
   return (
@@ -311,25 +400,25 @@ export default function DashboardScreen() {
         style={{ borderRadius: '0 0 28px 28px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(30,79,163,0.20)' }}
       >
         {/* Gradient section */}
-        <div style={{ background: BRAND_GRADIENT, padding: '14px 18px 22px', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ background: BRAND_GRADIENT, padding: '16px 18px 22px', position: 'relative', overflow: 'hidden' }}>
           {/* Decorative circles */}
           <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
           <div style={{ position: 'absolute', bottom: -50, left: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(31,163,168,0.25)', pointerEvents: 'none' }} />
 
-          {/* Top row: brand + action buttons */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 2 }}>
+          {/* Top row: NoQ brand left + action buttons right */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 2, marginBottom: 20 }}>
             {/* NoQ branding */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
-                width: 40, height: 40, borderRadius: 12, background: '#FFFFFF',
+                width: 36, height: 36, borderRadius: 10, background: '#FFFFFF',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
               }}>
-                <MdShield size={20} color="#1E4FA3" />
+                <MdShield size={18} color="#1E4FA3" />
               </div>
               <div>
-                <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: '#FFFFFF', lineHeight: 1 }}>NoQ</div>
-                <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.72)', marginTop: 3 }}>skip the queue</div>
+                <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em', color: '#FFFFFF', lineHeight: 1 }}>NoQ</div>
+                <div style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>skip the queue</div>
               </div>
             </div>
             {/* Action buttons */}
@@ -342,37 +431,66 @@ export default function DashboardScreen() {
               }}>
                 <HiSearch size={18} color="#FFFFFF" />
               </button>
-              <button style={{
+              <button onClick={() => navigate('/app/notifications')} style={{
                 width: 38, height: 38, borderRadius: 12,
                 background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
                 backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', position: 'relative',
               }}>
                 <HiBell size={18} color="#FFFFFF" />
-                <span style={{
-                  position: 'absolute', top: 7, right: 7, width: 8, height: 8,
-                  borderRadius: '50%', background: '#FFD166', border: '2px solid #2558BC',
-                }} />
+                {unreadCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -4, right: -4,
+                    minWidth: 18, height: 18, borderRadius: 9,
+                    background: '#FFD166', border: '2px solid #1E4FA3',
+                    fontSize: 10, fontWeight: 800, color: '#1A1A1A',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 3px',
+                  }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
 
-          {/* Greeting */}
-          <div style={{ marginTop: 20, position: 'relative', zIndex: 2 }}>
+          {/* Greeting row: avatar + text */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative', zIndex: 2 }}>
+            {/* User avatar */}
             <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: 999, padding: '4px 10px',
-              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.85)',
-              letterSpacing: '0.02em', marginBottom: 10,
+              width: 54, height: 54, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(255,255,255,0.22)',
+              border: '2.5px solid rgba(255,255,255,0.55)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
             }}>
-              {greetLabel} {greetEmoji}
+              <span style={{ fontSize: 18, fontWeight: 800, color: '#FFFFFF', letterSpacing: 0.5 }}>{initials}</span>
             </div>
-            <div style={{ fontSize: 27, fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.01em', textShadow: '0 2px 10px rgba(0,0,0,0.1)', marginBottom: 4 }}>
-              {firstName}
-            </div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
-              How are you feeling today?
+
+            {/* Text */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Greeting pill */}
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 999, padding: '3px 10px',
+                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.90)',
+                letterSpacing: '0.02em', marginBottom: 6,
+              }}>
+                {greetLabel} {greetEmoji}
+              </div>
+              {/* Full name */}
+              <div style={{
+                fontSize: 22, fontWeight: 800, color: '#FFFFFF',
+                letterSpacing: '-0.01em', lineHeight: 1.15,
+                textShadow: '0 2px 10px rgba(0,0,0,0.12)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {fullName}
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 500, marginTop: 2 }}>
+                How are you feeling today?
+              </div>
             </div>
           </div>
         </div>

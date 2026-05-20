@@ -456,42 +456,7 @@ html, body {
 }
 .noq-card.flat { box-shadow: none; border: 1px solid var(--border-soft); }
 
-/* ===== Bottom Nav ===== */
-.bottom-nav {
-  background: #fff;
-  border-top: 1px solid var(--border-soft);
-  padding: 10px 16px 28px;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  box-shadow: 0 -6px 20px rgba(30,79,163,0.10);
-  flex-shrink: 0;
-}
-.bottom-nav .nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--ink-300);
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 10px;
-  transition: color 140ms;
-}
-.bottom-nav .nav-item.active { color: var(--blue-700); }
-.bottom-nav .nav-item.center {
-  background: var(--brand-gradient);
-  color: #fff;
-  width: 52px; height: 52px;
-  border-radius: 16px;
-  margin-top: -24px;
-  justify-content: center;
-  box-shadow: var(--sh-brand);
-  font-size: 0;
-  padding: 0;
-}
+/* ===== Bottom Nav — fully inline, no CSS needed ===== */
 
 /* ===== Queue row ===== */
 .queue-row {

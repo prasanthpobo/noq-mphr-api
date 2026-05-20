@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  HiArrowLeft, HiPencil, HiCheck, HiX, HiDuplicate,
+  HiArrowLeft, HiPencil, HiCheck, HiX, HiDuplicate, HiExclamationCircle,
 } from 'react-icons/hi'
 import { MdPerson, MdCalendarToday, MdWc, MdFavorite, MdPhone, MdHeight, MdFitnessCenter } from 'react-icons/md'
 import dayjs from 'dayjs'
@@ -45,8 +45,12 @@ function CircleProgress({ pct }: { pct: number }) {
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 
 interface EditForm {
-  name: string; phone: string; gender: string
+  name: string; email: string; phone: string; gender: string
   dob: string; bloodGroup: string; height: string; weight: string
+}
+
+function stripIndiaCode(phone: string): string {
+  return phone.replace(/^\+91\s*/, '')
 }
 
 function EditModal({
@@ -57,28 +61,68 @@ function EditModal({
   onClose: () => void
   onSaved: (form: EditForm) => void
 }) {
-  const [form, setForm]     = useState<EditForm>(initial)
-  const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState<string | null>(null)
+  const [form, setForm]       = useState<EditForm>(initial)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
 
-  useEffect(() => { if (isOpen) { setForm(initial); setError(null) } }, [isOpen])
+  useEffect(() => {
+    if (isOpen) {
+      setForm({ ...initial, phone: stripIndiaCode(initial.phone) })
+      setError(null)
+      setPhoneError(null)
+      setEmailError(null)
+    }
+  }, [isOpen])
+
+  const handleEmailChange = (val: string) => {
+    set('email')(val)
+    if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+      setEmailError('Enter a valid email address')
+    } else {
+      setEmailError(null)
+    }
+  }
 
   const set = (key: keyof EditForm) => (val: string) => setForm((f) => ({ ...f, [key]: val }))
 
+  const handlePhoneChange = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 10)
+    setForm((f) => ({ ...f, phone: digits }))
+    if (digits && !/^[6-9]/.test(digits)) {
+      setPhoneError('Must start with 6, 7, 8 or 9')
+    } else if (digits.length > 0 && digits.length < 10) {
+      setPhoneError('Must be exactly 10 digits')
+    } else {
+      setPhoneError(null)
+    }
+  }
+
   const handleSave = async () => {
     if (!form.name.trim()) { setError('Full name is required'); return }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      setError('Enter a valid email address')
+      return
+    }
+    if (form.phone && !/^[6-9]\d{9}$/.test(form.phone)) {
+      setError('Enter a valid 10-digit Indian mobile number (starts with 6–9)')
+      return
+    }
     setSaving(true); setError(null)
     try {
+      const phoneToSave = form.phone ? `+91${form.phone}` : undefined
       await updateProfile({
         name:       form.name.trim() || undefined,
-        phone:      form.phone.trim() || undefined,
+        email:      form.email.trim().toLowerCase() || undefined,
+        phone:      phoneToSave,
         gender:     (form.gender as 'M' | 'F' | 'Other') || undefined,
         dob:        form.dob || undefined,
         bloodGroup: form.bloodGroup || undefined,
         height:     form.height ? parseFloat(form.height) : undefined,
         weight:     form.weight ? parseFloat(form.weight) : undefined,
       })
-      onSaved(form)
+      onSaved({ ...form, phone: phoneToSave ?? '' })
       onClose()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save. Please try again.')
@@ -154,9 +198,60 @@ function EditModal({
         {/* Section: Contact */}
         <div style={{ fontSize: 11, fontWeight: 700, color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: -4, marginTop: 4 }}>Contact</div>
 
+        <Field label="Email Address">
+          <input
+            style={{ ...inp, border: `1.5px solid ${emailError ? '#FCA5A5' : '#E3EAF2'}` }}
+            type="email"
+            inputMode="email"
+            placeholder="you@example.com"
+            value={form.email}
+            onChange={(e) => handleEmailChange(e.target.value)}
+          />
+          {emailError && (
+            <div style={{ fontSize: 12, color: '#DC2626', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <HiExclamationCircle size={13} /> {emailError}
+            </div>
+          )}
+        </Field>
+
         <Field label="Phone Number">
-          <input style={inp} type="tel" placeholder="+60 XXXXX XXXXX"
-            value={form.phone} onChange={(e) => set('phone')(e.target.value)} />
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            border: `1.5px solid ${phoneError ? '#FCA5A5' : '#E3EAF2'}`,
+            borderRadius: 12, background: '#F5F8FC', overflow: 'hidden', height: 48,
+          }}>
+            <div style={{
+              padding: '0 12px', borderRight: '1.5px solid #E3EAF2',
+              fontSize: 14, fontWeight: 700, color: '#1E4FA3',
+              background: '#EBF2FF', height: '100%',
+              display: 'flex', alignItems: 'center', flexShrink: 0,
+            }}>
+              +91
+            </div>
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="9876543210"
+              maxLength={10}
+              value={form.phone}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              style={{
+                flex: 1, height: '100%', border: 'none', background: 'transparent',
+                padding: '0 14px', fontSize: 14, color: '#1A1A1A',
+                outline: 'none', fontFamily: 'inherit',
+              }}
+            />
+            {form.phone.length === 10 && !phoneError && (
+              <div style={{ paddingRight: 12, color: '#22C55E', display: 'flex', alignItems: 'center' }}>
+                <span style={{ fontSize: 18 }}>✓</span>
+              </div>
+            )}
+          </div>
+          {phoneError && (
+            <div style={{ fontSize: 12, color: '#DC2626', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <HiExclamationCircle size={13} /> {phoneError}
+            </div>
+          )}
         </Field>
 
         <button onClick={handleSave} disabled={saving} style={{
@@ -235,7 +330,8 @@ export default function PersonalInfoScreen() {
 
   const initialForm: EditForm = {
     name:       user?.name ?? '',
-    phone:      user?.phone ?? '',
+    email:      user?.email ?? '',
+    phone:      stripIndiaCode(user?.phone ?? ''),
     gender:     user?.gender ?? '',
     dob:        user?.dob ? dayjs(user.dob).format('YYYY-MM-DD') : '',
     bloodGroup: user?.bloodGroup ?? '',
@@ -247,6 +343,7 @@ export default function PersonalInfoScreen() {
     setUser({
       ...user!,
       name:       form.name,
+      email:      form.email || undefined,
       phone:      form.phone || undefined,
       gender:     (form.gender as 'M' | 'F' | 'Other') || undefined,
       dob:        form.dob || undefined,

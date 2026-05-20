@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { protect } from '../middleware/auth'
 import Doctor from '../models/Doctor'
+import User from '../models/User'
 import mongoose from 'mongoose'
 
 const router = Router()
@@ -40,6 +41,55 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
       count: doctors.length,
       data: doctors
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/doctors/favourites — returns the logged-in user's favourite doctors
+router.get('/favourites', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const user = await User.findById(req.user!.id).select('favoriteDoctors')
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' })
+      return
+    }
+
+    const doctors = await Doctor.find({ _id: { $in: user.favoriteDoctors } })
+      .populate('clinicId', 'name code city')
+
+    res.json({ success: true, count: doctors.length, data: doctors })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/doctors/:id/favourite — toggle favourite for the logged-in user
+router.post('/:id/favourite', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      res.status(400).json({ success: false, message: 'Invalid doctor ID' })
+      return
+    }
+
+    const doctorId = new mongoose.Types.ObjectId(req.params.id)
+    const user     = await User.findById(req.user!.id).select('favoriteDoctors')
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' })
+      return
+    }
+
+    const already = user.favoriteDoctors.some((id) => id.equals(doctorId))
+
+    if (already) {
+      user.favoriteDoctors = user.favoriteDoctors.filter((id) => !id.equals(doctorId))
+    } else {
+      user.favoriteDoctors.push(doctorId)
+    }
+
+    await user.save()
+
+    res.json({ success: true, isFavourite: !already, count: user.favoriteDoctors.length })
   } catch (error) {
     next(error)
   }

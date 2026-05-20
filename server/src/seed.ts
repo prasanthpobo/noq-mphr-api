@@ -79,11 +79,68 @@ async function seed() {
       consultationFee: 500,
       availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       shift: 'morning',
+      workingHours: [{ start: 9, end: 14 }, { start: 17, end: 21 }],  // 9 AM–1:30 PM + 5 PM–8:30 PM
       bio: 'Experienced general physician with over 10 years of practice.'
     })
     console.log('✔ Doctor created:', doctor.name)
   } else {
-    console.log('– Doctor already exists:', doctor.name)
+    await Doctor.updateOne({ _id: doctor._id }, { $set: { workingHours: [{ start: 9, end: 14 }, { start: 17, end: 21 }] } })
+    console.log('– Doctor already exists (workingHours updated):', doctor.name)
+  }
+
+  // ── 3b. Specialist Doctors ────────────────────────────────────────────────
+  const specialists = [
+    {
+      name:             'Dr. Meera Nair',
+      email:            'dr.meera@noq.health',
+      phone:            '9876543231',
+      specialization:   'Neurology',
+      qualification:    'MBBS, MD (Neurology), DM',
+      experience:       12,
+      consultationFee:  800,
+      availableDays:    ['Monday', 'Wednesday', 'Friday'],
+      shift:            'morning',
+      workingHours:     [{ start: 9, end: 13 }, { start: 17, end: 21 }],  // 9 AM–12:30 PM + 5 PM–8:30 PM
+      bio:              'Dr. Meera Nair is a senior neurologist with 12 years of expertise in headache disorders, epilepsy, stroke management, and movement disorders. She completed her DM in Neurology from NIMHANS, Bangalore and has published research on migraine treatment protocols.'
+    },
+    {
+      name:             'Dr. Suresh Babu',
+      email:            'dr.suresh@noq.health',
+      phone:            '9876543232',
+      specialization:   'Gastroenterology',
+      qualification:    'MBBS, MD (Medicine), DM (Gastroenterology)',
+      experience:       9,
+      consultationFee:  750,
+      availableDays:    ['Tuesday', 'Thursday', 'Saturday'],
+      shift:            'morning',
+      workingHours:     [{ start: 10, end: 14 }, { start: 17, end: 21 }], // 10 AM–1:30 PM + 5 PM–8:30 PM
+      bio:              'Dr. Suresh Babu is a consultant gastroenterologist specialising in liver diseases, IBD, peptic ulcer disease, and endoscopic procedures. He trained at AIIMS New Delhi and has performed over 5,000 endoscopic procedures in his career.'
+    },
+    {
+      name:             'Dr. Anita Krishnan',
+      email:            'dr.anita@noq.health',
+      phone:            '9876543233',
+      specialization:   'Pediatrics',
+      qualification:    'MBBS, MD (Pediatrics), Fellowship in Neonatal Care',
+      experience:       8,
+      consultationFee:  600,
+      availableDays:    ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      shift:            'morning',
+      workingHours:     [{ start: 8, end: 15 }, { start: 17, end: 21 }],  // 8 AM–2:30 PM + 5 PM–8:30 PM
+      bio:              'Dr. Anita Krishnan is a dedicated pediatrician and neonatologist with 8 years of experience caring for newborns, infants and children. She completed her fellowship in neonatal care from KEM Hospital, Mumbai, and is known for her gentle approach with young patients and thorough guidance for parents.'
+    },
+  ]
+
+  for (const sp of specialists) {
+    const exists = await Doctor.findOne({ email: sp.email })
+    if (!exists) {
+      await Doctor.create({ ...sp, status: 'active', clinicId: clinic._id })
+      console.log(`✔ Specialist doctor created: ${sp.name} (${sp.specialization})`)
+    } else {
+      await Doctor.updateOne({ _id: exists._id }, { $set: { workingHours: sp.workingHours } })
+
+      console.log(`– Doctor already exists (workingHours updated): ${sp.name}`)
+    }
   }
 
   // ── 4. Nurse ───────────────────────────────────────────────────────────────
@@ -182,7 +239,7 @@ async function seed() {
     issuedAt: { $gte: today, $lt: tomorrow }
   })
   if (!existingToken) {
-    const tokenNumber = await Token.getNextTokenNumber(clinic._id as mongoose.Types.ObjectId, new Date())
+    const tokenNumber = await Token.getNextTokenNumber(doctor._id as mongoose.Types.ObjectId, new Date())
     await Token.create({
       tokenNumber,
       patientId: patient._id,

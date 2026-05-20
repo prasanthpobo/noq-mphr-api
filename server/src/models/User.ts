@@ -38,8 +38,8 @@ export interface IMedication {
 
 export interface IUser extends Document {
   name: string
-  email: string
-  password: string
+  email?: string
+  password?: string
   role: UserRole
   status: UserStatus
   clinicId?: mongoose.Types.ObjectId
@@ -60,6 +60,11 @@ export interface IUser extends Document {
   resetOtpVerified?: boolean
   resetToken?: string
   resetTokenExpiry?: Date
+  // Favourite doctors
+  favoriteDoctors: mongoose.Types.ObjectId[]
+  // Phone / WhatsApp login OTP
+  loginOtp?: string
+  loginOtpExpiry?: Date
   matchPassword(enteredPassword: string): Promise<boolean>
 }
 
@@ -72,15 +77,16 @@ const UserSchema = new Schema<IUser>(
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: false,
       unique: true,
+      sparse: true,   // allows multiple documents without email (OTP-only patients)
       lowercase: true,
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email address']
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: false,
       minlength: [6, 'Password must be at least 6 characters'],
       select: false
     },
@@ -150,12 +156,15 @@ const UserSchema = new Schema<IUser>(
     resetOtpVerified:  { type: Boolean, select: false, default: false },
     resetToken:        { type: String,  select: false },
     resetTokenExpiry:  { type: Date,    select: false },
+    favoriteDoctors: [{ type: Schema.Types.ObjectId, ref: 'Doctor', default: [] }],
+    loginOtp:          { type: String,  select: false },
+    loginOtpExpiry:    { type: Date,    select: false },
   },
   { timestamps: false }
 )
 
 UserSchema.pre<IUser>('save', async function (next) {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return next()
   }
   const salt = await bcrypt.genSalt(10)

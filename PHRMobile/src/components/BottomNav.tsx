@@ -1,38 +1,14 @@
 import { useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import {
+  HiHome, HiOutlineHome,
+  HiCalendar, HiOutlineCalendar,
+  HiPlus,
+  HiOfficeBuilding, HiOutlineOfficeBuilding,
+  HiUser, HiOutlineUser,
+} from 'react-icons/hi'
 
-// Inline SVG icons matching the reference design
-const HomeIcon = ({ size = 22 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 10l9-7 9 7v10a2 2 0 01-2 2h-4v-7h-6v7H5a2 2 0 01-2-2z"/>
-  </svg>
-)
-
-const CalendarIcon = ({ size = 22 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2"/>
-    <path d="M16 2v4M8 2v4M3 10h18"/>
-  </svg>
-)
-
-const PlusIcon = ({ size = 26 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 5v14M5 12h14"/>
-  </svg>
-)
-
-const ClinicIcon = ({ size = 22 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 7l9-4 9 4M5 7v13h14V7M9 20v-7h6v7"/>
-    <path d="M12 10v4M10 12h4"/>
-  </svg>
-)
-
-const UserIcon = ({ size = 22 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="8" r="4"/>
-    <path d="M4 21v-1a7 7 0 0114 0v1"/>
-  </svg>
-)
+const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
 
 interface NavItem {
   key: string
@@ -42,23 +18,24 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'home',     label: 'Home',     path: '/app/dashboard' },
-  { key: 'apts',     label: 'Bookings', path: '/app/appointments' },
-  { key: 'book',     label: '',         path: '/app/book', center: true },
-  { key: 'clinics',  label: 'Clinics',  path: '/app/clinics' },
-  { key: 'profile',  label: 'Profile',  path: '/app/profile' },
+  { key: 'home',    label: 'Home',     path: '/app/dashboard' },
+  { key: 'apts',    label: 'Bookings', path: '/app/appointments' },
+  { key: 'book',    label: '',         path: '/app/book', center: true },
+  { key: 'clinics', label: 'Clinics',  path: '/app/clinics' },
+  { key: 'profile', label: 'Profile',  path: '/app/profile' },
 ]
 
-function renderIcon(key: string, isCenter: boolean) {
-  if (key === 'home')    return <HomeIcon size={isCenter ? 26 : 22} />
-  if (key === 'apts')    return <CalendarIcon size={isCenter ? 26 : 22} />
-  if (key === 'book')    return <PlusIcon size={26} />
-  if (key === 'clinics') return <ClinicIcon size={isCenter ? 26 : 22} />
-  if (key === 'profile') return <UserIcon size={isCenter ? 26 : 22} />
+const HIDE_NAV_PATHS = ['/app/booking', '/app/book', '/app/today-queue']
+
+function NavIcon({ navKey, active }: { navKey: string; active: boolean }) {
+  const size = 22
+  const color = active ? '#2C6ED5' : '#94A3B8'
+  if (navKey === 'home')    return active ? <HiHome size={size} color={color} /> : <HiOutlineHome size={size} color={color} />
+  if (navKey === 'apts')    return active ? <HiCalendar size={size} color={color} /> : <HiOutlineCalendar size={size} color={color} />
+  if (navKey === 'clinics') return active ? <HiOfficeBuilding size={size} color={color} /> : <HiOutlineOfficeBuilding size={size} color={color} />
+  if (navKey === 'profile') return active ? <HiUser size={size} color={color} /> : <HiOutlineUser size={size} color={color} />
   return null
 }
-
-const HIDE_NAV_PATHS = ['/app/booking', '/app/today-queue']
 
 export default function BottomNav() {
   const location = useLocation()
@@ -67,49 +44,121 @@ export default function BottomNav() {
   if (HIDE_NAV_PATHS.some((p) => location.pathname.startsWith(p))) return null
 
   const getActive = (item: NavItem) => {
-    if (item.key === 'home') return location.pathname === '/app/dashboard' || location.pathname === '/app'
-    if (item.key === 'apts') return location.pathname.startsWith('/app/appointments')
-    if (item.key === 'book') return location.pathname.startsWith('/app/book') || location.pathname.startsWith('/app/doctor')
+    if (item.key === 'home')    return location.pathname === '/app/dashboard' || location.pathname === '/app'
+    if (item.key === 'apts')    return location.pathname.startsWith('/app/appointments')
+    if (item.key === 'book')    return location.pathname.startsWith('/app/book') || location.pathname.startsWith('/app/doctor')
     if (item.key === 'clinics') return location.pathname.startsWith('/app/clinics') || location.pathname.startsWith('/app/clinic')
     if (item.key === 'profile') return location.pathname.startsWith('/app/profile') || location.pathname.startsWith('/app/family') || location.pathname.startsWith('/app/settings')
     return false
   }
 
   return (
-    <nav className="bottom-nav">
+    <nav style={{
+      background: '#FFFFFF',
+      borderTop: '1px solid #EEF2F7',
+      padding: '0 8px 20px',
+      display: 'flex',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      boxShadow: '0 -4px 24px rgba(30,79,163,0.10)',
+      flexShrink: 0,
+      position: 'relative',
+    }}>
       {NAV_ITEMS.map((item) => {
         const isActive = getActive(item)
         const isCenter = !!item.center
 
-        return (
-          <button
-            key={item.key}
-            onClick={() => navigate(item.path)}
-            className={`nav-item${isCenter ? ' center' : ''}${isActive && !isCenter ? ' active' : ''}`}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              ...(isCenter ? {
-                background: 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)',
-                width: 52,
-                height: 52,
-                borderRadius: 16,
-                marginTop: -24,
+        if (isCenter) {
+          return (
+            <div
+              key={item.key}
+              style={{
+                flex: 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 8px 20px rgba(44,110,213,0.32)',
+              }}
+            >
+              {/* White ring lifts the FAB above the nav bar */}
+              <div style={{
+                width: 68, height: 68,
+                borderRadius: '50%',
+                background: '#F5F8FC',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transform: 'translateY(-20px)',
                 flexShrink: 0,
-              } : {}),
+              }}>
+                <motion.button
+                  onClick={() => navigate(item.path)}
+                  whileTap={{ scale: 0.88 }}
+                  style={{
+                    width: 58, height: 58,
+                    borderRadius: '50%',
+                    background: BRAND_GRADIENT,
+                    border: 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 6px 20px rgba(44,110,213,0.45)',
+                    flexShrink: 0,
+                  }}
+                  aria-label="Book"
+                >
+                  <HiPlus size={28} color="#FFFFFF" strokeWidth={2} />
+                </motion.button>
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <motion.button
+            key={item.key}
+            onClick={() => navigate(item.path)}
+            whileTap={{ scale: 0.88 }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              padding: '10px 4px 6px',
             }}
-            aria-label={item.label || 'Book'}
+            aria-label={item.label}
             aria-current={isActive ? 'page' : undefined}
           >
-            {renderIcon(item.key, isCenter)}
-            {!isCenter && <span>{item.label}</span>}
-          </button>
+            {/* Icon pill */}
+            <div style={{
+              width: 44, height: 30,
+              borderRadius: 10,
+              background: isActive ? '#EBF2FF' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.18s',
+            }}>
+              <NavIcon navKey={item.key} active={isActive} />
+            </div>
+
+            {/* Label */}
+            <span style={{
+              fontSize: 10,
+              fontWeight: isActive ? 700 : 500,
+              color: isActive ? '#2C6ED5' : '#94A3B8',
+              transition: 'color 0.18s',
+            }}>
+              {item.label}
+            </span>
+
+            {/* Active dot */}
+            <div style={{
+              width: 4, height: 4, borderRadius: '50%',
+              background: isActive ? '#2C6ED5' : 'transparent',
+              transition: 'background 0.18s',
+              marginTop: -2,
+            }} />
+          </motion.button>
         )
       })}
     </nav>

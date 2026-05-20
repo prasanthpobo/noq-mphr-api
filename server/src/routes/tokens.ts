@@ -202,7 +202,7 @@ router.post('/assign-today', protect, async (req: Request, res: Response, next: 
       const apptClinicId  = (appt.clinicId  as any)?._id ?? appt.clinicId
       const apptDoctorId  = (appt.doctorId  as any)?._id ?? appt.doctorId
       const apptPatientId = (appt.patientId as any)?._id ?? appt.patientId
-      const tokenNumber   = await Token.getNextTokenNumber(apptClinicId, today)
+      const tokenNumber   = await Token.getNextTokenNumber(apptDoctorId, today)
       await Token.create({
         patientId: apptPatientId,
         doctorId:  apptDoctorId,
@@ -237,9 +237,13 @@ router.post('/assign-today', protect, async (req: Request, res: Response, next: 
 // POST /api/tokens
 router.post('/', protect, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { clinicId } = req.body
+    const { doctorId } = req.body
+    if (!doctorId) {
+      res.status(400).json({ success: false, message: 'doctorId is required' })
+      return
+    }
     const issuedAt = req.body.issuedAt ? new Date(req.body.issuedAt) : new Date()
-    const tokenNumber = await Token.getNextTokenNumber(clinicId, issuedAt)
+    const tokenNumber = await Token.getNextTokenNumber(doctorId, issuedAt)
 
     const token = await Token.create({ ...req.body, tokenNumber, issuedAt })
     res.status(201).json({ success: true, data: token })
@@ -328,7 +332,7 @@ router.put('/:id/move', protect, async (req: Request, res: Response, next: NextF
     endOfDay.setHours(23, 59, 59, 999)
 
     const adjacentToken = await Token.findOne({
-      clinicId: token.clinicId,
+      doctorId: token.doctorId,
       tokenNumber: targetTokenNumber,
       issuedAt: { $gte: startOfDay, $lte: endOfDay }
     })

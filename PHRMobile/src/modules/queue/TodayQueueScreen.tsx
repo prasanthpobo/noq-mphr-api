@@ -10,6 +10,7 @@ import { getMyAppointments } from '../../services/bookingService'
 import { getTokens, assignTodayTokens } from '../../services/queueService'
 import type { Appointment } from '../../services/bookingService'
 import type { QueueToken } from '../../services/queueService'
+import { formatDoctorName } from '../../services/doctorService'
 
 const BRAND_GRADIENT = 'linear-gradient(135deg, #1E4FA3 0%, #2C6ED5 50%, #1FA3A8 100%)'
 const AVATAR_COLORS  = ['#2C6ED5', '#E05B5B', '#9B59B6', '#1FA3A8', '#E07A5B', '#16A34A', '#D97706']
@@ -66,7 +67,7 @@ function ApptRow({ item, index, onOpen }: { item: TodayAppt; index: number; onOp
   const { appt, token } = item
   const doc       = typeof appt.doctorId  === 'object' ? appt.doctorId  : null
   const clinic    = typeof appt.clinicId  === 'object' ? appt.clinicId  : null
-  const docName   = doc ? `Dr. ${doc.name}` : 'Doctor'
+  const docName   = doc ? formatDoctorName(doc.name) : 'Doctor'
   const color     = doc?._id ? getAvatarColor(doc._id) : AVATAR_COLORS[index % AVATAR_COLORS.length]
   const initials  = docName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
   const tsc       = token ? (TOKEN_STATUS_CFG[token.status] ?? TOKEN_STATUS_CFG['waiting']) : null

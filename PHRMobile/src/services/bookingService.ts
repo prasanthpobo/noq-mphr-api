@@ -36,6 +36,7 @@ export interface Vitals {
 export interface AppointmentDoctorFull extends AppointmentDoctor {
   phone?: string
   email?: string
+  consultationFee?: number
 }
 
 export interface AppointmentClinicFull extends AppointmentClinic {
@@ -47,6 +48,11 @@ export interface AppointmentPatientFull extends AppointmentPatient {
   gender?: string
   dob?: string
   bloodGroup?: string
+}
+
+export interface AppointmentToken {
+  tokenNumber: number
+  tokenStatus: 'waiting' | 'in-room' | 'in-consultation' | 'completed' | 'cancelled' | 'not-visited' | 'priority'
 }
 
 export interface Appointment {
@@ -65,6 +71,7 @@ export interface Appointment {
   followUpOf?: string
   followUpReason?: string
   createdAt: string
+  token?: AppointmentToken | null
 }
 
 export interface AppointmentSlot {

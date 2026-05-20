@@ -129,33 +129,59 @@ interface MemberModalProps {
   onSaved: (m: FamilyMember, isEdit: boolean) => void
 }
 
+function stripCountryCode(phone: string): string {
+  return phone.replace(/^\+91\s*/, '')
+}
+
 function MemberModal({ isOpen, initial, onClose, onSaved }: MemberModalProps) {
-  const [form, setForm]     = useState({ name: '', relation: '', dob: '', bloodGroup: '', phone: '' })
-  const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState<string | null>(null)
+  const [form, setForm]       = useState({ name: '', relation: '', dob: '', bloodGroup: '', phone: '' })
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
 
   useEffect(() => {
     if (initial) {
       setForm({
-        name: initial.name,
-        relation: initial.relation,
-        dob: initial.dob ? dayjs(initial.dob).format('YYYY-MM-DD') : '',
+        name:       initial.name,
+        relation:   initial.relation,
+        dob:        initial.dob ? dayjs(initial.dob).format('YYYY-MM-DD') : '',
         bloodGroup: initial.bloodGroup ?? '',
-        phone: initial.phone ?? '',
+        phone:      stripCountryCode(initial.phone ?? ''),
       })
     } else {
       setForm({ name: '', relation: '', dob: '', bloodGroup: '', phone: '' })
     }
     setError(null)
+    setPhoneError(null)
   }, [initial, isOpen])
+
+  const handlePhoneChange = (val: string) => {
+    // Allow only digits, max 10
+    const digits = val.replace(/\D/g, '').slice(0, 10)
+    setForm((f) => ({ ...f, phone: digits }))
+    if (digits && !/^[6-9]/.test(digits)) {
+      setPhoneError('Must start with 6, 7, 8 or 9')
+    } else if (digits.length > 0 && digits.length < 10) {
+      setPhoneError('Must be exactly 10 digits')
+    } else {
+      setPhoneError(null)
+    }
+  }
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.relation) { setError('Name and relation are required'); return }
+    if (form.phone) {
+      if (!/^[6-9]\d{9}$/.test(form.phone)) {
+        setError('Enter a valid 10-digit Indian mobile number (starts with 6–9)')
+        return
+      }
+    }
     setSaving(true); setError(null)
     try {
       const payload = {
         name: form.name.trim(), relation: form.relation,
-        dob: form.dob || undefined, bloodGroup: form.bloodGroup || undefined, phone: form.phone || undefined,
+        dob: form.dob || undefined, bloodGroup: form.bloodGroup || undefined,
+        phone: form.phone ? `+91${form.phone}` : undefined,
       }
       let res: { data: FamilyMember }
       if (initial) {
@@ -191,9 +217,8 @@ function MemberModal({ isOpen, initial, onClose, onSaved }: MemberModalProps) {
       {error && <div style={{ background: '#FEE2E2', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#B91C1C' }}>{error}</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {[
-          { key: 'name',  label: 'Full Name *',   type: 'text', placeholder: 'Enter full name' },
-          { key: 'dob',   label: 'Date of Birth', type: 'date', placeholder: '' },
-          { key: 'phone', label: 'Phone Number',  type: 'tel',  placeholder: '+60 XXXXX XXXXX' },
+          { key: 'name', label: 'Full Name *',   type: 'text', placeholder: 'Enter full name' },
+          { key: 'dob',  label: 'Date of Birth', type: 'date', placeholder: '' },
         ].map((f) => (
           <div key={f.key}>
             <label style={{ fontSize: 12, fontWeight: 700, color: '#6B7C93', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{f.label}</label>
@@ -202,6 +227,52 @@ function MemberModal({ isOpen, initial, onClose, onSaved }: MemberModalProps) {
               onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
           </div>
         ))}
+
+        {/* Phone number with +91 prefix */}
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#6B7C93', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Phone Number
+          </label>
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            border: `1.5px solid ${phoneError ? '#FCA5A5' : '#E3EAF2'}`,
+            borderRadius: 12, background: '#F5F8FC', overflow: 'hidden', height: 48,
+          }}>
+            {/* +91 prefix */}
+            <div style={{
+              padding: '0 12px', borderRight: '1.5px solid #E3EAF2',
+              fontSize: 14, fontWeight: 700, color: '#1E4FA3',
+              background: '#EBF2FF', height: '100%',
+              display: 'flex', alignItems: 'center', flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}>
+              +91
+            </div>
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="9876543210"
+              maxLength={10}
+              value={form.phone}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              style={{
+                flex: 1, height: '100%', border: 'none', background: 'transparent',
+                padding: '0 14px', fontSize: 14, color: '#1A1A1A',
+                outline: 'none', fontFamily: 'inherit',
+              }}
+            />
+            {form.phone.length === 10 && !phoneError && (
+              <div style={{ paddingRight: 12, color: '#22C55E', display: 'flex', alignItems: 'center' }}>
+                <span style={{ fontSize: 18 }}>✓</span>
+              </div>
+            )}
+          </div>
+          {phoneError && (
+            <div style={{ fontSize: 12, color: '#DC2626', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <HiExclamationCircle size={13} /> {phoneError}
+            </div>
+          )}
+        </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: '#6B7C93', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Relation *</label>
           <select style={{ ...inp, appearance: 'none' }} value={form.relation} onChange={(e) => setForm({ ...form, relation: e.target.value })}>

@@ -38,6 +38,12 @@ const MENU_ITEMS = [
     icon: HiHeart,
   },
   {
+    id: 'my-doctors', label: 'My Doctors', sub: 'Your favourite doctors',
+    path: '/app/my-doctors',
+    iconBg: '#FFF0F0', iconColor: '#E05B5B',
+    icon: HiHeart,
+  },
+  {
     id: 'notifications', label: 'Notifications', sub: 'Push, SMS, email',
     path: '/app/settings',
     iconBg: '#FFFBEB', iconColor: '#D97706',
@@ -193,38 +199,48 @@ export default function ProfileScreen() {
           <p style={{ fontSize: 12, color: '#A0AEC0', margin: 0 }}>Skip the queue. Get care faster.</p>
         </div>
       </motion.div>
-      {/* Logout confirmation */}
+      {/* Logout confirmation — bottom sheet */}
       {showLogoutConfirm && createPortal(
         <div
-          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.50)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, pointerEvents: 'all' }}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.50)', zIndex: 950, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', pointerEvents: 'all' }}
           onClick={() => setShowLogoutConfirm(false)}
         >
-          <div
+          <motion.div
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#FFFFFF', borderRadius: 24, padding: '28px 24px 24px', width: '100%', maxWidth: 300, textAlign: 'center' }}
+            style={{ background: '#FFFFFF', borderRadius: '24px 24px 0 0', padding: '12px 24px 32px', width: '100%', maxWidth: 430, textAlign: 'center' }}
           >
-            <div style={{ width: 64, height: 64, borderRadius: 20, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <MdPowerSettingsNew size={28} color="#DC2626" />
+            {/* Drag handle */}
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: '#D1D9E0', margin: '0 auto 24px' }} />
+
+            {/* Icon */}
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 26, fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>!</span>
+              </div>
             </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#1A1A1A', marginBottom: 8 }}>Log out?</div>
-            <div style={{ fontSize: 14, color: '#6B7C93', lineHeight: 1.6, marginBottom: 24 }}>
+
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#1A1A1A', marginBottom: 8 }}>Log out?</div>
+            <div style={{ fontSize: 13, color: '#6B7C93', lineHeight: 1.6, marginBottom: 28 }}>
               Are you sure you want to log out of your NoQ account?
             </div>
+
             <div style={{ display: 'flex', gap: 12 }}>
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                style={{ flex: 1, height: 48, borderRadius: 14, border: '1.5px solid #E8EDF2', background: '#F5F8FC', color: '#4A5568', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+                style={{ flex: 1, height: 52, borderRadius: 14, border: '1.5px solid #E8EDF2', background: '#F5F8FC', color: '#374151', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
               >
-                Cancel
+                No, Keep
               </button>
               <button
                 onClick={handleLogout}
-                style={{ flex: 1, height: 48, borderRadius: 14, border: 'none', background: '#DC2626', color: '#FFFFFF', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(220,38,38,0.28)' }}
+                style={{ flex: 1, height: 52, borderRadius: 14, border: 'none', background: '#DC2626', color: '#FFFFFF', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(220,38,38,0.30)' }}
               >
-                Log out
+                Yes, Log out
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>,
         getPortal()
       )}

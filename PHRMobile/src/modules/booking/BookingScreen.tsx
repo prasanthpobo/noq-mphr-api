@@ -23,7 +23,7 @@ import {
 import { MdLocalHospital, MdPhoneAndroid } from 'react-icons/md'
 import { useBookingStore } from '../../store/bookingStore'
 import { useAuthStore } from '../../store/authStore'
-import { getSlots, bookAppointment, type Doctor } from '../../services/doctorService'
+import { getSlots, bookAppointment, formatDoctorName, type Doctor } from '../../services/doctorService'
 import { getFamilyMembers, addFamilyMember, type FamilyMember } from '../../services/familyService'
 import { getClinics, getDoctorsByClinic, type Clinic, type ClinicDoctor } from '../../services/clinicService'
 
@@ -478,7 +478,7 @@ function Step2Doctor({ clinicId, selected, onSelect }: { clinicId: string; selec
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {/* Name */}
                   <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A', marginBottom: 2 }}>
-                    Dr. {doc.name}
+                    {formatDoctorName(doc.name)}
                   </div>
                   {/* Specialization with colored dot */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
@@ -546,8 +546,8 @@ type TimePeriod = 'morning' | 'afternoon' | 'evening' | 'night'
 const PERIOD_CFG: Record<TimePeriod, { label: string; icon: string; range: string; color: string; bg: string; border: string }> = {
   morning:   { label: 'Morning',   icon: '🌅', range: '6 AM – 12 PM', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
   afternoon: { label: 'Afternoon', icon: '☀️', range: '12 PM – 5 PM', color: '#2C6ED5', bg: '#EBF2FF', border: '#BFDBFE' },
-  evening:   { label: 'Evening',   icon: '🌇', range: '5 PM – 8 PM',  color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-  night:     { label: 'Night',     icon: '🌙', range: '8 PM – 12 AM', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  evening:   { label: 'Evening',   icon: '🌇', range: '5 PM – 9 PM',  color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
+  night:     { label: 'Night',     icon: '🌙', range: '9 PM – 12 AM', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
 }
 
 function getTimePeriod(time: string): TimePeriod {
@@ -974,114 +974,180 @@ function Step4Patient({
 // ── Step 5: Reason ────────────────────────────────────────────────────────────
 
 const QUICK_REASON_CFG = [
-  { label: 'Follow-up',    icon: '🔄', color: '#2C6ED5', bg: '#EBF2FF', border: '#BFDBFE' },
-  { label: 'Consultation', icon: '💬', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-  { label: 'Check-up',     icon: '🩺', color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
-  { label: 'Prescription', icon: '💊', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-  { label: 'Test Results', icon: '📋', color: '#0891B2', bg: '#ECFEFF', border: '#A5F3FC' },
-  { label: 'Other',        icon: '✏️', color: '#6B7C93', bg: '#F5F8FC', border: '#E3EAF2' },
+  { label: 'General Check-up', icon: '🏥', color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
+  { label: 'Follow-up',        icon: '🔄', color: '#2C6ED5', bg: '#EBF2FF', border: '#BFDBFE' },
+  { label: 'Fever / Cold',     icon: '🤒', color: '#E05B5B', bg: '#FFF0F0', border: '#FECACA' },
+  { label: 'Consultation',     icon: '💬', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
+  { label: 'Prescription',     icon: '💊', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+  { label: 'Test Results',     icon: '📋', color: '#0891B2', bg: '#ECFEFF', border: '#A5F3FC' },
+  { label: 'Vaccination',      icon: '💉', color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
+  { label: 'Pain / Injury',    icon: '🩹', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+  { label: 'Other',            icon: '✏️', color: '#6B7C93', bg: '#F5F8FC', border: '#E3EAF2' },
 ]
 
+// Split combined reason string back into { quickSelects, notes }
+function parseReason(reason: string): { quickSelects: string[]; notes: string } {
+  const noteMarker = '\nNotes: '
+  const idx = reason.indexOf(noteMarker)
+  if (idx === -1) {
+    // legacy: try to parse as comma-separated quick reasons
+    const parts = reason.split(',').map((s) => s.trim()).filter(Boolean)
+    const knownLabels = QUICK_REASON_CFG.map((c) => c.label)
+    const quickSelects = parts.filter((p) => knownLabels.includes(p))
+    const notes = parts.filter((p) => !knownLabels.includes(p)).join(', ')
+    return { quickSelects, notes }
+  }
+  const quickSelects = reason.slice(0, idx).split(',').map((s) => s.trim()).filter(Boolean)
+  const notes = reason.slice(idx + noteMarker.length)
+  return { quickSelects, notes }
+}
+
+function buildReason(quickSelects: string[], notes: string): string {
+  const base = quickSelects.join(', ')
+  if (!notes.trim()) return base
+  if (!base) return notes.trim()
+  return `${base}\nNotes: ${notes.trim()}`
+}
+
 function Step5Reason({ reason, onChangeReason }: { reason: string; onChangeReason: (r: string) => void }) {
-  const [focused, setFocused] = useState(false)
+  const parsed = parseReason(reason)
+  const [quickSelects, setQuickSelects] = useState<string[]>(parsed.quickSelects)
+  const [notes, setNotes]               = useState(parsed.notes)
+  const [focused, setFocused]           = useState(false)
+
+  const emit = (qs: string[], n: string) => onChangeReason(buildReason(qs, n))
 
   const toggleChip = (label: string) => {
-    const parts = reason.split(',').map((s) => s.trim()).filter(Boolean)
-    if (parts.includes(label)) {
-      onChangeReason(parts.filter((p) => p !== label).join(', '))
-    } else {
-      onChangeReason(parts.length > 0 ? `${parts.join(', ')}, ${label}` : label)
-    }
+    const next = quickSelects.includes(label)
+      ? quickSelects.filter((q) => q !== label)
+      : [...quickSelects, label]
+    setQuickSelects(next)
+    emit(next, notes)
   }
 
-  const selectedChips = reason.split(',').map((s) => s.trim()).filter(Boolean)
+  const handleNotesChange = (val: string) => {
+    setNotes(val)
+    emit(quickSelects, val)
+  }
+
+  const clearAll = () => {
+    setQuickSelects([])
+    setNotes('')
+    onChangeReason('')
+  }
+
+  const hasAny = quickSelects.length > 0 || notes.trim().length > 0
 
   return (
     <div style={{ padding: '20px 16px' }}>
-      <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1A1A1A', margin: '0 0 4px' }}>Reason for Visit</h2>
-      <p style={{ fontSize: 14, color: '#6B7C93', margin: '0 0 20px' }}>Tell us why you're visiting today</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1A1A1A', margin: '0 0 4px' }}>Reason for Visit</h2>
+          <p style={{ fontSize: 14, color: '#6B7C93', margin: 0 }}>Tell us why you're visiting today</p>
+        </div>
+        {hasAny && (
+          <button onClick={clearAll} style={{ fontSize: 12, fontWeight: 700, color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', flexShrink: 0 }}>
+            Clear all
+          </button>
+        )}
+      </div>
 
-      {/* Quick select section */}
-      <div style={{ marginBottom: 20 }}>
+      {/* ── Quick Select ──────────────────────────────────────────────────── */}
+      <div style={{ marginBottom: 22 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
           Quick Select
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           {QUICK_REASON_CFG.map(({ label, icon, color, bg, border }) => {
-            const isActive = selectedChips.includes(label)
+            const isActive = quickSelects.includes(label)
             return (
               <motion.button
                 key={label}
                 onClick={() => toggleChip(label)}
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.94 }}
                 style={{
                   padding: '12px 8px', borderRadius: 14,
                   border: isActive ? `2px solid ${color}` : `1.5px solid ${border}`,
                   background: isActive ? bg : '#FFFFFF',
                   cursor: 'pointer', display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 6,
-                  boxShadow: isActive ? `0 4px 12px ${color}22` : '0 1px 4px rgba(30,79,163,0.05)',
-                  transition: 'all 0.18s ease',
-                  position: 'relative',
+                  boxShadow: isActive ? `0 4px 14px ${color}28` : '0 1px 4px rgba(30,79,163,0.05)',
+                  transition: 'all 0.18s ease', position: 'relative',
                 }}
               >
                 {isActive && (
-                  <div style={{
-                    position: 'absolute', top: 6, right: 6,
-                    width: 16, height: 16, borderRadius: '50%',
-                    background: color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
+                  <div style={{ position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <HiCheck size={10} color="#FFFFFF" />
                   </div>
                 )}
                 <span style={{ fontSize: 22 }}>{icon}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? color : '#4A5568', textAlign: 'center', lineHeight: 1.2 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? color : '#4A5568', textAlign: 'center', lineHeight: 1.3 }}>
                   {label}
                 </span>
               </motion.button>
             )
           })}
         </div>
+
+        {/* Selected chips strip */}
+        {quickSelects.length > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {quickSelects.map((chip) => {
+              const cfg = QUICK_REASON_CFG.find((c) => c.label === chip)!
+              return (
+                <motion.button
+                  key={chip}
+                  onClick={() => toggleChip(chip)}
+                  whileTap={{ scale: 0.93 }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontSize: 12, fontWeight: 700, borderRadius: 20, padding: '4px 10px 4px 8px',
+                    background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>{cfg.icon}</span>
+                  <span>{chip}</span>
+                  <span style={{ fontSize: 14, lineHeight: 1, marginLeft: 1, opacity: 0.6 }}>×</span>
+                </motion.button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Textarea section */}
+      {/* ── Notes ─────────────────────────────────────────────────────────── */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 12 }}>
-          Additional Details
+          Notes <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>— optional</span>
         </div>
         <div style={{
-          borderRadius: 16, border: focused ? '2px solid #2C6ED5' : '1.5px solid #E3EAF2',
-          background: '#FFFFFF', overflow: 'hidden',
+          borderRadius: 16, overflow: 'hidden',
+          border: focused ? '2px solid #2C6ED5' : '1.5px solid #E3EAF2',
           boxShadow: focused ? '0 0 0 3px rgba(44,110,213,0.10)' : '0 2px 8px rgba(30,79,163,0.05)',
-          transition: 'all 0.18s ease',
+          transition: 'all 0.18s',
         }}>
           <textarea
-            rows={5}
-            value={reason}
-            onChange={(e) => onChangeReason(e.target.value)}
+            rows={4}
+            value={notes}
+            onChange={(e) => handleNotesChange(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder="Describe your symptoms or any additional details…"
+            placeholder="Describe your symptoms, concerns, or anything the doctor should know…"
+            maxLength={500}
             style={{
               width: '100%', border: 'none', outline: 'none',
               padding: '14px 16px', fontSize: 14, color: '#1A1A1A',
-              background: 'transparent', resize: 'none',
+              background: '#FFFFFF', resize: 'none',
               fontFamily: 'inherit', lineHeight: 1.7, boxSizing: 'border-box',
             }}
           />
-          {/* Footer bar */}
-          <div style={{
-            padding: '8px 14px', borderTop: '1px solid #F0F4F8',
-            background: '#F9FAFC', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
+          <div style={{ padding: '8px 14px', borderTop: '1px solid #F0F4F8', background: '#F9FAFC', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, color: '#A0AEC0' }}>
-              {reason.length > 0 ? `${reason.length} characters` : 'Optional — skip if not needed'}
+              {notes.length > 0 ? `${notes.length} / 500 characters` : 'Add any details the doctor should know'}
             </span>
-            {reason.length > 0 && (
-              <button
-                onClick={() => onChangeReason('')}
-                style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              >
+            {notes.length > 0 && (
+              <button onClick={() => handleNotesChange('')} style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                 Clear
               </button>
             )}
@@ -1089,27 +1155,22 @@ function Step5Reason({ reason, onChangeReason }: { reason: string; onChangeReaso
         </div>
       </div>
 
-      {/* Selected summary */}
-      {selectedChips.length > 0 && (
+      {/* Summary banner */}
+      {hasAny && (
         <div style={{ marginTop: 16, padding: '12px 14px', background: '#EBF2FF', borderRadius: 14, border: '1px solid #BFDBFE' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#2C6ED5', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Selected Reasons
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#2C6ED5', marginBottom: notes.trim() ? 6 : 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Visit Summary
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {selectedChips.map((chip) => {
-              const cfg = QUICK_REASON_CFG.find((c) => c.label === chip)
-              return (
-                <span key={chip} style={{
-                  fontSize: 12, fontWeight: 600, borderRadius: 20, padding: '3px 10px',
-                  background: cfg?.bg ?? '#F5F8FC', color: cfg?.color ?? '#6B7C93',
-                  border: `1px solid ${cfg?.border ?? '#E3EAF2'}`,
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}>
-                  {cfg?.icon} {chip}
-                </span>
-              )
-            })}
-          </div>
+          {quickSelects.length > 0 && (
+            <div style={{ fontSize: 13, color: '#1E40AF', fontWeight: 600, lineHeight: 1.5 }}>
+              {quickSelects.join(' · ')}
+            </div>
+          )}
+          {notes.trim() && (
+            <div style={{ fontSize: 12, color: '#3D4A5B', marginTop: quickSelects.length > 0 ? 4 : 0, lineHeight: 1.5, fontStyle: 'italic' }}>
+              "{notes.trim().slice(0, 120)}{notes.trim().length > 120 ? '…' : ''}"
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1159,7 +1220,7 @@ function Step6Confirm({
               {doctor ? getInitials(doctor.name) : '?'}
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF' }}>{doctor ? `Dr. ${doctor.name}` : '—'}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF' }}>{doctor ? formatDoctorName(doctor.name) : '—'}</div>
               {doctor?.specialization && (
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.80)', marginTop: 2 }}>{doctor.specialization}</div>
               )}
@@ -1456,7 +1517,8 @@ export default function BookingScreen() {
   const { setPatientSelf, setPatientFamily, setDoctor, setDate, setTime, setReason, reset } = useBookingStore()
 
   // Pre-fill doctor (and derive clinic) from navigation state
-  const stateDoctor = (location.state as { doctor?: Doctor } | null)?.doctor ?? null
+  const navState    = (location.state as { doctor?: Doctor; prefilledDate?: string; prefilledTime?: string } | null)
+  const stateDoctor = navState?.doctor ?? null
 
   // Derive a minimal Clinic object from pre-filled doctor's clinicId
   const deriveClinicFromDoctor = (doc: Doctor): Clinic | null => {
@@ -1480,8 +1542,8 @@ export default function BookingScreen() {
   const [localStep, setLocalStep] = useState(initialStep)
   const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(initialClinic)
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(stateDoctor)
-  const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'))
-  const [selectedTime, setSelectedTime] = useState('')
+  const [selectedDate, setSelectedDate] = useState(navState?.prefilledDate ?? dayjs().format('YYYY-MM-DD'))
+  const [selectedTime, setSelectedTime] = useState(navState?.prefilledTime ?? '')
   const [selectedId, setSelectedId] = useState('self')
   const [selectedFamilyMember, setSelectedFamilyMember] = useState<FamilyMember | null>(null)
   const [reason, setReasonLocal] = useState('')
