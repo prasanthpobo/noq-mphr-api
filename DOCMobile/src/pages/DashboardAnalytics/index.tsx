@@ -18,10 +18,13 @@ export function DashboardAnalytics() {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
 
-  const firstName  = user?.name?.split(' ')[0] ?? 'Doctor'
-  const initials   = (user?.name ?? 'D')
+  // Strip leading "Dr." so we don't get "Hi, Dr. Dr. ..."
+  const cleanName  = (user?.name ?? '').replace(/^Dr\.\s*/i, '') || 'Doctor'
+  const firstName  = cleanName.split(' ')[0]
+  const initials   = cleanName
     .split(' ')
     .map((n: string) => n[0])
+    .filter(Boolean)
     .slice(0, 2)
     .join('')
     .toUpperCase()
@@ -34,7 +37,7 @@ export function DashboardAnalytics() {
       style={{ minHeight: '100%', background: '#F5F8FC' }}
     >
       {/* ── Section 1: Header ────────────────────────────────────────────── */}
-      <div style={{ background: BRAND_GRADIENT, padding: '48px 20px 28px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ background: BRAND_GRADIENT, padding: '52px 20px 28px', position: 'relative', overflow: 'hidden' }}>
         {/* decorative circles */}
         <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -20, left: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
@@ -90,62 +93,63 @@ export function DashboardAnalytics() {
           gap: 16,
         }}
       >
-        {/* Donut SVG */}
-        <div style={{ flexShrink: 0, position: 'relative', width: 108, height: 108 }}>
-          <svg width="108" height="108" viewBox="0 0 120 120">
+        {/* Donut SVG — 130px, matches reference */}
+        <div style={{ flexShrink: 0, position: 'relative', width: 130, height: 130 }}>
+          <svg width="130" height="130" viewBox="0 0 120 120">
             {/* base track */}
-            <circle cx="60" cy="60" r="50" fill="none" stroke="#EBF2FF" strokeWidth="16" />
-            {/* Women arc — pink, 44% of 314 ≈ 138 */}
+            <circle cx="60" cy="60" r="48" fill="none" stroke="#EBF2FF" strokeWidth="14" />
+            {/* Women arc — pink #EC4899, 44% of circumference(302) ≈ 133 */}
             <circle
-              cx="60" cy="60" r="50"
-              fill="none"
-              stroke="#EC4899"
-              strokeWidth="16"
-              strokeDasharray="138 176"
-              strokeDashoffset="-235"
+              cx="60" cy="60" r="48"
+              fill="none" stroke="#EC4899" strokeWidth="14"
+              strokeDasharray="133 169"
               strokeLinecap="round"
               transform="rotate(-90 60 60)"
             />
-            {/* Men arc — blue, 55% of 314 ≈ 173 */}
+            {/* Men arc — blue #1E4FA3, 55% ≈ 166, offset by women arc */}
             <circle
-              cx="60" cy="60" r="50"
-              fill="none"
-              stroke="#1E4FA3"
-              strokeWidth="16"
-              strokeDasharray="173 141"
-              strokeDashoffset="-97"
+              cx="60" cy="60" r="48"
+              fill="none" stroke="#1E4FA3" strokeWidth="14"
+              strokeDasharray="166 136"
+              strokeDashoffset="-133"
               strokeLinecap="round"
               transform="rotate(-90 60 60)"
             />
           </svg>
           {/* Centre label */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#1E4FA3', lineHeight: 1 }}>990</span>
-            <span style={{ fontSize: 8, fontWeight: 600, color: '#94A3B8', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Total</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', lineHeight: 1 }}>990</span>
+            <span style={{ fontSize: 7, fontWeight: 700, color: '#94A3B8', letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: 2 }}>Total Patients</span>
           </div>
         </div>
 
         {/* Legend */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: '#94A3B8', letterSpacing: '1px', textTransform: 'uppercase' }}>Patient Split</span>
-          <p style={{ fontSize: 11, color: '#CBD5E1', margin: '2px 0 12px', fontWeight: 500 }}>This month</p>
+          <p style={{ fontSize: 12, fontWeight: 600, color: '#1E293B', margin: '3px 0 14px' }}>This month</p>
 
-          {/* Women */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          {/* Women row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EC4899', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: '#475569', fontWeight: 500 }}>Women</span>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EC4899', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: 13, color: '#475569', fontWeight: 600, margin: 0 }}>Women</p>
+                <p style={{ fontSize: 10, color: '#94A3B8', margin: '1px 0 0' }}>436 patients</p>
+              </div>
             </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#EC4899' }}>44%</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#1E293B' }}>44%</span>
           </div>
 
-          {/* Men */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* Men row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1E4FA3', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: '#475569', fontWeight: 500 }}>Men</span>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1E4FA3', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: 13, color: '#475569', fontWeight: 600, margin: 0 }}>Men</p>
+                <p style={{ fontSize: 10, color: '#94A3B8', margin: '1px 0 0' }}>545 patients</p>
+              </div>
             </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1E4FA3' }}>55%</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#1E293B' }}>55%</span>
           </div>
         </div>
       </motion.div>
