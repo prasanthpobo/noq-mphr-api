@@ -20,11 +20,14 @@ export interface Doctor {
 // ─── Clinic ────────────────────────────────────────────────────────────────
 
 export interface Clinic {
-  id: string
+  _id: string
+  id?: string
   name: string
   address: string
-  phone: string
-  timings: string
+  city?: string
+  phone?: string
+  email?: string
+  status?: string
 }
 
 // ─── Queue ─────────────────────────────────────────────────────────────────
