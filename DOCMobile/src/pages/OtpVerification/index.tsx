@@ -13,7 +13,8 @@ const RESEND_COUNTDOWN = 60
 export function OtpVerification() {
   const navigate  = useNavigate()
   const { state } = useLocation()
-  const phone: string = state?.phone ?? ''
+  const phone: string   = state?.phone ?? ''
+  const routeDevOtp     = state?._dev_otp ?? null
   const setAuth   = useAuthStore((s) => s.setAuth)
 
   const [digits, setDigits]           = useState<string[]>(Array(OTP_LENGTH).fill(''))
@@ -22,6 +23,7 @@ export function OtpVerification() {
   const [countdown, setCountdown]     = useState(RESEND_COUNTDOWN)
   const [isResending, setIsResending] = useState(false)
   const [success, setSuccess]         = useState(false)
+  const [devOtp, setDevOtp]           = useState<string | null>(routeDevOtp)
 
   const inputRefs = useRef<Array<HTMLInputElement | null>>(Array(OTP_LENGTH).fill(null))
 
@@ -99,7 +101,8 @@ export function OtpVerification() {
     setApiError(null)
     setDigits(Array(OTP_LENGTH).fill(''))
     try {
-      await authService.sendOtp(phone)
+      const res = await authService.sendOtp(phone)
+      setDevOtp(res.data?._dev_otp ?? null)
       setCountdown(RESEND_COUNTDOWN)
       setTimeout(() => focusInput(0), 50)
     } catch {
@@ -272,6 +275,28 @@ export function OtpVerification() {
           >
             <HiShieldCheck size={18} color="#16A34A" />
             Verified! Signing you in…
+          </motion.div>
+        )}
+
+        {/* Dev OTP hint */}
+        {devOtp && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+            style={{
+              background: '#FFFBEB', border: '1.5px dashed #FDE68A',
+              borderRadius: 12, padding: '10px 14px', marginBottom: 16,
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}
+          >
+            <span style={{ fontSize: 18 }}>🔑</span>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Dev Mode — OTP
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#D97706', letterSpacing: 4, marginTop: 2 }}>
+                {devOtp}
+              </div>
+            </div>
           </motion.div>
         )}
 

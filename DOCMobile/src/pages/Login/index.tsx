@@ -24,8 +24,8 @@ export function Login() {
     setPhoneError('')
     setSending(true)
     try {
-      await authService.sendOtp(phone)
-      navigate('/otp', { state: { phone } })
+      const res = await authService.sendOtp(phone)
+      navigate('/otp', { state: { phone, _dev_otp: res.data?._dev_otp ?? null } })
     } catch {
       setApiError('Failed to send OTP. Please try again.')
     } finally {
