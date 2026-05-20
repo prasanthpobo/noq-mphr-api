@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, KeyboardEvent, ClipboardEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { HiArrowLeft, HiShieldCheck } from 'react-icons/hi'
+import { HiArrowLeft, HiShieldCheck, HiPhone } from 'react-icons/hi'
 import { MdPhoneAndroid } from 'react-icons/md'
 import { verifyOtp, forgotPassword, verifyLoginOtp, sendLoginOtp, otpRegister, sendRegisterOtp } from '../../services/authService'
 import { useAuthStore } from '../../store/authStore'
@@ -23,19 +23,18 @@ export default function OTPScreen() {
   const routeState   = location.state as { _dev_otp?: string; registerData?: { name: string; email: string; phone: string; dob: string; gender: 'M' | 'F' | 'Other' } } | null
   const registerData = routeState?.registerData ?? null
 
-  // Determine mode: 'register' if registerData in route state, 'login' if loginPhone in store, else 'reset'
   const isRegisterMode = !!registerData
   const isLoginMode    = !isRegisterMode && !!loginPhone
   const identifier     = isRegisterMode ? registerData.phone : isLoginMode ? loginPhone : resetIdentifier
 
-  const [digits, setDigits]       = useState<string[]>(Array(OTP_LENGTH).fill(''))
-  const [isLoading, setIsLoading] = useState(false)
-  const [apiError, setApiError]   = useState<string | null>(null)
-  const [countdown, setCountdown] = useState(RESEND_COUNTDOWN)
+  const [digits, setDigits]           = useState<string[]>(Array(OTP_LENGTH).fill(''))
+  const [isLoading, setIsLoading]     = useState(false)
+  const [apiError, setApiError]       = useState<string | null>(null)
+  const [countdown, setCountdown]     = useState(RESEND_COUNTDOWN)
   const [isResending, setIsResending] = useState(false)
-  const [success, setSuccess]     = useState(false)
-  const routeDevOtp  = routeState?._dev_otp ?? null
-  const [devOtp, setDevOtp]       = useState<string | null>(routeDevOtp)
+  const [success, setSuccess]         = useState(false)
+  const routeDevOtp                   = routeState?._dev_otp ?? null
+  const [devOtp, setDevOtp]           = useState<string | null>(routeDevOtp)
 
   const inputRefs = useRef<Array<HTMLInputElement | null>>(Array(OTP_LENGTH).fill(null))
 
@@ -47,18 +46,14 @@ export default function OTPScreen() {
     return () => clearTimeout(t)
   }, [countdown])
 
-  // Redirect if no identifier
   if (!identifier) {
     navigate(isRegisterMode ? '/register' : '/login', { replace: true })
     return null
   }
 
   const isFilled = digits.every((d) => d !== '')
-
   const formatCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-
-  const maskedPhone = identifier.replace(/(\d{2})\d+(\d{2})$/, '$1******$2')
-
+  const maskedPhone = identifier.replace(/(\d{2})\d+(\d{2})$/, '$1 ••••••$2')
   const focusInput = (i: number) => { if (i >= 0 && i < OTP_LENGTH) inputRefs.current[i]?.focus() }
 
   const handleChange = (index: number, value: string) => {
@@ -99,7 +94,6 @@ export default function OTPScreen() {
     const otp = digits.join('')
     try {
       if (isRegisterMode) {
-        // Registration flow → create account → home
         const res = await otpRegister({ ...registerData!, otp })
         if (res.success) {
           setSuccess(true)
@@ -112,7 +106,6 @@ export default function OTPScreen() {
           setTimeout(() => focusInput(0), 50)
         }
       } else if (isLoginMode) {
-        // Login OTP flow → navigate to dashboard
         const res = await verifyLoginOtp(identifier, otp)
         if (res.success) {
           setSuccess(true)
@@ -126,7 +119,6 @@ export default function OTPScreen() {
           setTimeout(() => focusInput(0), 50)
         }
       } else {
-        // Password reset flow → navigate to reset-password
         const res = await verifyOtp(identifier, otp)
         if (res.success) {
           setResetToken(res.resetToken)
@@ -172,6 +164,13 @@ export default function OTPScreen() {
     }
   }
 
+  const headingText = isRegisterMode ? 'Confirm Your Number' : isLoginMode ? 'Verify & Login' : 'Reset Password'
+  const subtitleText = isRegisterMode
+    ? 'Verify your number to complete registration'
+    : isLoginMode
+      ? 'We sent a 6-digit code to your number'
+      : 'Enter the OTP sent to recover your account'
+
   return (
     <div style={{
       minHeight: '100%', flex: 1, width: '100%',
@@ -180,67 +179,92 @@ export default function OTPScreen() {
       fontFamily: 'Roboto, system-ui, sans-serif',
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* Decorative circles */}
-      <div style={{ position: 'absolute', top: -50, right: -50, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', top: 80, left: -40, width: 130, height: 130, borderRadius: '50%', background: 'rgba(31,163,168,0.18)', pointerEvents: 'none' }} />
+      {/* Decorative circles — same as LoginScreen */}
+      <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', top: 60, left: -50, width: 160, height: 160, borderRadius: '50%', background: 'rgba(31,163,168,0.20)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 260, right: -40, width: 130, height: 130, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
 
-      {/* ── Top section ─────────────────────────────────────────────────── */}
+      {/* ── Brand / header area ──────────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ padding: '16px 20px 28px', position: 'relative', zIndex: 2 }}
+        initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '20px 24px 24px', position: 'relative', zIndex: 1,
+        }}
       >
-        {/* Back button */}
-        <button
+        {/* Back button — top-left */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
           onClick={() => navigate(-1)}
           style={{
+            position: 'absolute', top: 16, left: 20,
             width: 40, height: 40, borderRadius: 12, border: 'none',
             background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', marginBottom: 28,
+            cursor: 'pointer',
           }}
         >
           <HiArrowLeft size={20} color="#FFFFFF" />
-        </button>
+        </motion.button>
 
-        {/* Icon */}
-        <div style={{
-          width: 68, height: 68, borderRadius: 20,
-          background: 'rgba(255,255,255,0.20)', border: '1.5px solid rgba(255,255,255,0.35)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-        }}>
-          <MdPhoneAndroid size={34} color="#FFFFFF" />
-        </div>
+        {/* Icon in white box — matches LoginScreen shield style */}
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+          style={{
+            width: 84, height: 84, borderRadius: 24,
+            background: '#FFFFFF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.20)', marginBottom: 18,
+          }}
+        >
+          <MdPhoneAndroid size={44} color="#1E4FA3" />
+        </motion.div>
 
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#FFFFFF', margin: '0 0 6px', letterSpacing: -0.5 }}>
-          {isRegisterMode ? 'Confirm Mobile' : isLoginMode ? 'Verify & Login' : 'Reset Password'}
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: '#FFFFFF', margin: '0 0 8px', letterSpacing: -0.5, textAlign: 'center' }}>
+          {headingText}
         </h1>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.80)', margin: 0, fontWeight: 500 }}>
-          {isRegisterMode ? 'Verify your number to complete registration' : 'We sent a 6-digit code to'}{' '}
-          <span style={{ fontWeight: 700, color: '#FFFFFF' }}>+91 {maskedPhone}</span>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.80)', fontWeight: 500, margin: 0, textAlign: 'center', lineHeight: 1.5 }}>
+          {subtitleText}
         </p>
+
+        {/* Phone number pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+          borderRadius: 20, padding: '6px 14px', marginTop: 14,
+        }}>
+          <HiPhone size={14} color="rgba(255,255,255,0.85)" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#FFFFFF', letterSpacing: 1 }}>
+            +91 {maskedPhone}
+          </span>
+        </div>
       </motion.div>
 
-      {/* ── White sheet ─────────────────────────────────────────────────── */}
+      {/* ── White sheet ──────────────────────────────────────────────────── */}
       <motion.div
-        initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.12, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         style={{
-          flex: 1, background: '#FFFFFF', borderRadius: '28px 28px 0 0',
-          padding: '28px 24px 36px',
+          background: '#FFFFFF', borderRadius: '28px 28px 0 0',
+          padding: '20px 24px 36px',
           boxShadow: '0 -8px 32px rgba(0,0,0,0.14)',
           position: 'relative', zIndex: 2,
         }}
       >
         {/* Handle */}
-        <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E3EAF2', margin: '0 auto 28px' }} />
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E3EAF2', margin: '0 auto 24px' }} />
 
-        <p style={{ fontSize: 13, fontWeight: 600, color: '#6B7C93', marginBottom: 16, textAlign: 'center' }}>
-          Enter the 6-digit code
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1A1A1A', margin: '0 0 4px' }}>
+          Enter verification code
+        </h2>
+        <p style={{ fontSize: 13, color: '#6B7C93', margin: '0 0 22px', fontWeight: 500 }}>
+          Check your WhatsApp for the 6-digit OTP
         </p>
 
-        {/* OTP boxes */}
+        {/* OTP digit boxes */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 20 }}>
           {digits.map((digit, i) => (
             <input
@@ -254,27 +278,37 @@ export default function OTPScreen() {
               onKeyDown={(e) => handleKeyDown(i, e)}
               onPaste={handlePaste}
               style={{
-                width: 46, height: 56,
-                textAlign: 'center', fontSize: 22, fontWeight: 800,
+                flex: 1,
+                height: 58,
+                textAlign: 'center',
+                fontSize: 24,
+                fontWeight: 800,
                 fontFamily: 'inherit',
                 border: success
                   ? '2px solid #22C55E'
-                  : digit
-                    ? '2px solid #2C6ED5'
-                    : apiError
-                      ? '2px solid #EF4444'
+                  : apiError
+                    ? '2px solid #EF4444'
+                    : digit
+                      ? '2px solid #2C6ED5'
                       : '1.5px solid #E3EAF2',
                 borderRadius: 14,
-                background: success ? '#ECFDF5' : digit ? '#EBF2FF' : '#F5F8FC',
-                color: success ? '#16A34A' : '#1E4FA3',
+                background: success
+                  ? '#ECFDF5'
+                  : apiError
+                    ? '#FEF2F2'
+                    : digit
+                      ? '#EBF2FF'
+                      : '#F5F8FC',
+                color: success ? '#16A34A' : apiError ? '#EF4444' : '#1E4FA3',
                 outline: 'none',
                 transition: 'all 0.15s',
+                minWidth: 0,
               }}
             />
           ))}
         </div>
 
-        {/* Error */}
+        {/* Error banner */}
         {apiError && (
           <motion.div
             initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
@@ -288,7 +322,7 @@ export default function OTPScreen() {
           </motion.div>
         )}
 
-        {/* Success */}
+        {/* Success banner */}
         {success && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
@@ -303,7 +337,7 @@ export default function OTPScreen() {
           </motion.div>
         )}
 
-        {/* Dev OTP hint — only in development */}
+        {/* Dev OTP hint */}
         {devOtp && (
           <motion.div
             initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
@@ -322,7 +356,7 @@ export default function OTPScreen() {
         )}
 
         {/* Resend timer */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
           {countdown > 0 ? (
             <p style={{ fontSize: 13, color: '#6B7C93', margin: 0 }}>
               Resend code in{' '}
@@ -338,7 +372,7 @@ export default function OTPScreen() {
                 opacity: isResending ? 0.6 : 1, fontFamily: 'inherit',
               }}
             >
-              {isResending ? 'Resending…' : '↺ Resend OTP'}
+              {isResending ? 'Resending…' : '↺  Resend OTP'}
             </button>
           )}
         </div>
@@ -367,12 +401,12 @@ export default function OTPScreen() {
           ) : (
             <>
               <HiShieldCheck size={20} />
-              {isRegisterMode ? 'Verify & Create Account' : isLoginMode ? 'Verify & Go to Home' : 'Verify & Continue'}
+              {isRegisterMode ? 'Verify & Create Account' : isLoginMode ? 'Verify & Sign In' : 'Verify & Continue'}
             </>
           )}
         </motion.button>
 
-        {/* Wrong number */}
+        {/* Wrong number link */}
         <button
           onClick={() => navigate('/login')}
           style={{
