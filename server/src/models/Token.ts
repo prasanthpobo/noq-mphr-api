@@ -15,7 +15,7 @@ export interface IToken extends Document {
 }
 
 export interface ITokenModel extends Model<IToken> {
-  getNextTokenNumber(clinicId: mongoose.Types.ObjectId | string, date: Date): Promise<number>
+  getNextTokenNumber(doctorId: mongoose.Types.ObjectId | string, date: Date): Promise<number>
 }
 
 const TokenSchema = new Schema<IToken>(
@@ -71,7 +71,7 @@ const TokenSchema = new Schema<IToken>(
 )
 
 TokenSchema.statics.getNextTokenNumber = async function (
-  clinicId: mongoose.Types.ObjectId | string,
+  doctorId: mongoose.Types.ObjectId | string,
   date: Date
 ): Promise<number> {
   const startOfDay = new Date(date)
@@ -80,7 +80,7 @@ TokenSchema.statics.getNextTokenNumber = async function (
   endOfDay.setHours(23, 59, 59, 999)
 
   const count = await this.countDocuments({
-    clinicId,
+    doctorId,
     issuedAt: { $gte: startOfDay, $lte: endOfDay }
   })
 

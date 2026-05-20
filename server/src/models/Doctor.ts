@@ -3,6 +3,11 @@ import mongoose, { Document, Schema } from 'mongoose'
 export type DoctorStatus = 'active' | 'inactive' | 'on-leave'
 export type DoctorShift = 'morning' | 'evening' | 'night'
 
+export interface IWorkingHours {
+  start: number  // 24h hour, e.g. 9 = 9:00 AM
+  end: number    // exclusive, e.g. 14 = last slot at 13:30
+}
+
 export interface IDoctor extends Document {
   name: string
   email: string
@@ -15,6 +20,7 @@ export interface IDoctor extends Document {
   consultationFee?: number
   availableDays: string[]
   shift: DoctorShift
+  workingHours?: IWorkingHours[]   // array of ranges, e.g. morning + evening
   bio?: string
   avatar?: string
   createdAt: Date
@@ -72,6 +78,14 @@ const DoctorSchema = new Schema<IDoctor>(
       type: String,
       enum: ['morning', 'evening', 'night'],
       required: [true, 'Shift is required']
+    },
+    workingHours: {
+      type: [{
+        start: { type: Number, required: true, min: 0, max: 23 },
+        end:   { type: Number, required: true, min: 1, max: 24 },
+        _id:   false,
+      }],
+      default: undefined,
     },
     bio: {
       type: String
