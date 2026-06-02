@@ -23,10 +23,12 @@ function matchStatus(q: any, chip: string): boolean {
   return true
 }
 
+const TABLE_COLS = 6
+
 function SkeletonRow() {
   return (
     <tr>
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: TABLE_COLS }).map((_, i) => (
         <td key={i}>
           <div style={{
             height: 14,
@@ -34,7 +36,7 @@ function SkeletonRow() {
             background: 'linear-gradient(90deg, var(--bg-section) 25%, var(--border-light) 50%, var(--bg-section) 75%)',
             backgroundSize: '200% 100%',
             animation: 'shimmer 1.4s infinite',
-            width: '85%',
+            width: i === TABLE_COLS - 1 ? '80%' : '85%',
           }} />
         </td>
       ))}
@@ -243,12 +245,10 @@ export default function TokensManager() {
           <table className="data">
             <thead>
               <tr>
-                <th style={{ width: 40 }}>#</th>
-                <th>Token</th>
+                <th>Token #</th>
                 <th>Patient</th>
-                <th>Clinic</th>
                 <th>Doctor</th>
-                <th>Slot</th>
+                <th>Date &amp; Time</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
@@ -262,7 +262,7 @@ export default function TokensManager() {
                 </>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={TABLE_COLS}>
                     <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--fg-muted)' }}>
                       <Icon name="ticket" size={32} />
                       <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600 }}>No tokens found</div>
@@ -271,53 +271,83 @@ export default function TokensManager() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((t, idx) => {
-                  const isNow      = t.status === 'in-consultation'
-                  const globalIdx  = items.indexOf(t)
+                filtered.map((t) => {
+                  const isNow       = t.status === 'in-consultation'
+                  const globalIdx   = items.indexOf(t)
                   const patientName = t.patientId?.name ?? 'Patient'
                   const initials    = patientName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                  const apptDate    = t.appointmentId?.date ?? t.issuedAt
+                  const slotTime    = t.appointmentId?.time
                   return (
                     <tr key={t._id} style={{ background: isNow ? 'var(--brand-gradient-soft)' : undefined }}>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 700, color: 'var(--fg-secondary)', textAlign: 'center' }}>
-                        {t.pos ?? idx + 1}
-                      </td>
+                      {/* Token Number */}
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <span className={`cell-token ${t.priority === 'emergency' ? 'emergency' : ''}`}>{t.tokenNumber}</span>
+                          <span className={`cell-token ${t.priority === 'emergency' ? 'emergency' : ''}`}
+                                style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {String(t.tokenNumber).padStart(3, '0')}
+                          </span>
                           {isNow && <Badge variant="teal">NOW</Badge>}
                           {t.priority === 'emergency' && <Badge variant="danger">EMG</Badge>}
-                          {t.priority === 'priority' && <Badge variant="warning">PRI</Badge>}
+                          {t.priority === 'priority'  && <Badge variant="warning">PRI</Badge>}
                         </div>
                       </td>
+
+                      {/* Patient Name */}
                       <td>
                         <div className="cell-person">
                           <div className="av blue">{initials}</div>
                           <div className="info">
                             <div className="n">{patientName}</div>
-                            <div className="s">{t.patientId?._id ?? ''}</div>
+                            {t.patientId?.phone && (
+                              <div className="s">{t.patientId.phone}</div>
+                            )}
                           </div>
                         </div>
                       </td>
-                      <td style={{ fontSize: 13, color: 'var(--fg-secondary)' }}>{t.clinicId?.name ?? '-'}</td>
-                      <td style={{ fontSize: 13, fontWeight: 600 }}>{t.doctorId?.name ?? 'Doctor'}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--fg-secondary)' }}>
-                        {t.appointmentId?.time ?? '-'}
+
+                      {/* Doctor Name */}
+                      <td>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                          {t.doctorId?.name ?? '—'}
+                        </div>
+                        {t.doctorId?.specialization && (
+                          <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 2 }}>
+                            {t.doctorId.specialization}
+                          </div>
+                        )}
                       </td>
-                      <td><StatusBadge status={t.status} emergency={t.priority === 'emergency'} /></td>
+
+                      {/* Date and Time */}
+                      <td>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                          {apptDate ? dayjs(apptDate).format('DD MMM YYYY') : '—'}
+                        </div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>
+                          {slotTime ?? (t.issuedAt ? dayjs(t.issuedAt).format('hh:mm A') : '—')}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td>
+                        <StatusBadge status={t.status} emergency={t.priority === 'emergency'} />
+                      </td>
+
+                      {/* Actions */}
                       <td>
                         <div className="row-actions">
                           <button className="act" title="View" onClick={() => openView(t)}><Icon name="eye" size={13} /></button>
                           <button className="act" title="Edit" onClick={() => openEdit(t)}><Icon name="edit" size={13} /></button>
-                          <button className="act" title="Move up" disabled={globalIdx === 0} onClick={() => moveUp(t)} style={{ opacity: globalIdx === 0 ? 0.3 : 1 }}>
+                          <button className="act" title="Move up"   disabled={globalIdx === 0}                   onClick={() => moveUp(t)}   style={{ opacity: globalIdx === 0 ? 0.3 : 1 }}>
                             <Icon name="arrowUp" size={13} />
                           </button>
-                          <button className="act" title="Move down" disabled={globalIdx === items.length - 1} onClick={() => moveDown(t)} style={{ opacity: globalIdx === items.length - 1 ? 0.3 : 1 }}>
+                          <button className="act" title="Move down" disabled={globalIdx === items.length - 1}    onClick={() => moveDown(t)} style={{ opacity: globalIdx === items.length - 1 ? 0.3 : 1 }}>
                             <Icon name="arrowDown" size={13} />
                           </button>
                           <button className="act success" title="Mark completed" onClick={() => markCompleted(t)} style={{ color: 'var(--fg-secondary)' }}>
                             <Icon name="check" size={13} />
                           </button>
-                          <button className="act danger" title="Cancel" onClick={() => cancelToken(t)}>
+                          <button className="act danger"  title="Cancel" onClick={() => cancelToken(t)}>
                             <Icon name="x" size={13} />
                           </button>
                         </div>
@@ -401,54 +431,200 @@ export default function TokensManager() {
       {/* View Token Modal */}
       {modalType === 'view' && selectedToken && (
         <Modal
-          title={`Token ${selectedToken.tokenNumber}`}
-          onClose={() => setModalType(null)}
-          footer={
-            <>
-              <button className="btn btn-secondary" onClick={() => setModalType(null)}>Close</button>
-              <button className="btn btn-primary" onClick={() => openEdit(selectedToken)}>Edit</button>
-            </>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span className={`cell-token ${selectedToken.priority === 'emergency' ? 'emergency' : ''}`} style={{ fontSize: 16, padding: '6px 14px' }}>
-                {selectedToken.tokenNumber}
+          title={
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <span style={{
+                width: 38, height: 38, borderRadius: 10,
+                background: 'var(--brand-gradient-soft)',
+                border: '1px solid rgba(30,79,163,0.18)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <Icon name="ticket" size={18} style={{ color: 'var(--teal-600)' }} />
               </span>
-              <StatusBadge status={selectedToken.status} emergency={selectedToken.priority === 'emergency'} />
-              {selectedToken.priority !== 'normal' && <Badge variant={selectedToken.priority === 'emergency' ? 'danger' : 'warning'}>{selectedToken.priority}</Badge>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--bg-section)', borderRadius: 12 }}>
-              <div className="av lg blue">
-                {(selectedToken.patientId?.name ?? 'P').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{selectedToken.patientId?.name ?? 'Patient'}</div>
-                <div style={{ fontSize: 12, color: 'var(--fg-secondary)', marginTop: 2 }}>{selectedToken.patientId?._id ?? ''}</div>
-              </div>
-            </div>
-            <div className="grid-2" style={{ gap: 10 }}>
-              {[
-                { label: 'Clinic',    value: selectedToken.clinicId?.name ?? '-' },
-                { label: 'Doctor',    value: selectedToken.doctorId?.name ?? '-' },
-                { label: 'Slot',      value: selectedToken.appointmentId?.time ?? '-' },
-                { label: 'Queue pos.', value: `#${selectedToken.pos ?? '-'}` },
-                { label: 'Issued at', value: selectedToken.issuedAt ? dayjs(selectedToken.issuedAt).format('hh:mm A') : '-' },
-                { label: 'Priority',  value: selectedToken.priority },
-              ].map(f => (
-                <div key={f.label}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-muted)', marginBottom: 3 }}>{f.label}</div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{f.value}</div>
+              <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--fg-primary)', letterSpacing: -0.2, lineHeight: 1.1 }}>
+                Token {selectedToken.tokenNumber}
+              </span>
+              <StatusBadge
+                status={selectedToken.status}
+                emergency={selectedToken.priority === 'emergency'}
+              />
+              {selectedToken.priority !== 'normal' && (
+                <Badge variant={selectedToken.priority === 'emergency' ? 'danger' : 'warning'}>
+                  {selectedToken.priority}
+                </Badge>
+              )}
+            </span>
+          }
+          onClose={() => setModalType(null)}
+          size="lg"
+        >
+          {(() => {
+            const t           = selectedToken
+            const patientName = t.patientId?.name ?? 'Patient'
+            const initials    = patientName.split(' ').map((n: string) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Patient card */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '14px 16px', borderRadius: 16,
+                  background: 'var(--brand-gradient-soft)',
+                  border: '1px solid rgba(30,79,163,0.10)',
+                }}>
+                  <div className="av lg blue" style={{ width: 54, height: 54, fontSize: 16 }}>
+                    {initials}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--fg-primary)' }}>
+                      {patientName}
+                    </div>
+                    <div style={{
+                      fontSize: 13, color: 'var(--fg-secondary)', fontWeight: 600,
+                      marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}>
+                      <Icon name="phone" size={12} style={{ color: 'var(--teal-600)' }} />
+                      {t.patientId?.phone ?? '—'}
+                    </div>
+                  </div>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: '50%',
+                    background: 'var(--bg-surface)', border: '1px solid var(--border-soft)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <Icon name="user" size={18} style={{ color: 'var(--teal-600)' }} />
+                  </div>
                 </div>
-              ))}
-            </div>
-            {selectedToken.notes && (
-              <div>
-                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-muted)', marginBottom: 6 }}>Notes</div>
-                <div style={{ padding: '10px 12px', background: 'var(--bg-section)', borderRadius: 10, fontSize: 13.5 }}>{selectedToken.notes}</div>
+
+                {/* Detail grid card */}
+                <div style={{
+                  borderRadius: 16, border: '1px solid var(--border-light)',
+                  background: 'var(--bg-surface)', overflow: 'hidden',
+                }}>
+                  {(() => {
+                    const slotDate = t.appointmentId?.date
+                    const slotTime = t.appointmentId?.time
+                    const dateStr  = slotDate ? dayjs(slotDate).format('DD MMM YYYY') : null
+                    const cells: {
+                      label: string
+                      primary: string
+                      secondary?: string
+                      icon: string
+                      bg: string
+                      fg: string
+                      capitalize?: boolean
+                    }[][] = [
+                      [
+                        { label: 'Clinic',       primary: t.clinicId?.name ?? '—',
+                          icon: 'building',    bg: '#DCFCE7', fg: '#16A34A' },
+                        { label: 'Doctor',       primary: t.doctorId?.name ?? '—',
+                          secondary: t.doctorId?.specialization ?? undefined,
+                          icon: 'stethoscope', bg: '#EDE9FE', fg: '#7C3AED' },
+                      ],
+                      [
+                        { label: 'Date & time',  primary: slotTime ?? (slotDate ? dayjs(slotDate).format('hh:mm A') : '—'),
+                          secondary: dateStr ?? undefined,
+                          icon: 'clock',       bg: '#FEF3C7', fg: '#D97706' },
+                        { label: 'Queue pos.',   primary: `#${t.pos ?? '—'}`,
+                          icon: 'hash',        bg: '#CCFBF1', fg: '#0D9488' },
+                      ],
+                      [
+                        { label: 'Issued at',    primary: t.issuedAt ? dayjs(t.issuedAt).format('hh:mm A') : '—',
+                          secondary: t.issuedAt ? dayjs(t.issuedAt).format('DD MMM YYYY') : undefined,
+                          icon: 'calendar',    bg: '#DBEAFE', fg: '#2563EB' },
+                        { label: 'Priority',     primary: t.priority,
+                          icon: 'flag',        bg: '#FEE2E2', fg: '#DC2626',
+                          capitalize: true },
+                      ],
+                    ]
+                    return cells.map((row, rowIdx) => (
+                      <div key={rowIdx}
+                        style={{
+                          display: 'grid', gridTemplateColumns: '1fr 1fr',
+                          borderBottom: rowIdx < cells.length - 1 ? '1px solid var(--border-light)' : 'none',
+                        }}>
+                        {row.map((cell, cellIdx) => (
+                          <div key={cell.label}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
+                              borderRight: cellIdx === 0 ? '1px solid var(--border-light)' : 'none',
+                            }}>
+                            <div style={{
+                              width: 42, height: 42, borderRadius: 12,
+                              background: cell.bg, color: cell.fg,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            }}>
+                              <HashOrIcon name={cell.icon} fg={cell.fg} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{
+                                fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
+                                letterSpacing: '0.06em', color: 'var(--fg-muted)', marginBottom: 4,
+                              }}>{cell.label}</div>
+                              <div style={{
+                                fontSize: 15, fontWeight: 700, color: 'var(--fg-primary)',
+                                textTransform: cell.capitalize ? 'capitalize' : undefined,
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                              }}>{cell.primary}</div>
+                              {cell.secondary && (
+                                <div style={{
+                                  fontSize: 11.5, color: 'var(--fg-secondary)', fontWeight: 500,
+                                  marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                }}>{cell.secondary}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))
+                  })()}
+                </div>
+
+                {/* Footer action row */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10,
+                  alignItems: 'stretch',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', borderRadius: 12,
+                    background: 'var(--brand-gradient-soft)',
+                    border: '1px solid rgba(30,79,163,0.10)',
+                    fontSize: 12.5, color: 'var(--fg-primary)', lineHeight: 1.4,
+                  }}>
+                    <Icon name="info" size={16} style={{ color: 'var(--teal-600)', flexShrink: 0 }} />
+                    <span>
+                      Please be present at the clinic{' '}
+                      <span style={{ color: 'var(--teal-600)', fontWeight: 800 }}>15 minutes</span>{' '}
+                      before your slot time.
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => window.print()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Icon name="printer" size={14} /> Print Token
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => openEdit(t)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Icon name="edit" size={14} /> Edit Token
+                  </button>
+                </div>
+
+                {/* Optional notes */}
+                {t.notes && (
+                  <div>
+                    <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-muted)', marginBottom: 6 }}>Notes</div>
+                    <div style={{ padding: '10px 12px', background: 'var(--bg-section)', borderRadius: 10, fontSize: 13.5 }}>{t.notes}</div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            )
+          })()}
         </Modal>
       )}
 
@@ -484,4 +660,20 @@ export default function TokensManager() {
       )}
     </>
   )
+}
+
+/**
+ * Renders an icon for the detail-tile, falling back to a styled `#` glyph
+ * for icon names that don't exist in our SVG set (e.g. `hash`).
+ */
+function HashOrIcon({ name, fg }: { name: string; fg: string }) {
+  if (name === 'hash') {
+    return (
+      <span style={{
+        fontSize: 18, fontWeight: 900, color: fg, lineHeight: 1,
+        fontVariantNumeric: 'tabular-nums',
+      }}>#</span>
+    )
+  }
+  return <Icon name={name} size={18} style={{ color: fg }} />
 }

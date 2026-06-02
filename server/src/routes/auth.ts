@@ -11,6 +11,21 @@ function generateOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000))
 }
 
+/**
+ * Return `true` when the server should include the generated OTP in the response
+ * body so the client can show a "Dev Mode" auto-fill pill.
+ *
+ *   OTP_ENABLE=true       → always expose (use for staging / preview environments)
+ *   OTP_ENABLE=false      → never expose (override even in development)
+ *   OTP_ENABLE not set    → expose only when NODE_ENV !== 'production' (default)
+ */
+function shouldExposeOtp(): boolean {
+  const raw = (process.env.OTP_ENABLE ?? '').trim().toLowerCase()
+  if (raw === 'true'  || raw === '1' || raw === 'yes') return true
+  if (raw === 'false' || raw === '0' || raw === 'no')  return false
+  return process.env.NODE_ENV !== 'production'
+}
+
 function generateResetToken(): string {
   return crypto.randomBytes(32).toString('hex')
 }
@@ -409,7 +424,7 @@ router.post(
       res.status(200).json({
         success: true,
         message: 'OTP sent successfully',
-        ...(process.env.NODE_ENV !== 'production' && { _dev_otp: otp }),
+        ...(shouldExposeOtp() && { _dev_otp: otp }),
         maskedContact: user.phone
           ? user.phone.replace(/(\d{2})\d+(\d{2})$/, '$1******$2')
           : user.email!.replace(/(.{2}).+(@.+)/, '$1***$2'),
@@ -562,7 +577,7 @@ router.post(
       res.status(200).json({
         success: true,
         message: `OTP sent to WhatsApp +${phone}`,
-        ...(process.env.NODE_ENV !== 'production' && { _dev_otp: otp }),
+        ...(shouldExposeOtp() && { _dev_otp: otp }),
       })
     } catch (error) {
       next(error)
@@ -689,7 +704,25 @@ router.post(
       const raw = (req.body as { phone: string }).phone
       const phone = normalizePhone(raw)
 
-      const user = await User.findOne({ phone: { $in: [phone, raw] } })
+      let user = await User.findOne({ phone: { $in: [phone, raw] } })
+
+      // Test-env convenience: when OTP_ENABLE=true and the phone isn't registered
+      // yet, auto-provision a patient user so the OTP preview / login flow works
+      // end-to-end without a separate registration step.
+      if (!user && shouldExposeOtp()) {
+        const last4 = phone.slice(-4)
+        user = await User.create({
+          phone,
+          name: `Test User ${last4}`,
+          email: `patient-${last4}@zerotoken.test`,
+          role: 'patient',
+          status: 'active',
+          // Password is required by the schema but unused for phone-OTP login.
+          password: crypto.randomBytes(16).toString('hex'),
+        })
+        console.log(`\n🆕 [Auto-provisioned test patient] +${phone} as ${user._id}\n`)
+      }
+
       if (!user) {
         // Generic response to avoid enumeration — still send a 200
         res.status(200).json({ success: true, message: 'If that number is registered, an OTP has been sent.' })
@@ -708,7 +741,7 @@ router.post(
       res.status(200).json({
         success: true,
         message: `OTP sent to WhatsApp +${phone}`,
-        ...(process.env.NODE_ENV !== 'production' && { _dev_otp: otp }),
+        ...(shouldExposeOtp() && { _dev_otp: otp }),
       })
     } catch (error) {
       next(error)

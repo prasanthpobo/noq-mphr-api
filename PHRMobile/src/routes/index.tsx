@@ -37,6 +37,7 @@ const NewTicketScreen      = lazy(() => import('../modules/support/NewTicketScre
 const TicketDetailScreen   = lazy(() => import('../modules/support/TicketDetailScreen'))
 const MyDoctorsScreen        = lazy(() => import('../modules/profile/MyDoctorsScreen'))
 const NotificationsScreen    = lazy(() => import('../modules/notifications/NotificationsScreen'))
+const ConsentScreen          = lazy(() => import('../modules/consent/ConsentScreen'))
 
 // ── Suspense wrapper ──────────────────────────────────────────────────────────
 function SuspenseScreen({ children }: { children: React.ReactNode }) {
@@ -112,6 +113,7 @@ export const router = createBrowserRouter([
       { path: 'medical-history',element: <SuspenseScreen><MedicalHistoryScreen /></SuspenseScreen> },
       { path: 'my-doctors',     element: <SuspenseScreen><MyDoctorsScreen /></SuspenseScreen> },
       { path: 'notifications',  element: <SuspenseScreen><NotificationsScreen /></SuspenseScreen> },
+      { path: 'consent',         element: <SuspenseScreen><ConsentScreen /></SuspenseScreen> },
       { path: 'settings',        element: <SuspenseScreen><SettingsScreen /></SuspenseScreen> },
       { path: 'settings/terms',    element: <SuspenseScreen><TermsOfServiceScreen /></SuspenseScreen> },
       { path: 'settings/privacy',  element: <SuspenseScreen><PrivacyPolicyScreen /></SuspenseScreen> },

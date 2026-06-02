@@ -49,21 +49,33 @@ export function Splash() {
         </div>
 
         <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontSize: 32, fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: -1 }}>
-            NoQ Doctor
+          <h1 style={{ fontSize: 40, fontWeight: 900, color: '#FFFFFF', margin: 0, letterSpacing: -1, lineHeight: 1 }}>
+            NoQ
           </h1>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', fontWeight: 500, margin: '6px 0 0' }}>
-            Clinic management, redefined.
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: 700, margin: '8px 0 0', letterSpacing: '4px' }}>
+            FOR DOCTORS
+          </p>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500, margin: '14px auto 0', maxWidth: 240, lineHeight: 1.5 }}>
+            Run your OPD calmly. See the queue, not the chaos.
           </p>
         </div>
       </motion.div>
 
-      {/* Loading dots */}
+      {/* ECG line decoration */}
+      <svg
+        viewBox="0 0 400 60"
+        preserveAspectRatio="none"
+        style={{ position: 'absolute', bottom: 100, left: 0, width: '100%', height: 50, opacity: 0.35 }}
+      >
+        <path d="M0,30 L80,30 L90,15 L100,45 L110,30 L180,30 L190,18 L200,42 L210,30 L290,30 L300,16 L310,44 L320,30 L400,30" fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+
+      {/* Loading spinner */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.7 }}
-        style={{ position: 'absolute', bottom: 60, display: 'flex', gap: 8 }}
+        style={{ position: 'absolute', bottom: 180, display: 'flex', gap: 8 }}
       >
         {[0, 1, 2].map((i) => (
           <motion.span

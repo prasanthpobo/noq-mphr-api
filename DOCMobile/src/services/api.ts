@@ -28,4 +28,25 @@ api.interceptors.response.use(
   }
 )
 
+/** Some backend endpoints return `T[]`, others return `{ data: T[] }`. Normalize. */
+export function unwrapList<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload as T[]
+  const wrapped = payload as { data?: T[] } | null
+  return Array.isArray(wrapped?.data) ? (wrapped!.data as T[]) : []
+}
+
+/** Same idea for a single object: `T` or `{ data: T }`. */
+export function unwrapOne<T>(payload: unknown): T | null {
+  if (payload && typeof payload === 'object' && 'data' in (payload as object)) {
+    const inner = (payload as { data: unknown }).data
+    if (inner && typeof inner === 'object') return inner as T
+  }
+  return (payload as T) ?? null
+}
+
+/** Return clinic id regardless of whether backend used `id` or `_id`. */
+export function clinicId(c: { id?: string; _id?: string } | null | undefined): string {
+  return c?.id ?? c?._id ?? ''
+}
+
 export default api

@@ -95,6 +95,35 @@ router.post('/:id/favourite', async (req: Request, res: Response, next: NextFunc
   }
 })
 
+// GET /api/doctors/me — Doctor record for the logged-in user (matched by phone/email)
+router.get('/me', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const user = await User.findById(req.user!.id)
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' })
+      return
+    }
+
+    const or: Record<string, unknown>[] = []
+    if (user.phone) or.push({ phone: user.phone })
+    if (user.email) or.push({ email: user.email })
+    if (or.length === 0) {
+      res.status(404).json({ success: false, message: 'Doctor profile not found' })
+      return
+    }
+
+    const doctor = await Doctor.findOne({ $or: or }).populate('clinicId', 'name code city')
+    if (!doctor) {
+      res.status(404).json({ success: false, message: 'Doctor profile not found' })
+      return
+    }
+
+    res.status(200).json({ success: true, data: doctor })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // GET /api/doctors/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {

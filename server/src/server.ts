@@ -26,21 +26,33 @@ import masterdataRouter from './routes/masterdata'
 import familyMembersRouter from './routes/familyMembers'
 import medicalHistoryRouter from './routes/medicalHistory'
 import notificationsRouter from './routes/notifications'
+import paymentsRouter from './routes/payments'
 
 // Connect to MongoDB
 connectDB()
 
 const app = express()
 
-// CORS — allow all origins in development
+// CORS — '*' in dev; comma-separated whitelist via ALLOWED_ORIGIN in prod.
+//   ALLOWED_ORIGIN=https://testweb.zerotoken.in,https://app.zerotoken.in
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean)
 app.use(
   cors({
-    origin: process.env.NODE_ENV === 'production'
-      ? process.env.ALLOWED_ORIGIN || 'http://localhost:5173'
-      : '*',
+    origin(origin, cb) {
+      // Same-origin/curl requests have no Origin header — allow them.
+      if (!origin) return cb(null, true)
+      if (process.env.NODE_ENV !== 'production') return cb(null, true)
+      if (ALLOWED_ORIGINS.length === 0) return cb(null, true)
+      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true)
+      cb(new Error(`Origin ${origin} not allowed by CORS`))
+    },
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-  })
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }),
 )
 
 // Body parser
@@ -81,6 +93,7 @@ app.use('/api/masterdata', masterdataRouter)
 app.use('/api/family-members', familyMembersRouter)
 app.use('/api/medical-history', medicalHistoryRouter)
 app.use('/api/notifications',  notificationsRouter)
+app.use('/api/payments',       paymentsRouter)
 
 // 404 handler for unmatched routes
 app.use((_req, res) => {

@@ -262,7 +262,7 @@ async function seed() {
       email: 'doctor@clinic.com',
       password: 'doctor@123',
       role: 'doctor' as const,
-      phone: '9876543218',
+      phone: '9000000002',
       clinicId: clinic._id
     },
     {
@@ -270,7 +270,7 @@ async function seed() {
       email: 'nurse@clinic.com',
       password: 'nurse@123',
       role: 'nurse' as const,
-      phone: '9876543216',
+      phone: '9000000003',
       clinicId: clinic._id
     },
     {
@@ -278,7 +278,7 @@ async function seed() {
       email: 'frontdesk@clinic.com',
       password: 'frontdesk@123',
       role: 'frontdesk' as const,
-      phone: '9876543217',
+      phone: '9000000004',
       clinicId: clinic._id
     },
     {
@@ -286,7 +286,7 @@ async function seed() {
       email: 'clinicadmin@clinic.com',
       password: 'clinic@123',
       role: 'clinic_admin' as const,
-      phone: '9876543219',
+      phone: '9000000005',
       clinicId: clinic._id
     },
     {
@@ -294,7 +294,7 @@ async function seed() {
       email: 'pharmacy@clinic.com',
       password: 'pharmacy@123',
       role: 'pharmacist' as const,
-      phone: '9876543220',
+      phone: '9000000006',
       clinicId: clinic._id
     },
     {
@@ -302,7 +302,7 @@ async function seed() {
       email: 'lab@clinic.com',
       password: 'lab@123',
       role: 'lab_tech' as const,
-      phone: '9876543221',
+      phone: '9000000007',
       clinicId: clinic._id
     }
   ]
@@ -311,9 +311,15 @@ async function seed() {
     const exists = await User.findOne({ email: u.email })
     if (!exists) {
       await User.create(u)
-      console.log(`✔ User account created: ${u.email} (${u.role})`)
+      console.log(`✔ User account created: ${u.email} (${u.role}) — phone ${u.phone}`)
     } else {
-      console.log(`– User account already exists: ${u.email}`)
+      // Update the phone in case it changed — re-running seed keeps existing accounts in sync.
+      if (exists.phone !== u.phone) {
+        await User.updateOne({ _id: exists._id }, { $set: { phone: u.phone } })
+        console.log(`↻ User account updated: ${u.email} (${u.role}) — phone ${exists.phone} → ${u.phone}`)
+      } else {
+        console.log(`– User account already exists: ${u.email}`)
+      }
     }
   }
 

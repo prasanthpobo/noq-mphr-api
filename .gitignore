@@ -6,3 +6,9 @@ dist/
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 .DS_Store
+
+# Vite caches
+.vite/
+
+# Local-only server side notes / artifacts
+server/pobotech.in/

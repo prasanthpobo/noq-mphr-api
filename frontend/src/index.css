@@ -1061,7 +1061,7 @@ table.data td {
 }
 
 .modal-lg { width: 640px; }
-.modal-xl { width: 840px; max-height: 90vh; overflow-y: auto; }
+.modal-xl { width: min(1080px, 95vw); max-height: 90vh; overflow-y: auto; }
 
 .modal-head {
   display: flex;

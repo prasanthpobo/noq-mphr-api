@@ -164,8 +164,11 @@ export function OtpVerification() {
           <MdPhoneAndroid size={44} color="#1E4FA3" />
         </motion.div>
 
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: 700, letterSpacing: '1.5px', margin: '0 0 10px' }}>
+          STEP 2 OF 3
+        </p>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: '#FFFFFF', margin: '0 0 8px', letterSpacing: -0.5, textAlign: 'center' }}>
-          Verify &amp; Sign In
+          Verify it's you
         </h1>
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.80)', fontWeight: 500, margin: 0, textAlign: 'center', lineHeight: 1.5 }}>
           We sent a 6-digit code to your number
@@ -249,6 +252,25 @@ export function OtpVerification() {
           ))}
         </div>
 
+        {/* Waiting-for-SMS hint */}
+        {!isFilled && !apiError && !success && (
+          <div style={{
+            background: '#F5F8FC', border: '1px solid #E3EAF2', borderRadius: 12,
+            padding: '10px 12px', marginBottom: 16,
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: '#EBF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E4FA3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" />
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#1E293B', margin: 0 }}>Waiting for SMS…</p>
+              <p style={{ fontSize: 11, color: '#94A3B8', margin: '2px 0 0' }}>We'll fill it automatically when it arrives</p>
+            </div>
+          </div>
+        )}
+
         {/* Error banner */}
         {apiError && (
           <motion.div
@@ -278,8 +300,9 @@ export function OtpVerification() {
           </motion.div>
         )}
 
-        {/* Dev OTP hint */}
-        {devOtp && (
+        {/* OTP preview pill — gated by frontend OTP_ENABLE config
+            (requires the API to echo back the OTP). */}
+        {import.meta.env.OTP_ENABLE === 'true' && devOtp && (
           <motion.div
             initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
             style={{
@@ -291,7 +314,7 @@ export function OtpVerification() {
             <span style={{ fontSize: 18 }}>🔑</span>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Dev Mode — OTP
+                OTP Preview
               </div>
               <div style={{ fontSize: 22, fontWeight: 900, color: '#D97706', letterSpacing: 4, marginTop: 2 }}>
                 {devOtp}

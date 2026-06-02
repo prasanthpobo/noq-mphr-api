@@ -70,24 +70,27 @@ export function Login() {
           <MdLocalHospital size={46} color="#1E4FA3" />
         </motion.div>
 
-        <h1 style={{ fontSize: 34, fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: -1, lineHeight: 1 }}>
-          NoQ Doctor
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+          borderRadius: 20, padding: '5px 12px', marginBottom: 14,
+        }}>
+          <span style={{ fontSize: 12 }}>🩺</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#FFFFFF', letterSpacing: '1.2px' }}>DOCTOR PORTAL</span>
+        </div>
+
+        <h1 style={{ fontSize: 30, fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: -0.5, lineHeight: 1.15, textAlign: 'center' }}>
+          Welcome back,<br/>Doctor
         </h1>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500, margin: '8px 0 0', textAlign: 'center' }}>
-          Manage your clinic &amp; patient queue
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500, margin: '10px 0 0', textAlign: 'center' }}>
+          Sign in to manage today's queue
         </p>
 
-        {/* Feature pills */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {['Live Queue', 'Patient Records', 'Quick Rx'].map((f) => (
-            <div key={f} style={{
-              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: 20, padding: '5px 12px',
-              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.90)',
-            }}>
-              {f}
-            </div>
-          ))}
+        {/* OPD stat pills */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 18, width: '100%', maxWidth: 360 }}>
+          <StatPill value="24" label="PATIENTS TODAY" />
+          <StatPill value="A-008" label="NEXT TOKEN" />
+          <StatPill value="~18m" label="AVG WAIT" />
         </div>
       </motion.div>
 
@@ -203,12 +206,52 @@ export function Login() {
           OTP will be sent via WhatsApp to your registered number
         </p>
 
-        <p style={{ fontSize: 11, color: '#A0AEC0', textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
-          By continuing you agree to our{' '}
-          <span style={{ color: '#1E4FA3', cursor: 'pointer', fontWeight: 600 }}>Terms</span>{' '}&amp;{' '}
-          <span style={{ color: '#1E4FA3', cursor: 'pointer', fontWeight: 600 }}>Privacy Policy</span>
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
+          <div style={{ flex: 1, height: 1, background: '#E3EAF2' }} />
+          <span style={{ fontSize: 11, color: '#A0AEC0', fontWeight: 600 }}>or</span>
+          <div style={{ flex: 1, height: 1, background: '#E3EAF2' }} />
+        </div>
+
+        <button style={{
+          width: '100%', height: 50, borderRadius: 14,
+          border: '1.5px solid #DBE7F8', background: '#FFFFFF',
+          color: '#1E4FA3', fontSize: 14, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E4FA3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="12" cy="11" r="3" /><path d="M7 19c1-2 3-3 5-3s4 1 5 3" />
+          </svg>
+          Use Face ID
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
+          <span style={{ fontSize: 12, color: '#6B7C93', fontWeight: 600, cursor: 'pointer' }}>Forgot number?</span>
+          <span style={{ fontSize: 12, color: '#1E4FA3', fontWeight: 700, cursor: 'pointer' }}>Register as doctor →</span>
+        </div>
+
+        <div style={{
+          marginTop: 14, padding: '8px 12px', background: '#EBF2FF', borderRadius: 999,
+          display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1E4FA3" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" /><path d="M9 12l2 2 4-4" />
+          </svg>
+          <span style={{ fontSize: 11, color: '#1E4FA3', fontWeight: 700 }}>Verified by Medical Council · ABDM compliant</span>
+        </div>
       </motion.div>
+    </div>
+  )
+}
+
+function StatPill({ value, label }: { value: string; label: string }) {
+  return (
+    <div style={{
+      flex: 1, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.22)',
+      borderRadius: 14, padding: '10px 8px', textAlign: 'center',
+    }}>
+      <p style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.6px', margin: '6px 0 0' }}>{label}</p>
     </div>
   )
 }

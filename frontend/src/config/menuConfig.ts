@@ -67,22 +67,29 @@ export const MENU_CONFIG: MenuGroup[] = [
     group: 'Clinic',
     items: [
       {
+        key: 'tokens-mgr',
+        label: 'Token',
+        icon: 'ticket',
+        permission: 'clinic:tokens',
+      },
+      {
         key: 'appointments',
         label: 'Appointments',
         icon: 'calendar',
         permission: 'clinic:appointments',
       },
+    ],
+  },
+
+  // ── Display ──────────────────────────────────────────────────────────────
+  {
+    group: 'Display',
+    items: [
       {
         key: 'live-tokens',
-        label: 'Live tokens',
+        label: 'Live Token',
         icon: 'ticket',
         permission: 'clinic:live-tokens',
-      },
-      {
-        key: 'tokens-mgr',
-        label: 'Tokens',
-        icon: 'ticket',
-        permission: 'clinic:tokens',
       },
     ],
   },

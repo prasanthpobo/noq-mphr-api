@@ -18,16 +18,19 @@ export default function Badge({ variant = 'muted', dot, children, className, sty
   )
 }
 
-export function StatusBadge({ status, emergency }: { status: TokenStatus; emergency?: boolean }) {
+export function StatusBadge({ status, emergency }: { status: TokenStatus | string; emergency?: boolean }) {
   if (emergency) return <Badge variant="warning" dot>Priority</Badge>
-  const map: Record<TokenStatus, { label: string; variant: BadgeVariant }> = {
+  const map: Record<string, { label: string; variant: BadgeVariant }> = {
     'in-room':        { label: 'In room',          variant: 'blue' },
     'in-consultation':{ label: 'In consultation',   variant: 'blue' },
     waiting:          { label: 'Waiting',           variant: 'warning' },
     priority:         { label: 'Priority',          variant: 'warning' },
-    'not-visited':    { label: 'Not visited',       variant: 'gray' },
+    'not-visited':    { label: 'Not Visited',       variant: 'gray' },
+    'no-show':        { label: 'Not Visited',       variant: 'gray' },
     completed:        { label: 'Completed',         variant: 'success' },
     cancelled:        { label: 'Cancelled',         variant: 'danger' },
+    scheduled:        { label: 'Scheduled',         variant: 'blue' },
+    'in-progress':    { label: 'In progress',       variant: 'warning' },
   }
   const m = map[status] ?? { label: status, variant: 'muted' as BadgeVariant }
   return <Badge variant={m.variant} dot>{m.label}</Badge>

@@ -23,6 +23,8 @@ import { ProfileEdit } from '@/pages/ProfileEdit'
 import { YourClinics } from '@/pages/YourClinics'
 import { MyPatients } from '@/pages/MyPatients'
 import { PatientDetails } from '@/pages/PatientDetails'
+import { Consent } from '@/pages/Consent'
+import { ConsentNew } from '@/pages/ConsentNew'
 
 // ─── Guards ────────────────────────────────────────────────────────────────
 
@@ -97,6 +99,8 @@ export const router = createBrowserRouter([
               { path: '/clinics', element: <YourClinics /> },
               { path: '/patients', element: <MyPatients /> },
               { path: '/patients/:id', element: <PatientDetails /> },
+              { path: '/consent',      element: <Consent /> },
+              { path: '/consent/new',  element: <ConsentNew /> },
             ],
           },
         ],

@@ -83,6 +83,12 @@ export interface RxLine {
   dose: string
   frequency: string
   duration: string
+  /** Tablet / Capsule / Syrup / Injection / Ointment … */
+  type?: string
+  /** Daily schedule toggles */
+  schedule?: { morning?: boolean; afternoon?: boolean; night?: boolean }
+  /** Free-text usage hint, e.g. "After food, with water" */
+  instructions?: string
 }
 
 export interface Vitals {

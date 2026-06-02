@@ -8,4 +8,7 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
+  // Expose both VITE_* (default) and OTP_* env vars to the client bundle.
+  // Lets us write `OTP_ENABLE=true` in .env without the VITE_ prefix.
+  envPrefix: ['VITE_', 'OTP_'],
 })

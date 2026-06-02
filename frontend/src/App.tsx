@@ -158,7 +158,7 @@ export default function App() {
     case 'patients':        screen = <PatientList />; break
     case 'patient-new':     screen = <PatientForm id={undefined} onClose={() => { setSelectedId(null); setRoute('patients') }} />; break
     case 'patient-edit':    screen = <PatientForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('patients') }} />; break
-    case 'patient-view':    screen = <PatientForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('patients') }} />; break
+    case 'patient-view':    screen = <PatientForm id={selectedId ?? undefined} viewOnly onClose={() => { setSelectedId(null); setRoute('patients') }} />; break
 
     case 'clinics':         screen = <ClinicList />; break
     case 'clinic-new':      screen = <ClinicForm id={undefined} onClose={() => { setSelectedId(null); setRoute('clinics') }} />; break

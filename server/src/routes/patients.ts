@@ -67,35 +67,18 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
 // POST /api/patients
 router.post('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const {
-      name, email, phone, dob, gender, bloodGroup,
-      address, clinicId, tag, medicalHistory, allergies,
-      emergencyContact
-    } = req.body
-
+    const { name, phone, gender, clinicId } = req.body
     if (!name || !phone || !gender || !clinicId) {
-      res.status(400).json({
-        success: false,
-        message: 'Name, phone, gender, and clinicId are required'
-      })
+      res.status(400).json({ success: false, message: 'Name, phone, gender, and clinicId are required' })
       return
     }
-
     if (!mongoose.Types.ObjectId.isValid(clinicId)) {
       res.status(400).json({ success: false, message: 'Invalid clinic ID' })
       return
     }
 
-    const patient = await Patient.create({
-      name, email, phone, dob, gender, bloodGroup,
-      address, clinicId, tag: tag || 'active',
-      medicalHistory: medicalHistory || [],
-      allergies: allergies || [],
-      emergencyContact
-    })
-
+    const patient = await Patient.create({ ...req.body, tag: req.body.tag || 'active' })
     const populated = await patient.populate('clinicId', 'name code city')
-
     res.status(201).json({ success: true, data: populated })
   } catch (error) {
     next(error)

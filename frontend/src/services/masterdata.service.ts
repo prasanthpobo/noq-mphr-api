@@ -15,4 +15,8 @@ export const masterdataService = {
     api.delete(`${base}/${id}`).then(r => r.data),
   bulk: (items: unknown[]) =>
     api.post(`${base}/bulk`, items).then(r => r.data),
+  lookupPincode: (pin: string) =>
+    api.get<{ success: boolean; data: { pin: string; city: string; state: string; district: string; cached: boolean } }>(
+      `${base}/pincode/${pin}`,
+    ).then(r => r.data.data),
 }

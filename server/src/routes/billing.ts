@@ -27,12 +27,13 @@ function computeTotals(
 // GET /api/billing
 router.get('/', protect, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { clinicId, status, patientId, from, to, search } = req.query
+    const { clinicId, status, patientId, appointmentId, from, to, search } = req.query
     const filter: Record<string, unknown> = {}
 
-    if (clinicId)  filter.clinicId  = clinicId
-    if (status)    filter.status    = status
-    if (patientId) filter.patientId = patientId
+    if (clinicId)      filter.clinicId      = clinicId
+    if (status)        filter.status        = status
+    if (patientId)     filter.patientId     = patientId
+    if (appointmentId) filter.appointmentId = appointmentId
 
     if (from || to) {
       const dateFilter: Record<string, Date> = {}

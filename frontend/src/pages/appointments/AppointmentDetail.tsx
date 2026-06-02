@@ -2,19 +2,29 @@ import { useState, useEffect, useRef } from 'react'
 import dayjs from 'dayjs'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
+import Modal from '@/components/ui/Modal'
 import { useAppStore } from '@/store/app'
 import { useAuthStore } from '@/store/auth'
 import { appointmentsService } from '@/services/appointments.service'
 import { masterdataService } from '@/services/masterdata.service'
 import { labService } from '@/services/lab.service'
 import { tokensService } from '@/services/tokens.service'
+import { billingService } from '@/services/billing.service'
 import { toast } from '@/store/toast'
 
 interface Props {
   mode: 'view' | 'edit'
 }
 
-const TABS         = ['Appointment info', 'Consultation info', 'Rx info', 'Medical documents', 'Reports', 'Follow-up']
+const TABS: Array<{ label: string; icon: string }> = [
+  { label: 'Appointment info',  icon: 'calendar'    },
+  { label: 'Consultation info', icon: 'stethoscope' },
+  { label: 'Rx info',           icon: 'pill'        },
+  { label: 'Medical documents', icon: 'folder'      },
+  { label: 'Reports',           icon: 'chart'       },
+  { label: 'Follow-up',         icon: 'bell'        },
+  { label: 'Billing',           icon: 'receipt'     },
+]
 const MED_UNITS    = ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Drops', 'Cream', 'Inhaler', 'Sachet', 'Patch', 'Ointment']
 const STATUS_OPTIONS = ['scheduled','in-progress','completed','cancelled','no-show']
 
@@ -62,9 +72,151 @@ const APPT_STATUS_VARIANT: Record<string, string> = {
   'cancelled':   'danger',
   'no-show':     'muted',
 }
+const APPT_STATUS_LABEL: Record<string, string> = {
+  'no-show': 'Not Visited',
+}
 function ApptStatusBadge({ status }: { status: string }) {
   const variant = (APPT_STATUS_VARIANT[status] ?? 'muted') as any
-  return <Badge variant={variant}><span className="d" />{status}</Badge>
+  const label   = APPT_STATUS_LABEL[status] ?? status
+  return <Badge variant={variant}><span className="d" />{label}</Badge>
+}
+
+/** Card-section header used across the Appointment Info tab. */
+function ApptSectionHeader({ icon, title }: { icon: string; title: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+      <span style={{
+        width: 32, height: 32, borderRadius: 10,
+        background: '#EBF2FF', border: '1px solid #DBE7F8',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <Icon name={icon} size={15} style={{ color: '#1E4FA3' }} />
+      </span>
+      <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--fg-primary)' }}>{title}</span>
+    </div>
+  )
+}
+
+/** Read-only field display: label above a soft slate "input" tile. */
+function ApptReadField({
+  label, value, icon, mono = false, valueSize = 13.5,
+}: { label: string; value: React.ReactNode; icon?: string; mono?: boolean; valueSize?: number }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg-secondary)', marginBottom: 6 }}>
+        {label}
+      </div>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '10px 12px',
+        background: '#F1F5F9', borderRadius: 10,
+        fontSize: valueSize, fontWeight: 600, color: 'var(--fg-primary)',
+        fontFamily: mono ? 'var(--font-mono)' : undefined,
+        minHeight: 40,
+      }}>
+        {icon && <Icon name={icon} size={14} style={{ color: 'var(--fg-muted)', flexShrink: 0 }} />}
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+      </div>
+    </div>
+  )
+}
+
+/** Open a printable invoice in a new window. Users can Print → "Save as PDF" or hit ⌘P / Ctrl-P. */
+function downloadInvoice(b: any, appt: any) {
+  const fmt = (n: number) => `₹${(n ?? 0).toFixed(2)}`
+  const fmtDate = (d?: string | Date) => d ? dayjs(d).format('DD MMM YYYY · hh:mm A') : '—'
+  const invoiceNo = b.invoiceNumber || (b._id ? String(b._id).slice(-8).toUpperCase() : '——')
+  const escape = (s: any) => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+
+  const itemRows = (b.items ?? []).map((it: any, i: number) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escape(it.description) || '—'}</td>
+      <td class="r">${it.quantity ?? 0}</td>
+      <td class="r">${fmt(it.rate)}</td>
+      <td class="r">${fmt(it.amount)}</td>
+    </tr>`).join('')
+
+  const clinic  = appt?.clinicId?.name  || 'NoQ Health Clinic'
+  const patient = appt?.patientId?.name || '—'
+  const doctor  = appt?.doctorId?.name  || '—'
+  const phone   = appt?.patientId?.phone || ''
+
+  const html = `<!doctype html>
+<html><head>
+<meta charset="utf-8" />
+<title>Invoice ${escape(invoiceNo)}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0f172a;margin:0;padding:32px;background:#fff}
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1E4FA3;padding-bottom:16px;margin-bottom:24px}
+  .brand{font-size:22px;font-weight:800;color:#1E4FA3;letter-spacing:-0.02em}
+  .brand small{display:block;font-size:11px;font-weight:500;color:#64748b;letter-spacing:0.04em;margin-top:4px}
+  .meta{text-align:right;font-size:12.5px;color:#475569;line-height:1.6}
+  .meta b{color:#0f172a;font-size:13.5px;letter-spacing:0.04em}
+  h2{font-size:11px;letter-spacing:0.10em;text-transform:uppercase;color:#64748b;margin:24px 0 8px;font-weight:700}
+  .row{display:flex;gap:48px;font-size:13px;margin-bottom:8px}
+  .row div{flex:1}
+  .row b{display:block;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:2px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e2e8f0}
+  th{background:#f1f5f9;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#475569;font-weight:700}
+  td.r,th.r{text-align:right}
+  .totals{margin-top:16px;margin-left:auto;width:300px;font-size:13px}
+  .totals .l{display:flex;justify-content:space-between;padding:6px 0;color:#475569}
+  .totals .l.grand{border-top:2px solid #1E4FA3;margin-top:8px;padding-top:10px;font-size:16px;font-weight:800;color:#0f172a}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em}
+  .pill.paid{background:#dcfce7;color:#15803d}
+  .pill.partial{background:#fef3c7;color:#92400e}
+  .pill.pending{background:#dbeafe;color:#1e40af}
+  .pill.cancelled{background:#f1f5f9;color:#64748b}
+  .ftr{margin-top:48px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:11.5px;color:#94a3b8;text-align:center}
+  @media print{body{padding:18px}@page{margin:14mm}}
+</style>
+</head><body>
+  <div class="hdr">
+    <div class="brand">${escape(clinic)}<small>TAX INVOICE</small></div>
+    <div class="meta">
+      <b>Invoice ${escape(invoiceNo)}</b><br/>
+      Issued: ${escape(fmtDate(b.createdAt))}<br/>
+      Status: <span class="pill ${escape(b.status || 'pending')}">${escape(b.status || 'pending')}</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><b>Billed to</b>${escape(patient)}${phone ? '<br/>' + escape(phone) : ''}</div>
+    <div><b>Doctor</b>${escape(doctor)}</div>
+    <div><b>Appointment</b>${escape(appt?._id ? String(appt._id).slice(-8).toUpperCase() : '—')}<br/>${escape(appt?.date ? dayjs(appt.date).format('DD MMM YYYY') : '')} ${escape(appt?.time || '')}</div>
+  </div>
+
+  <h2>Line items</h2>
+  <table>
+    <thead><tr><th style="width:40px">#</th><th>Description</th><th class="r" style="width:70px">Qty</th><th class="r" style="width:110px">Rate</th><th class="r" style="width:120px">Amount</th></tr></thead>
+    <tbody>${itemRows || `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:24px">No line items</td></tr>`}</tbody>
+  </table>
+
+  <div class="totals">
+    <div class="l"><span>Subtotal</span><span>${fmt(b.subtotal)}</span></div>
+    <div class="l"><span>Discount</span><span>− ${fmt(b.discount)}</span></div>
+    <div class="l"><span>Tax</span><span>${fmt(b.tax)}</span></div>
+    <div class="l grand"><span>Total</span><span>${fmt(b.total)}</span></div>
+    <div class="l"><span>Paid (${escape(b.paymentMethod || '—')})</span><span>${fmt(b.paidAmount)}</span></div>
+    <div class="l"><span>Balance</span><span><b>${fmt((b.total ?? 0) - (b.paidAmount ?? 0))}</b></span></div>
+  </div>
+
+  ${b.notes ? `<h2>Notes</h2><div style="font-size:13px;color:#334155;line-height:1.6">${escape(b.notes)}</div>` : ''}
+
+  <div class="ftr">Generated on ${escape(dayjs().format('DD MMM YYYY · hh:mm A'))} — Print or "Save as PDF" from your browser.</div>
+
+  <script>window.onload = () => { setTimeout(() => window.print(), 250) }</script>
+</body></html>`
+
+  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100')
+  if (!w) { toast.error('Popup blocked — allow popups to download invoices'); return }
+  w.document.open()
+  w.document.write(html)
+  w.document.close()
 }
 
 interface RxItem {
@@ -657,6 +809,23 @@ export default function AppointmentDetail({ mode }: Props) {
   // Token state
   const [token, setToken] = useState<any | null>(null)
 
+  // Billing state
+  const [bills,        setBills]        = useState<any[]>([])
+  const [loadingBills, setLoadingBills] = useState(false)
+
+  // New-bill wizard state (Step 3 — bill details; patient/doctor/clinic come from this appt)
+  const [newBillOpen,    setNewBillOpen]    = useState(false)
+  const [editingBillId,  setEditingBillId]  = useState<string | null>(null)
+  const [billItems,    setBillItems]    = useState<Array<{ description: string; quantity: number; rate: number; amount: number }>>([
+    { description: 'Consultation fee', quantity: 1, rate: 0, amount: 0 },
+  ])
+  const [billDiscountPct, setBillDiscountPct] = useState(0)
+  const [billTaxPct,      setBillTaxPct]      = useState(18)
+  const [billNotes,       setBillNotes]       = useState('')
+  const [billPayMethod,   setBillPayMethod]   = useState<'cash' | 'card' | 'upi' | 'insurance' | 'online'>('cash')
+  const [billPaidAmount,  setBillPaidAmount]  = useState(0)
+  const [savingBill,      setSavingBill]      = useState(false)
+
   // ── Load appointment from API ────────────────────────────────────────────
   useEffect(() => {
     if (!selectedId) { setLoading(false); return }
@@ -695,6 +864,16 @@ export default function AppointmentDetail({ mode }: Props) {
         if (list.length > 0) setToken(list[0])
       })
       .catch(() => {})
+  }, [selectedId])
+
+  // ── Load billings for this appointment ──────────────────────────────────
+  useEffect(() => {
+    if (!selectedId) return
+    setLoadingBills(true)
+    billingService.list({ appointmentId: selectedId })
+      .then(res => setBills(res.data ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingBills(false))
   }, [selectedId])
 
   // ── Load existing lab order for this appointment ────────────────────────
@@ -873,9 +1052,12 @@ export default function AppointmentDetail({ mode }: Props) {
 
   // ── Derived display values ───────────────────────────────────────────────
   const patientName  = appt?.patientId?.name  ?? '—'
+  const patientPhone = appt?.patientId?.phone ?? ''
   const doctorName   = appt?.doctorId?.name   ?? '—'
+  const doctorSpec   = appt?.doctorId?.specialization ?? ''
   const clinicName   = appt?.clinicId?.name   ?? '—'
-  const tokenDisplay = selectedId ? selectedId.slice(-6).toUpperCase() : '——'
+  const apptNo       = selectedId ? selectedId.slice(-6).toUpperCase() : '——'
+  const tokenNo      = token?.tokenNumber ? String(token.tokenNumber).padStart(3, '0') : '——'
 
   // ── Loading state ────────────────────────────────────────────────────────
   if (loading) {
@@ -900,53 +1082,191 @@ export default function AppointmentDetail({ mode }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* Top Strip */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px',
-        background: 'var(--brand-gradient)', flexShrink: 0,
-      }}>
-        <button
-          onClick={() => setRoute('appointments')}
-          style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer' }}
-        >
-          <Icon name="chevL" size={16} />
-        </button>
-        <div style={{
-          background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '6px 14px',
-          fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 800, color: 'white', letterSpacing: 2,
-        }}>
-          {tokenDisplay}
-        </div>
-        <ApptStatusBadge status={status} />
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>
-          {patientName} · {doctorName}
-        </div>
-        <div style={{ flex: 1 }} />
-        <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', gap: 6 }}>
-          <Icon name="printer" size={14} /> Print Rx
-        </button>
-        <button
-          className="btn btn-sm"
-          onClick={() => setEditMode(e => !e)}
-          style={{ background: editMode ? 'white' : 'rgba(255,255,255,0.15)', color: editMode ? 'var(--teal-800)' : 'white', border: 'none' }}
-        >
-          <Icon name="edit" size={14} /> {editMode ? 'Editing' : 'Edit'}
-        </button>
-      </div>
+      {(() => {
+        const initials = patientName
+          ? patientName.trim().split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+          : '—'
+        const divider = (
+          <span style={{
+            width: 1, alignSelf: 'stretch',
+            background: 'linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%)',
+            margin: '0 4px',
+          }} />
+        )
+        const iconTile = (icon: string) => (
+          <span style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: 'rgba(255,255,255,0.10)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <Icon name={icon} size={18} style={{ color: '#FFFFFF' }} />
+          </span>
+        )
+        const ghostBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '9px 16px', borderRadius: 10,
+          background: 'rgba(255,255,255,0.10)',
+          border: '1px solid rgba(255,255,255,0.22)',
+          color: '#FFFFFF', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit',
+          cursor: 'pointer', flexShrink: 0,
+          ...extra,
+        })
+
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14, padding: '14px 22px',
+            background: 'linear-gradient(90deg, #0F2F66 0%, #1E4FA3 35%, #2C6ED5 65%, #1FA3A8 100%)',
+            boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.06)',
+            flexShrink: 0,
+          }}>
+            {/* Back */}
+            <button
+              onClick={() => setRoute('appointments')}
+              style={{
+                background: 'rgba(255,255,255,0.10)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                borderRadius: 10, width: 40, height: 40,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#FFFFFF', cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <Icon name="chevL" size={16} />
+            </button>
+
+            {/* Patient — avatar w/ status dot */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <span style={{ position: 'relative', flexShrink: 0 }}>
+                <span style={{
+                  width: 44, height: 44, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #8DA9FF 0%, #5B7EE6 100%)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 900, color: '#FFFFFF',
+                  border: '2px solid rgba(255,255,255,0.30)',
+                  boxShadow: '0 2px 6px rgba(15,23,42,0.20)',
+                }}>
+                  {initials}
+                </span>
+                <span style={{
+                  position: 'absolute', right: -2, bottom: -2,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: '#22C55E', border: '2px solid #1E4FA3',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name="check" size={8} style={{ color: '#FFFFFF' }} />
+                </span>
+              </span>
+              <div style={{ minWidth: 0, lineHeight: 1.2 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {patientName}
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', marginTop: 2 }}>
+                  {patientPhone || '—'}
+                </div>
+              </div>
+            </div>
+
+            {divider}
+
+            {/* Doctor */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              {iconTile('stethoscope')}
+              <div style={{ minWidth: 0, lineHeight: 1.2 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {doctorName}
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', whiteSpace: 'nowrap', marginTop: 2 }}>
+                  {doctorSpec || '—'}
+                </div>
+              </div>
+            </div>
+
+            {divider}
+
+            {/* Appointment # */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {iconTile('calendar')}
+              <div style={{ lineHeight: 1.2 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.70)', fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase' }}>
+                  Appt #
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', fontFamily: 'var(--font-mono)', letterSpacing: 1, marginTop: 2 }}>
+                  {apptNo}
+                </div>
+              </div>
+            </div>
+
+            {divider}
+
+            {/* Token */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {iconTile('ticket')}
+              <div style={{ lineHeight: 1.2 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.70)', fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase' }}>
+                  Token
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', fontFamily: 'var(--font-mono)', letterSpacing: 1, marginTop: 2 }}>
+                  {tokenNo}
+                </div>
+              </div>
+            </div>
+
+            {divider}
+
+            {/* Status pill (solid white) — moved here so it sits right after Token */}
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '8px 16px', borderRadius: 999,
+              background: '#FFFFFF', color: '#1E4FA3',
+              fontSize: 13.5, fontWeight: 800, textTransform: 'capitalize',
+              flexShrink: 0,
+            }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: status === 'cancelled' ? '#DC2626'
+                          : status === 'completed' ? '#15803D'
+                          : status === 'in-progress' ? '#F59E0B'
+                          : status === 'no-show' ? '#64748B' : '#1E4FA3',
+              }} />
+              {APPT_STATUS_LABEL[status] ?? status}
+            </span>
+
+            <div style={{ flex: 1 }} />
+
+            <button onClick={() => window.print()} style={ghostBtn()}>
+              <Icon name="printer" size={14} /> Print Rx
+            </button>
+            <button
+              onClick={() => setEditMode(e => !e)}
+              style={ghostBtn(editMode ? { background: '#FFFFFF', color: '#1E4FA3', borderColor: '#FFFFFF' } : {})}
+            >
+              <Icon name="edit" size={14} /> {editMode ? 'Editing' : 'Edit'}
+            </button>
+          </div>
+        )
+      })()}
 
       {/* Tab Strip */}
       <div style={{
         display: 'flex', gap: 0, background: 'var(--bg-surface)',
         borderBottom: '1px solid var(--border-soft)', flexShrink: 0, padding: '0 24px',
       }}>
-        {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)} style={{
-            padding: '12px 18px', border: 'none', background: 'none', cursor: 'pointer',
-            fontSize: 13.5, fontWeight: tab === i ? 700 : 500,
-            color: tab === i ? 'var(--teal-600)' : 'var(--fg-secondary)',
-            borderBottom: tab === i ? '2px solid var(--teal-600)' : '2px solid transparent',
-            transition: 'all 140ms', whiteSpace: 'nowrap',
-          }}>{t}</button>
-        ))}
+        {TABS.map((t, i) => {
+          const active = tab === i
+          return (
+            <button key={t.label} onClick={() => setTab(i)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '12px 18px', border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 13.5, fontWeight: active ? 700 : 500,
+              color: active ? '#1E4FA3' : 'var(--fg-secondary)',
+              borderBottom: active ? '2px solid #1E4FA3' : '2px solid transparent',
+              transition: 'all 140ms', whiteSpace: 'nowrap', fontFamily: 'inherit',
+            }}>
+              <Icon name={t.icon as any} size={15} style={{ color: active ? '#1E4FA3' : 'var(--fg-muted)' }} />
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Tab Content */}
@@ -954,82 +1274,143 @@ export default function AppointmentDetail({ mode }: Props) {
 
         {/* Tab 1: Appointment Info */}
         {tab === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div className="card">
-              <div className="card-h"><h2>Basic details</h2></div>
-              <div className="grid-4" style={{ gap: 12 }}>
-                {[
-                  { label: 'Appointment ID', value: selectedId ?? '—', editable: false },
-                  { label: 'Patient',        value: patientName,        editable: false },
-                  { label: 'Doctor',         value: doctorName,         editable: false },
-                  { label: 'Clinic',         value: clinicName,         editable: false },
-                  { label: 'Type',           value: appt?.type ?? '—',  editable: false },
-                ].map(f => (
-                  <div key={f.label} className="form-group">
-                    <label className="form-label">{f.label}</label>
-                    <div style={{ padding: '9px 12px', background: 'var(--bg-section)', borderRadius: 10, fontSize: f.label === 'Appointment ID' ? 11 : 13.5, fontWeight: 500, fontFamily: f.label === 'Appointment ID' ? 'var(--font-mono)' : undefined }}>{f.value}</div>
-                  </div>
-                ))}
-                <div className="form-group">
-                  <label className="form-label">Date</label>
-                  {editMode
-                    ? <input type="date" className="form-input" value={apptDate} onChange={e => setApptDate(e.target.value)} />
-                    : <div style={{ padding: '9px 12px', background: 'var(--bg-section)', borderRadius: 10, fontSize: 13.5, fontWeight: 500 }}>{apptDate ? dayjs(apptDate).format('DD MMM YYYY') : '—'}</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* ── Basic Details ─────────────────────────────────────────── */}
+            <div className="card" style={{ padding: 20 }}>
+              <ApptSectionHeader icon="calendar" title="Basic Details" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+                <ApptReadField
+                  label="Appointment ID"
+                  value={selectedId ?? '—'}
+                  mono
+                  valueSize={12}
+                />
+                <ApptReadField label="Patient" value={patientName} />
+                <ApptReadField label="Doctor"  value={doctorName} />
+                <ApptReadField label="Clinic"  value={clinicName} />
+
+                <ApptReadField label="Type" value={appt?.type ?? '—'} />
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg-secondary)', marginBottom: 6 }}>Date</div>
+                  {editMode ? (
+                    <input type="date" className="form-input" value={apptDate} onChange={e => setApptDate(e.target.value)} />
+                  ) : (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '10px 12px',
+                      background: '#F1F5F9', borderRadius: 10,
+                      fontSize: 13.5, fontWeight: 600, color: 'var(--fg-primary)',
+                      minHeight: 40,
+                    }}>
+                      <Icon name="calendar" size={14} style={{ color: 'var(--fg-muted)' }} />
+                      {apptDate ? dayjs(apptDate).format('DD MMM YYYY') : '—'}
+                    </div>
+                  )}
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Time</label>
-                  {editMode
-                    ? <input className="form-input" value={apptTime} onChange={e => setApptTime(e.target.value)} placeholder="e.g. 09:30 AM" />
-                    : <div style={{ padding: '9px 12px', background: 'var(--bg-section)', borderRadius: 10, fontSize: 13.5, fontWeight: 500, fontFamily: 'var(--font-mono)' }}>{apptTime || '—'}</div>}
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg-secondary)', marginBottom: 6 }}>Time</div>
+                  {editMode ? (
+                    <input className="form-input" value={apptTime} onChange={e => setApptTime(e.target.value)} placeholder="e.g. 09:30 AM" />
+                  ) : (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '10px 12px',
+                      background: '#F1F5F9', borderRadius: 10,
+                      fontSize: 13.5, fontWeight: 600, color: 'var(--fg-primary)',
+                      fontFamily: 'var(--font-mono)',
+                      minHeight: 40,
+                    }}>
+                      <Icon name="clock" size={14} style={{ color: 'var(--fg-muted)' }} />
+                      {apptTime || '—'}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="card">
-              <div className="card-h"><h2>Status</h2></div>
-              <div className="form-group" style={{ maxWidth: 320 }}>
-                <label className="form-label">Appointment status</label>
-                {editMode
-                  ? (
-                    <select className="form-select" value={status} onChange={e => setStatus(e.target.value)}>
-                      {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  )
-                  : <div style={{ paddingTop: 4 }}><ApptStatusBadge status={status} /></div>}
+            {/* ── Status ────────────────────────────────────────────────── */}
+            <div className="card" style={{ padding: 20 }}>
+              <ApptSectionHeader icon="sliders" title="Status" />
+              <div style={{ maxWidth: 320 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg-secondary)', marginBottom: 8 }}>
+                  Appointment status
+                </div>
+                {editMode ? (
+                  <select className="form-select" value={status} onChange={e => setStatus(e.target.value)}>
+                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                ) : (
+                  <ApptStatusBadge status={status} />
+                )}
               </div>
             </div>
 
-            {/* Token information */}
-            <div className="card">
-              <div className="card-h"><h2>Token information</h2></div>
+            {/* ── Token Information ─────────────────────────────────────── */}
+            <div className="card" style={{ padding: 20 }}>
+              <ApptSectionHeader icon="ticket" title="Token Information" />
               {token ? (
-                <div className="grid-4" style={{ gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
                   {/* Token number hero */}
                   <div style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    background: 'var(--brand-gradient)', borderRadius: 14, padding: '20px 16px', gap: 4,
+                    background: 'linear-gradient(135deg, #2C6ED5 0%, #1FA3A8 100%)',
+                    borderRadius: 14, padding: '22px 16px', gap: 4,
+                    boxShadow: '0 6px 16px rgba(30,79,163,0.20)',
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.75)' }}>Token No.</div>
-                    <div style={{ fontSize: 36, fontWeight: 900, color: 'white', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
+                    <div style={{
+                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '0.10em', color: 'rgba(255,255,255,0.85)',
+                    }}>
+                      Token No.
+                    </div>
+                    <div style={{
+                      fontSize: 42, fontWeight: 900, color: '#FFFFFF',
+                      fontFamily: 'var(--font-mono)', lineHeight: 1,
+                    }}>
                       {String(token.tokenNumber).padStart(3, '0')}
                     </div>
                   </div>
 
-                  {[
-                    { label: 'Status',   value: <Badge variant={token.status === 'completed' ? 'success' : token.status === 'in-consultation' ? 'warning' : token.status === 'cancelled' ? 'muted' : 'info' as any} dot>{token.status}</Badge> },
-                    { label: 'Priority', value: <Badge variant={token.priority === 'emergency' ? 'danger' : token.priority === 'priority' ? 'warning' : 'muted' as any} dot>{token.priority}</Badge> },
-                    { label: 'Issued at', value: token.issuedAt ? dayjs(token.issuedAt).format('DD MMM YYYY · hh:mm A') : '—' },
-                    { label: 'Called at', value: token.calledAt ? dayjs(token.calledAt).format('DD MMM YYYY · hh:mm A') : '—' },
-                    { label: 'Completed at', value: token.completedAt ? dayjs(token.completedAt).format('DD MMM YYYY · hh:mm A') : '—' },
-                    { label: 'Notes', value: token.notes || '—' },
-                  ].map(f => (
-                    <div key={f.label} className="form-group">
-                      <label className="form-label">{f.label}</label>
-                      <div style={{ padding: '9px 12px', background: 'var(--bg-section)', borderRadius: 10, fontSize: 13.5, fontWeight: 500 }}>
-                        {f.value}
-                      </div>
-                    </div>
-                  ))}
+                  <ApptReadField
+                    label="Status"
+                    value={
+                      <Badge
+                        variant={(token.status === 'completed' ? 'success' : token.status === 'in-consultation' ? 'warning' : token.status === 'cancelled' ? 'muted' : 'info') as any}
+                        dot
+                      >
+                        {token.status}
+                      </Badge>
+                    }
+                  />
+                  <ApptReadField
+                    label="Priority"
+                    value={
+                      <Badge
+                        variant={(token.priority === 'emergency' ? 'danger' : token.priority === 'priority' ? 'warning' : 'muted') as any}
+                        dot
+                      >
+                        {token.priority}
+                      </Badge>
+                    }
+                  />
+                  <ApptReadField
+                    label="Issued at"
+                    icon="calendar"
+                    value={token.issuedAt ? dayjs(token.issuedAt).format('DD MMM YYYY · hh:mm A') : '—'}
+                  />
+
+                  <ApptReadField
+                    label="Called at"
+                    icon="calendar"
+                    value={token.calledAt ? dayjs(token.calledAt).format('DD MMM YYYY · hh:mm A') : '—'}
+                  />
+                  <ApptReadField
+                    label="Completed at"
+                    icon="calendar"
+                    value={token.completedAt ? dayjs(token.completedAt).format('DD MMM YYYY · hh:mm A') : '—'}
+                  />
+                  <ApptReadField label="Notes" value={token.notes || '—'} />
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', padding: '32px 24px', color: 'var(--fg-muted)' }}>
@@ -1478,31 +1859,518 @@ export default function AppointmentDetail({ mode }: Props) {
         {/* Tab 6: Follow-up */}
         {tab === 5 && <FollowUpTab appt={appt} selectedId={selectedId} editMode={editMode} />}
 
+        {/* Tab 7: Billing */}
+        {tab === 6 && (() => {
+          const billSubtotal    = billItems.reduce((s, it) => s + (it.amount ?? 0), 0)
+          const billDiscountAmt = (billSubtotal * billDiscountPct) / 100
+          const billAfterDisc   = billSubtotal - billDiscountAmt
+          const billTaxAmt      = (billAfterDisc * billTaxPct) / 100
+          const billTotal       = billAfterDisc + billTaxAmt
+
+          const addBillItem    = () => setBillItems(prev => [...prev, { description: '', quantity: 1, rate: 0, amount: 0 }])
+          const removeBillItem = (i: number) => setBillItems(prev => prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i))
+          const updateBillItem = (i: number, patch: Partial<{ description: string; quantity: number; rate: number }>) => {
+            setBillItems(prev => prev.map((it, idx) => {
+              if (idx !== i) return it
+              const merged = { ...it, ...patch }
+              merged.amount = (merged.quantity ?? 0) * (merged.rate ?? 0)
+              return merged
+            }))
+          }
+          const resetNewBill = () => {
+            setBillItems([{ description: 'Consultation fee', quantity: 1, rate: 0, amount: 0 }])
+            setBillDiscountPct(0); setBillTaxPct(18); setBillNotes('')
+            setBillPayMethod('cash'); setBillPaidAmount(0)
+            setEditingBillId(null)
+          }
+          const openEditBill = (b: any) => {
+            setEditingBillId(b._id)
+            setBillItems((b.items?.length ? b.items : [{ description: '', quantity: 1, rate: 0, amount: 0 }])
+              .map((it: any) => ({
+                description: it.description ?? '',
+                quantity:    it.quantity ?? 1,
+                rate:        it.rate ?? 0,
+                amount:      it.amount ?? (it.quantity ?? 0) * (it.rate ?? 0),
+              })))
+            const sub = (b.items ?? []).reduce((s: number, it: any) => s + (it.amount ?? 0), 0)
+            setBillDiscountPct(sub > 0 ? Math.round(((b.discount ?? 0) / sub) * 100) : 0)
+            const afterDisc = sub - (b.discount ?? 0)
+            setBillTaxPct(afterDisc > 0 ? Math.round(((b.tax ?? 0) / afterDisc) * 100) : 0)
+            setBillNotes(b.notes ?? '')
+            setBillPayMethod((b.paymentMethod ?? 'cash') as any)
+            setBillPaidAmount(b.paidAmount ?? 0)
+            setNewBillOpen(true)
+          }
+          const createBill = async () => {
+            const valid = billItems.filter(it => it.description.trim())
+            if (valid.length === 0) { toast.error('Add at least one bill item'); return }
+            if (!appt?.patientId?._id || !appt?.doctorId?._id) { toast.error('Appointment missing patient or doctor'); return }
+            const clinicId = appt.clinicId?._id ?? appt.clinicId ?? user?.clinicId
+            if (!clinicId) { toast.error('No clinic on session — cannot create bill'); return }
+            setSavingBill(true)
+            try {
+              const status = billPaidAmount >= billTotal && billTotal > 0 ? 'paid'
+                            : billPaidAmount > 0 ? 'partial' : 'pending'
+              const payload: Record<string, unknown> = {
+                patientId:     appt.patientId._id,
+                doctorId:      appt.doctorId._id,
+                clinicId,
+                appointmentId: selectedId,
+                items:         valid,
+                discount:      billDiscountAmt,
+                tax:           billTaxAmt,
+                notes:         billNotes,
+                status,
+                paidAmount:    billPaidAmount,
+              }
+              if (billPaidAmount > 0) payload.paymentMethod = billPayMethod
+              if (editingBillId) {
+                await billingService.update(editingBillId, payload)
+                toast.success('Bill updated')
+              } else {
+                await billingService.create(payload)
+                toast.success('Bill created')
+              }
+              resetNewBill()
+              setNewBillOpen(false)
+              // refresh list
+              setLoadingBills(true)
+              const res = await billingService.list({ appointmentId: selectedId! })
+              setBills(res.data ?? [])
+              setLoadingBills(false)
+            } catch (err: any) {
+              toast.error(err.response?.data?.message || 'Failed to create bill')
+            } finally {
+              setSavingBill(false)
+            }
+          }
+
+          return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* New Bill trigger — only when no invoice exists yet for this appointment */}
+            {editMode && bills.length === 0 && !loadingBills && (
+              <div className="card" style={{
+                padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12,
+                border: '1.5px solid #BFDBFE',
+              }}>
+                <span style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  background: '#EBF2FF', border: '1px solid #DBE7F8',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name="plus" size={15} style={{ color: '#1E4FA3' }} />
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--fg-primary)' }}>New Bill</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                    Enter bill details (patient &amp; doctor are taken from this appointment)
+                  </div>
+                </div>
+                <button className="btn btn-primary btn-sm" onClick={() => { resetNewBill(); setNewBillOpen(true) }}>
+                  <Icon name="plus" size={13} /> Create bill
+                </button>
+              </div>
+            )}
+
+            {/* New / Edit bill modal */}
+            {newBillOpen && (
+              <Modal
+                size="xl"
+                onClose={() => { setNewBillOpen(false); resetNewBill() }}
+                title={
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <span style={{
+                      width: 32, height: 32, borderRadius: 10,
+                      background: '#EBF2FF', border: '1px solid #DBE7F8',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <Icon name={editingBillId ? 'edit' : 'plus'} size={15} style={{ color: '#1E4FA3' }} />
+                    </span>
+                    <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
+                      <span style={{ fontSize: 16, fontWeight: 800 }}>
+                        {editingBillId ? 'Edit Bill' : 'New Bill'}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--fg-muted)', fontWeight: 500, whiteSpace: 'normal' }}>
+                        Enter bill details (patient &amp; doctor are taken from this appointment)
+                      </span>
+                    </span>
+                  </span>
+                }
+              >
+                <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+
+                  {/* Items table */}
+                  <div style={{ flex: '1 1 460px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <ApptSectionHeader icon="card" title="Bill Items" />
+                      <div style={{ flex: 1 }} />
+                      <button className="btn btn-secondary btn-sm" onClick={addBillItem}>
+                        <Icon name="plus" size={13} /> Add item
+                      </button>
+                    </div>
+
+                    <div style={{ overflowX: 'auto', border: '1px solid var(--border-light)', borderRadius: 10 }}>
+                      <table className="data" style={{ margin: 0, minWidth: 480 }}>
+                        <thead>
+                          <tr>
+                            <th>Description</th>
+                            <th style={{ width: 70, textAlign: 'center' }}>Qty</th>
+                            <th style={{ width: 100 }}>Rate (₹)</th>
+                            <th style={{ width: 100 }}>Amount (₹)</th>
+                            <th style={{ width: 40 }} />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {billItems.map((it, i) => (
+                            <tr key={i}>
+                              <td>
+                                <input
+                                  className="form-input"
+                                  style={{ width: '100%', minWidth: 140 }}
+                                  value={it.description}
+                                  onChange={e => updateBillItem(i, { description: e.target.value })}
+                                  placeholder="e.g. Consultation Fee"
+                                />
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <input
+                                  className="form-input"
+                                  type="number" min={1}
+                                  style={{ width: 60, textAlign: 'center' }}
+                                  value={it.quantity}
+                                  onChange={e => updateBillItem(i, { quantity: Math.max(1, Number(e.target.value)) })}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  className="form-input"
+                                  type="number" min={0}
+                                  style={{ width: 92 }}
+                                  value={it.rate === 0 ? '' : it.rate}
+                                  placeholder="0.00"
+                                  onChange={e => updateBillItem(i, { rate: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                />
+                              </td>
+                              <td style={{ fontWeight: 700, color: 'var(--teal-800)', whiteSpace: 'nowrap' }}>₹{(it.amount ?? 0).toFixed(2)}</td>
+                              <td>
+                                <button
+                                  className="act danger"
+                                  onClick={() => removeBillItem(i)}
+                                  disabled={billItems.length === 1}
+                                  title="Remove item"
+                                >
+                                  <Icon name="trash" size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--fg-secondary)', marginBottom: 6 }}>Notes</div>
+                      <textarea
+                        className="form-textarea"
+                        rows={2}
+                        value={billNotes}
+                        onChange={e => setBillNotes(e.target.value)}
+                        placeholder="Any remarks or special instructions…"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Summary sidebar */}
+                  <div style={{
+                    flex: '1 1 280px', minWidth: 260, maxWidth: 320,
+                    background: '#FFFFFF', border: '1px solid var(--border-soft)',
+                    borderRadius: 12, padding: 18,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                      <span style={{
+                        width: 28, height: 28, borderRadius: 8,
+                        background: '#EBF2FF', border: '1px solid #DBE7F8',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon name="receipt" size={13} style={{ color: '#1E4FA3' }} />
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 800 }}>Bill Summary</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13.5 }}>
+                      <span style={{ color: 'var(--fg-secondary)' }}>Subtotal</span>
+                      <span style={{ fontWeight: 700 }}>₹{billSubtotal.toFixed(2)}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                      <span style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>Discount (%)</span>
+                      <input
+                        type="number" className="form-input"
+                        style={{ width: 72, padding: '4px 8px', fontSize: 13, textAlign: 'right' }}
+                        value={billDiscountPct} min={0} max={100}
+                        onChange={e => setBillDiscountPct(Number(e.target.value))}
+                      />
+                    </div>
+                    {billDiscountAmt > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 12.5, color: 'var(--fg-muted)' }}>
+                        <span>  Discount amount</span>
+                        <span>− ₹{billDiscountAmt.toFixed(2)}</span>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                      <span style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>GST (%)</span>
+                      <input
+                        type="number" className="form-input"
+                        style={{ width: 72, padding: '4px 8px', fontSize: 13, textAlign: 'right' }}
+                        value={billTaxPct} min={0} max={28}
+                        onChange={e => setBillTaxPct(Number(e.target.value))}
+                      />
+                    </div>
+                    {billTaxAmt > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 12.5, color: 'var(--fg-muted)' }}>
+                        <span>  Tax amount</span>
+                        <span>+ ₹{billTaxAmt.toFixed(2)}</span>
+                      </div>
+                    )}
+
+                    <div style={{ borderTop: '1px solid var(--border-soft)', margin: '12px 0' }} />
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <span style={{ fontSize: 15, fontWeight: 800 }}>Total</span>
+                      <span style={{ fontSize: 18, fontWeight: 900, color: '#1E4FA3' }}>₹{billTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                      <span style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>Paid amount</span>
+                      <input
+                        type="number" className="form-input"
+                        style={{ width: 100, padding: '4px 8px', fontSize: 13, textAlign: 'right' }}
+                        value={billPaidAmount === 0 ? '' : billPaidAmount} min={0}
+                        placeholder="0.00"
+                        onChange={e => setBillPaidAmount(e.target.value === '' ? 0 : Number(e.target.value))}
+                      />
+                    </div>
+
+                    {billPaidAmount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                        <span style={{ fontSize: 13.5, color: 'var(--fg-secondary)' }}>Method</span>
+                        <select
+                          className="form-select"
+                          style={{ width: 130, padding: '4px 8px', fontSize: 13 }}
+                          value={billPayMethod}
+                          onChange={e => setBillPayMethod(e.target.value as any)}
+                        >
+                          {(['cash','upi','card','insurance','online'] as const).map(m => (
+                            <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        onClick={() => { setNewBillOpen(false); resetNewBill() }}
+                        disabled={savingBill}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        style={{ flex: 1, justifyContent: 'center' }}
+                        disabled={savingBill || billItems.every(it => !it.description.trim())}
+                        onClick={createBill}
+                      >
+                        <Icon name="check" size={14} />
+                        {savingBill
+                          ? (editingBillId ? 'Updating…' : 'Creating…')
+                          : (editingBillId ? 'Update bill' : 'Create bill')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </Modal>
+            )}
+
+            {/* Summary card */}
+            <div className="card" style={{ padding: 20 }}>
+              <ApptSectionHeader icon="receipt" title="Billing Summary" />
+              {loadingBills ? (
+                <div style={{ padding: '24px 0', fontSize: 13, color: 'var(--fg-muted)', textAlign: 'center' }}>Loading invoices…</div>
+              ) : bills.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px 24px', color: 'var(--fg-muted)' }}>
+                  <Icon name="receipt" size={32} style={{ opacity: 0.3, marginBottom: 10 }} />
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg-secondary)' }}>No invoice yet</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>Invoices created for this appointment will appear here</div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+                  {(() => {
+                    const total      = bills.reduce((s, b) => s + (b.total      ?? 0), 0)
+                    const paid       = bills.reduce((s, b) => s + (b.paidAmount ?? 0), 0)
+                    const balance    = total - paid
+                    const lastStatus = bills[0]?.status ?? 'pending'
+                    return (
+                      <>
+                        <ApptReadField label="Invoices"     icon="receipt"  value={String(bills.length)} />
+                        <ApptReadField label="Total billed" icon="chart"    value={`₹${total.toFixed(2)}`} />
+                        <ApptReadField label="Paid"         icon="check"    value={`₹${paid.toFixed(2)}`} />
+                        <ApptReadField label="Balance"      icon="hourglass" value={`₹${balance.toFixed(2)}`} />
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg-secondary)', marginBottom: 6 }}>
+                            Latest status
+                          </div>
+                          <Badge
+                            variant={(lastStatus === 'paid' ? 'success' : lastStatus === 'partial' ? 'warning' : lastStatus === 'cancelled' ? 'muted' : 'info') as any}
+                            dot
+                          >
+                            {lastStatus}
+                          </Badge>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Invoice list */}
+            {bills.length > 0 && (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-light)' }}>
+                  <ApptSectionHeader icon="sheet" title="Invoices" />
+                </div>
+                <table className="data" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Invoice #</th>
+                      <th>Date</th>
+                      <th style={{ textAlign: 'right' }}>Subtotal</th>
+                      <th style={{ textAlign: 'right' }}>Discount</th>
+                      <th style={{ textAlign: 'right' }}>Tax</th>
+                      <th style={{ textAlign: 'right' }}>Total</th>
+                      <th style={{ textAlign: 'right' }}>Paid</th>
+                      <th>Method</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bills.map((b) => (
+                      <tr key={b._id}>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 700 }}>
+                            <Icon name="receipt" size={13} style={{ color: 'var(--fg-muted)' }} />
+                            {b.invoiceNumber || b._id.slice(-8).toUpperCase()}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                            <Icon name="calendar" size={13} style={{ color: 'var(--fg-muted)' }} />
+                            {b.createdAt ? dayjs(b.createdAt).format('DD MMM YYYY · hh:mm A') : '—'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontSize: 13 }}>₹{(b.subtotal ?? 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontSize: 13 }}>₹{(b.discount ?? 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontSize: 13 }}>₹{(b.tax ?? 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontSize: 13.5, fontWeight: 700 }}>₹{(b.total ?? 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontSize: 13 }}>₹{(b.paidAmount ?? 0).toFixed(2)}</td>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-secondary)' }}>
+                            <Icon name="card" size={13} style={{ color: 'var(--fg-muted)' }} />
+                            {b.paymentMethod ?? '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <Badge
+                            variant={(b.status === 'paid' ? 'success' : b.status === 'partial' ? 'warning' : b.status === 'cancelled' ? 'muted' : 'info') as any}
+                            dot
+                          >
+                            {b.status}
+                          </Badge>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              title="Download invoice"
+                              onClick={() => downloadInvoice(b, appt)}
+                            >
+                              <Icon name="download" size={13} /> Download
+                            </button>
+                            {editMode && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                title="Edit bill"
+                                onClick={() => openEditBill(b)}
+                              >
+                                <Icon name="edit" size={13} /> Edit
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => { setSelectedId(b._id); setRoute('billing-view') }}
+                            >
+                              <Icon name="eye" size={13} /> View
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Items detail per invoice */}
+            {bills.map((b) => (b.items?.length > 0 ? (
+              <div key={`items-${b._id}`} className="card" style={{ padding: 20 }}>
+                <ApptSectionHeader icon="card" title={`Items · ${b.invoiceNumber || b._id.slice(-8).toUpperCase()}`} />
+                <table className="data" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th style={{ textAlign: 'right', width: 80 }}>Qty</th>
+                      <th style={{ textAlign: 'right', width: 110 }}>Rate</th>
+                      <th style={{ textAlign: 'right', width: 120 }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {b.items.map((it: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ fontSize: 13.5 }}>{it.description || '—'}</td>
+                        <td style={{ textAlign: 'right', fontSize: 13 }}>{it.quantity ?? 0}</td>
+                        <td style={{ textAlign: 'right', fontSize: 13 }}>₹{(it.rate ?? 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontSize: 13.5, fontWeight: 700 }}>₹{(it.amount ?? 0).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null))}
+          </div>
+          )
+        })()}
+
       </div>
 
-      {/* Sticky action bar */}
-      <div style={{ position: 'sticky', bottom: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 24px', background: 'var(--bg-surface)', borderTop: '1px solid var(--border-soft)', boxShadow: '0 -4px 12px rgba(0,0,0,0.06)', flexShrink: 0, zIndex: 10 }}>
-        {!editMode ? (
-          <>
-            <button className="btn btn-secondary" onClick={() => setRoute('appointments')}><Icon name="chevL" size={14} /> Back</button>
-            <button className="btn btn-secondary"><Icon name="printer" size={14} /> Print</button>
-            <div style={{ flex: 1 }} />
-            <button className="btn btn-primary" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Edit</button>
-          </>
-        ) : (
-          <>
-            <button className="btn btn-secondary" disabled={saving} onClick={() => setEditMode(false)}><Icon name="x" size={14} /> Cancel</button>
-            <button className="btn btn-danger" disabled={saving} onClick={handleCancelAppt}><Icon name="x" size={14} /> Cancel appointment</button>
-            <div style={{ flex: 1 }} />
-            <button className="btn btn-secondary" disabled={saving} style={{ borderColor: 'var(--success-500)', color: 'var(--success-500)' }} onClick={handleMarkCompleted}>
-              <Icon name="check" size={14} /> Mark completed
-            </button>
-            <button className="btn btn-primary" disabled={saving} onClick={saveAll}>
-              <Icon name="check" size={14} /> {saving ? 'Saving…' : 'Save changes'}
-            </button>
-          </>
-        )}
-      </div>
+      {/* Sticky action bar — only in edit mode. View mode actions live in the top strip. */}
+      {editMode && (
+        <div style={{ position: 'sticky', bottom: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 24px', background: 'var(--bg-surface)', borderTop: '1px solid var(--border-soft)', boxShadow: '0 -4px 12px rgba(0,0,0,0.06)', flexShrink: 0, zIndex: 10 }}>
+          <button className="btn btn-secondary" disabled={saving} onClick={() => setEditMode(false)}><Icon name="x" size={14} /> Cancel</button>
+          <button className="btn btn-danger" disabled={saving} onClick={handleCancelAppt}><Icon name="x" size={14} /> Cancel appointment</button>
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-secondary" disabled={saving} style={{ borderColor: 'var(--success-500)', color: 'var(--success-500)' }} onClick={handleMarkCompleted}>
+            <Icon name="check" size={14} /> Mark completed
+          </button>
+          <button className="btn btn-primary" disabled={saving} onClick={saveAll}>
+            <Icon name="check" size={14} /> {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

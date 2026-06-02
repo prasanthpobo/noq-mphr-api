@@ -3,7 +3,7 @@ import Icon from './Icon'
 import clsx from 'clsx'
 
 interface ModalProps {
-  title: string
+  title: React.ReactNode
   onClose: () => void
   children: React.ReactNode
   footer?: React.ReactNode

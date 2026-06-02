@@ -102,22 +102,27 @@ export default function LoginScreen() {
           <MdShield size={44} color="#1E4FA3" />
         </motion.div>
 
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: -1, lineHeight: 1 }}>NoQ</h1>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500, margin: '8px 0 0', textAlign: 'center' }}>
-          Smart OPD booking &amp; health records
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+          borderRadius: 20, padding: '5px 12px', marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 12 }}>💙</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#FFFFFF', letterSpacing: '1.2px' }}>PATIENT PORTAL</span>
+        </div>
+
+        <h1 style={{ fontSize: 30, fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: -0.5, lineHeight: 1.15, textAlign: 'center' }}>
+          Your health,<br/>one tap away
+        </h1>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500, margin: '10px 0 0', textAlign: 'center' }}>
+          Book OPD, skip the queue, keep your records safe
         </p>
 
-        {/* Feature pills */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-          {['Skip the Queue', 'Secure PHR', 'Live Tracking'].map((f) => (
-            <div key={f} style={{
-              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: 20, padding: '5px 12px',
-              fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.90)',
-            }}>
-              {f}
-            </div>
-          ))}
+        {/* Patient stat pills */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 18, width: '100%', maxWidth: 360 }}>
+          <StatPill value="150+" label="DOCTORS" />
+          <StatPill value="12" label="CLINICS" />
+          <StatPill value="~5m" label="AVG WAIT" />
         </div>
       </motion.div>
 
@@ -361,6 +366,18 @@ export default function LoginScreen() {
           <span onClick={() => navigate('/app/settings/privacy')} style={{ color: '#2C6ED5', cursor: 'pointer' }}>Privacy Policy</span>
         </p>
       </motion.div>
+    </div>
+  )
+}
+
+function StatPill({ value, label }: { value: string; label: string }) {
+  return (
+    <div style={{
+      flex: 1, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.22)',
+      borderRadius: 14, padding: '10px 8px', textAlign: 'center',
+    }}>
+      <p style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF', margin: 0, lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.6px', margin: '6px 0 0' }}>{label}</p>
     </div>
   )
 }

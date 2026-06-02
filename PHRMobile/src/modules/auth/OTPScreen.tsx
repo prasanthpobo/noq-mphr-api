@@ -337,22 +337,36 @@ export default function OTPScreen() {
           </motion.div>
         )}
 
-        {/* Dev OTP hint */}
-        {devOtp && (
-          <motion.div
+        {/* OTP preview pill — gated by frontend OTP_ENABLE config
+            (requires the API to echo back the OTP). */}
+        {import.meta.env.OTP_ENABLE === 'true' && devOtp && (
+          <motion.button
+            type="button"
             initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+            onClick={() => {
+              const padded = devOtp.padStart(OTP_LENGTH, '').slice(0, OTP_LENGTH).split('')
+              const next = Array(OTP_LENGTH).fill('').map((_, i) => padded[i] ?? '')
+              setDigits(next)
+              setApiError(null)
+              focusInput(OTP_LENGTH - 1)
+            }}
             style={{
+              width: '100%', textAlign: 'left',
               background: '#FFFBEB', border: '1.5px dashed #FDE68A',
               borderRadius: 12, padding: '10px 14px', marginBottom: 16,
               display: 'flex', alignItems: 'center', gap: 10,
+              cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
             <span style={{ fontSize: 18 }}>🔑</span>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Dev Mode — OTP</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OTP Preview</div>
               <div style={{ fontSize: 22, fontWeight: 900, color: '#D97706', letterSpacing: 4, marginTop: 2 }}>{devOtp}</div>
             </div>
-          </motion.div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#92400E', background: '#FEF3C7', borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}>
+              Tap to fill
+            </span>
+          </motion.button>
         )}
 
         {/* Resend timer */}

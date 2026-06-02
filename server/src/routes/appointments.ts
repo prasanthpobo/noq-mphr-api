@@ -15,6 +15,27 @@ function fmtDate(d: Date | string): string {
   return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/**
+ * Bulk-flip any `scheduled` appointments whose date has already passed (yesterday or earlier)
+ * to `no-show` — i.e. "Not Visited". Idempotent; safe to call on every read.
+ *
+ * Scoped by the same filter the caller is about to run, so we don't touch unrelated docs.
+ */
+async function markPastScheduledAsNoShow(scope: Record<string, unknown> = {}): Promise<void> {
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+
+  // Only touch records that match the caller's scope AND are past + still scheduled.
+  // Drop status/date constraints from the original scope (we apply our own).
+  const { status: _s, date: _d, ...rest } = scope
+  const filter = { ...rest, status: 'scheduled', date: { $lt: startOfToday } }
+  try {
+    await Appointment.updateMany(filter, { $set: { status: 'no-show' } })
+  } catch {
+    // Non-fatal — we still want to serve the read even if the auto-update fails.
+  }
+}
+
 const router = Router()
 
 // GET /api/appointments/mine?filter=upcoming|past
@@ -44,6 +65,9 @@ router.get('/mine', protect, async (req: Request, res: Response, next: NextFunct
       res.json({ success: true, count: 0, data: [] })
       return
     }
+
+    // Flip any past-dated scheduled appointments for this patient to no-show first.
+    await markPastScheduledAsNoShow({ patientId: { $in: patientIds } })
 
     const { filter } = req.query
     const now = new Date()
@@ -144,7 +168,7 @@ router.get('/slots', protect, async (req: Request, res: Response, next: NextFunc
 // GET /api/appointments
 router.get('/', protect, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { doctorId, patientId, status, date, clinicId, page, limit, search, followUpOf } = req.query
+    const { doctorId, patientId, status, date, dateFrom, dateTo, clinicId, page, limit, search, followUpOf } = req.query
     const filter: Record<string, unknown> = {}
 
     if (doctorId)  filter.doctorId  = doctorId
@@ -152,22 +176,52 @@ router.get('/', protect, async (req: Request, res: Response, next: NextFunction)
     if (status)    filter.status    = status
     if (clinicId)  filter.clinicId  = clinicId
     if (followUpOf) filter.followUpOf = followUpOf
+
+    // Auto-flip past-dated scheduled appointments to "no-show" (Not Visited).
+    await markPastScheduledAsNoShow({ ...(clinicId ? { clinicId } : {}), ...(doctorId ? { doctorId } : {}) })
     if (date) {
       const d     = new Date(date as string)
       const start = new Date(d); start.setHours(0, 0, 0, 0)
       const end   = new Date(d); end.setHours(23, 59, 59, 999)
       filter.date = { $gte: start, $lte: end }
+    } else if (dateFrom || dateTo) {
+      // Range filter — used by the frontend Today / Past / Upcoming tabs.
+      const range: Record<string, Date> = {}
+      if (dateFrom) {
+        const f = new Date(dateFrom as string); f.setHours(0, 0, 0, 0)
+        range.$gte = f
+      }
+      if (dateTo) {
+        const t = new Date(dateTo as string); t.setHours(23, 59, 59, 999)
+        range.$lte = t
+      }
+      filter.date = range
     }
 
     const pageNum  = Math.max(1, parseInt(page  as string) || 1)
     const limitNum = Math.max(1, Math.min(100, parseInt(limit as string) || 20))
     const skip     = (pageNum - 1) * limitNum
 
+    // Attach the matching Token (tokenNumber + token status) to each appointment
+    // so the admin Appointments table can show the real queue number.
+    const attachTokens = async (appts: any[]): Promise<any[]> => {
+      if (appts.length === 0) return []
+      const apptIds = appts.map((a) => a._id)
+      const tokens  = await Token.find({ appointmentId: { $in: apptIds } })
+        .select('tokenNumber status appointmentId')
+        .lean()
+      const map = new Map(tokens.map((t) => [String(t.appointmentId), { tokenNumber: t.tokenNumber, tokenStatus: t.status }]))
+      return appts.map((a) => ({
+        ...(a as any).toObject ? (a as any).toObject() : a,
+        token: map.get(String(a._id)) ?? null,
+      }))
+    }
+
     if (search) {
       // Fetch all matching docs with populate, then filter + paginate in-memory
       // (avoids complex $lookup aggregation for small-clinic data sizes)
       const all = await Appointment.find(filter)
-        .populate('patientId', 'name phone tag')
+        .populate('patientId', 'name phone tag gender dob')
         .populate('doctorId', 'name specialization')
         .populate('clinicId', 'name')
         .sort({ date: -1, createdAt: -1 })
@@ -181,12 +235,13 @@ router.get('/', protect, async (req: Request, res: Response, next: NextFunction)
       })
 
       const paginated = filtered.slice(skip, skip + limitNum)
-      return res.json({ success: true, count: filtered.length, data: paginated })
+      const enriched  = await attachTokens(paginated)
+      return res.json({ success: true, count: filtered.length, data: enriched })
     }
 
     const [appointments, total] = await Promise.all([
       Appointment.find(filter)
-        .populate('patientId', 'name phone tag')
+        .populate('patientId', 'name phone tag gender dob')
         .populate('doctorId', 'name specialization')
         .populate('clinicId', 'name')
         .sort({ date: -1, createdAt: -1 })
@@ -195,7 +250,8 @@ router.get('/', protect, async (req: Request, res: Response, next: NextFunction)
       Appointment.countDocuments(filter),
     ])
 
-    res.json({ success: true, count: total, data: appointments })
+    const enriched = await attachTokens(appointments)
+    res.json({ success: true, count: total, data: enriched })
   } catch (err) {
     next(err)
   }
@@ -326,6 +382,8 @@ router.post(
 // GET /api/appointments/:id
 router.get('/:id', protect, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await markPastScheduledAsNoShow({ _id: req.params.id })
+
     const appointment = await Appointment.findById(req.params.id)
       .populate('patientId', 'name phone tag gender dob bloodGroup')
       .populate('doctorId', 'name specialization phone email consultationFee')
