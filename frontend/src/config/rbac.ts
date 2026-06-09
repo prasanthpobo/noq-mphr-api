@@ -62,12 +62,15 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'account:profile', 'account:support', 'account:settings',
   ],
 
-  /** Manages a single clinic's staff, operations, and billing */
+  /** Clinic admin — full access to every menu and module. */
   clinic_admin: [
-    'dashboard:clinic',
+    'dashboard:admin', 'dashboard:clinic', 'dashboard:doctor',
+    'dashboard:nurse', 'dashboard:frontdesk',
     'clinic:appointments', 'clinic:live-tokens', 'clinic:tokens', 'clinic:token-display',
-    'manage:doctors', 'manage:nurses', 'manage:frontdesk', 'manage:patients',
+    'manage:clinics', 'manage:doctors', 'manage:nurses', 'manage:frontdesk',
+    'manage:patients', 'manage:users',
     'ops:pharmacy', 'ops:lab', 'ops:billing', 'ops:reports',
+    'system:masterdata',
     'account:profile', 'account:support', 'account:settings',
   ],
 
@@ -125,7 +128,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 /* ── Default landing route per role (after login / redirect) ────────────── */
 export const DEFAULT_ROUTE: Record<Role, string> = {
   super_admin:  'dashboard',
-  clinic_admin: 'dash-clinic',
+  clinic_admin: 'dashboard',
   doctor:       'dash-doctor',
   nurse:        'dash-nurse',
   frontdesk:    'dash-frontdesk',
