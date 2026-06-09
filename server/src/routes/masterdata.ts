@@ -107,7 +107,19 @@ router.get('/', protect, async (req: Request, res: Response, next: NextFunction)
 
     if (category) filter.category = category
     if (isActive !== undefined) filter.isActive = isActive === 'true'
-    if (search) filter.label = { $regex: String(search).trim(), $options: 'i' }
+    if (search) {
+      const re = { $regex: String(search).trim(), $options: 'i' }
+      // Search the label first, plus medication-specific metadata fields so
+      // doctors can find a drug by ICD-10, brand, or generic name too.
+      filter.$or = [
+        { label: re },
+        { value: re },
+        { 'metadata.brandName':    re },
+        { 'metadata.genericName':  re },
+        { 'metadata.icd10':        re },
+        { 'metadata.manufacturer': re },
+      ]
+    }
 
     const items = await MasterData.find(filter)
       .sort({ order: 1, label: 1 })

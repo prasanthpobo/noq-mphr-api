@@ -16,6 +16,12 @@ export interface IMasterData extends Document {
   isActive: boolean
   order: number
   clinicId?: mongoose.Types.ObjectId
+  /**
+   * Free-form per-category metadata. Examples:
+   *   medicine → { icd10, genericName, brandName, dosage, form, strength, unit, manufacturer }
+   *   test     → { category, price, unit, sample, fasting }
+   */
+  metadata?: Record<string, any>
 }
 
 const MasterDataSchema = new Schema<IMasterData>(
@@ -45,6 +51,10 @@ const MasterDataSchema = new Schema<IMasterData>(
       type: Schema.Types.ObjectId,
       ref: 'Clinic',
       default: null
+    },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: undefined,
     }
   },
   { timestamps: false }

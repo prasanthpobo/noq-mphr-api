@@ -258,7 +258,16 @@ function rxToApi(r: RxItem) {
 }
 
 /* ── Medicine combobox ───────────────────────────────────────────────────── */
-function MedicineCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+interface MedicinePick {
+  label:    string
+  generic?: string
+  brand?:   string
+  icd10?:   string
+  dosage?:  string
+  form?:    string
+  strength?:string
+}
+function MedicineCombobox({ value, onChange, onPickFull }: { value: string; onChange: (v: string) => void; onPickFull?: (m: MedicinePick) => void }) {
   const [query,   setQuery]   = useState(value)
   const [results, setResults] = useState<any[]>([])
   const [open,    setOpen]    = useState(false)
@@ -297,7 +306,17 @@ function MedicineCombobox({ value, onChange }: { value: string; onChange: (v: st
   }
 
   const select = (item: any) => {
+    const m = item.metadata || {}
     setQuery(item.label); onChange(item.label); setOpen(false); setResults([])
+    onPickFull?.({
+      label:    item.label,
+      generic:  m.genericName,
+      brand:    m.brandName,
+      icd10:    m.icd10,
+      dosage:   m.dosage,
+      form:     m.form,
+      strength: m.strength,
+    })
   }
 
   return (
@@ -321,23 +340,47 @@ function MedicineCombobox({ value, onChange }: { value: string; onChange: (v: st
           borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
           zIndex: 200, maxHeight: 220, overflowY: 'auto',
         }}>
-          {results.map((r, i) => (
-            <button
-              key={r._id}
-              type="button"
-              onMouseDown={() => select(r)}
-              style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '9px 14px', border: 'none', background: 'transparent',
-                fontSize: 13, cursor: 'pointer', color: 'var(--fg-primary)',
-                borderBottom: i < results.length - 1 ? '1px solid var(--border-light)' : 'none',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-section)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              {r.label}
-            </button>
-          ))}
+          {results.map((r, i) => {
+            const m = r.metadata || {}
+            return (
+              <button
+                key={r._id}
+                type="button"
+                onMouseDown={() => select(r)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '10px 14px', border: 'none', background: 'transparent',
+                  fontSize: 13, cursor: 'pointer', color: 'var(--fg-primary)',
+                  borderBottom: i < results.length - 1 ? '1px solid var(--border-light)' : 'none',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-section)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 700 }}>{r.label}</span>
+                  {m.icd10 && (
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 800, color: '#1E4FA3',
+                      background: '#EBF2FF', border: '1px solid #DBE7F8',
+                      padding: '2px 6px', borderRadius: 999, fontFamily: 'var(--font-mono)',
+                    }}>{m.icd10}</span>
+                  )}
+                </div>
+                {(m.genericName || m.brandName) && (
+                  <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 2 }}>
+                    {m.genericName && <span><b style={{ color: 'var(--fg-secondary)' }}>Generic:</b> {m.genericName}</span>}
+                    {m.genericName && m.brandName && ' · '}
+                    {m.brandName   && <span><b style={{ color: 'var(--fg-secondary)' }}>Brand:</b> {m.brandName}</span>}
+                  </div>
+                )}
+                {m.dosage && (
+                  <div style={{ fontSize: 11.5, color: 'var(--fg-secondary)', marginTop: 2, fontStyle: 'italic' }}>
+                    {m.dosage}
+                  </div>
+                )}
+              </button>
+            )
+          })}
         </div>
       )}
       {open && !loading && query.trim().length > 1 && results.length === 0 && (
@@ -1509,7 +1552,17 @@ export default function AppointmentDetail({ mode }: Props) {
                     <tr key={rx.id}>
                       <td>
                         {editMode
-                          ? <MedicineCombobox value={rx.name} onChange={v => updateRx(rx.id, { name: v })} />
+                          ? <MedicineCombobox
+                              value={rx.name}
+                              onChange={v => updateRx(rx.id, { name: v })}
+                              onPickFull={(m) => {
+                                // Auto-populate dosage from master if the row is still blank.
+                                if (m.dosage && (!rx.dosage || rx.dosage === '0-0-0-0')) {
+                                  // Try to parse "1 tab TDS x 5 days" → dosage label kept as-is in dosage field.
+                                  updateRx(rx.id, { dosage: m.dosage })
+                                }
+                              }}
+                            />
                           : <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg-primary)' }}>{rx.name || '—'}</div>}
                       </td>
                       <td>
