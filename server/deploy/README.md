@@ -22,6 +22,21 @@ ssh -i ~/.ssh/zerotoken_deploy root@72.62.133.93 'bash /root/server-setup.sh'
 
 This installs Node 20, PM2, Nginx, certbot, opens the firewall, drops the Nginx vhost, and issues a Let's Encrypt cert for `testapi.zerotoken.in`. Idempotent — re-runnable.
 
+## Required environment
+
+Copy [`server/.env.production.example`](../.env.production.example) to `/var/www/zerotoken/testapi/.env` on the VPS and fill in real values. `chmod 600`. Required keys:
+
+| Variable | Purpose | If missing |
+|---|---|---|
+| `MONGO_URI`            | MongoDB Atlas connection string | server can't boot |
+| `JWT_SECRET`           | sign auth tokens                | `phone-login` returns 500 `"secretOrPrivateKey must have a value"` |
+| `ALLOWED_ORIGIN`       | CORS whitelist (comma-separated) | browser fetches blocked |
+| `RAZORPAY_KEY_ID`      | Razorpay test/live key id       | BookFlow Confirm step shows `"Booking failed. Please try again."` |
+| `RAZORPAY_KEY_SECRET`  | Razorpay key secret             | same as above |
+| `OTP_ENABLE=true`      | only on test envs — echoes OTP back, auto-provisions patients | OTP Preview pill never shows; unknown phones get generic response |
+
+`.env` is gitignored by design. Never commit secrets — push them via SSH only.
+
 ## Deploy a new build
 
 ```bash
