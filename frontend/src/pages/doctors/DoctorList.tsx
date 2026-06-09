@@ -57,9 +57,9 @@ export default function DoctorList() {
   const filtered  = items
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const total   = items.length
-  const active  = items.filter(d => d.status === 'on').length
-  const onLeave = items.filter(d => d.status === 'leave').length
-  const specs   = new Set(items.map(d => d.spec)).size
+  const active  = items.filter(d => d.status === 'active').length
+  const onLeave = items.filter(d => d.status === 'on-leave').length
+  const specs   = new Set(items.map(d => d.specialization).filter(Boolean)).size
 
   return (
     <>
@@ -107,9 +107,10 @@ export default function DoctorList() {
               <th>Qualification</th>
               <th>Experience</th>
               <th>Fee</th>
-              <th>Room</th>
+              <th>Phone</th>
+              <th>Shift</th>
               <th>Status</th>
-              <th></th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -117,7 +118,7 @@ export default function DoctorList() {
               <>
                 {[1,2,3,4,5].map(i => (
                   <tr key={i}>
-                    {[1,2,3,4,5,6,7,8].map(j => (
+                    {[1,2,3,4,5,6,7,8,9].map(j => (
                       <td key={j}>
                         <div style={{ height: 14, background: 'var(--bg-section)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
                       </td>
@@ -126,45 +127,48 @@ export default function DoctorList() {
                 ))}
               </>
             ) : (
-              paginated.map(doc => (
-                <tr key={doc._id || doc.id}>
-                  <td>
-                    <div className="cell-person">
-                      <div
-                        className={`av ${doc.tone || 'blue'}`}
-                        style={{ borderRadius: '50%', flexShrink: 0 }}
-                      >
-                        {doc.name?.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'DR'}
+              paginated.map(doc => {
+                const displayName = doc.name ? (doc.name.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`) : 'Doctor'
+                const initials    = (doc.name || '').replace(/^Dr\.?\s*/i, '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'DR'
+                const id          = doc._id || doc.id
+                return (
+                  <tr key={id}>
+                    <td>
+                      <div className="cell-person">
+                        <div className={`av ${doc.tone || 'blue'}`} style={{ borderRadius: '50%', flexShrink: 0 }}>
+                          {initials}
+                        </div>
+                        <div className="info">
+                          <div className="n">{displayName}</div>
+                          <div className="s">{doc.email || '—'}</div>
+                        </div>
                       </div>
-                      <div className="info">
-                        <div className="n">{doc.name?.split(' ')[0] || '—'}</div>
-                        <div className="s">{doc.name?.split(' ').slice(1).join(' ') || doc.email || doc.mobile || ''}</div>
+                    </td>
+                    <td style={{ fontSize: 13 }}>{doc.specialization || '—'}</td>
+                    <td style={{ fontSize: 13 }}>{doc.qualification || '—'}</td>
+                    <td style={{ fontSize: 13 }}>{doc.experience != null ? `${doc.experience} yr` : '—'}</td>
+                    <td style={{ fontSize: 13 }}>{doc.consultationFee != null ? `₹${doc.consultationFee}` : '—'}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{doc.phone || '—'}</td>
+                    <td style={{ fontSize: 13, textTransform: 'capitalize' }}>{doc.shift || '—'}</td>
+                    <td>
+                      {doc.status === 'active'   && <Badge variant="success" dot>Active</Badge>}
+                      {doc.status === 'inactive' && <Badge variant="gray"    dot>Inactive</Badge>}
+                      {doc.status === 'on-leave' && <Badge variant="warning" dot>On leave</Badge>}
+                      {!doc.status               && <Badge variant="gray"    dot>—</Badge>}
+                    </td>
+                    <td>
+                      <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                        <button className="act" title="View" onClick={() => { setSelectedId(id); setRoute('doctor-view') }}><Icon name="eye" size={14} /></button>
+                        <button className="act" title="Edit" onClick={() => { setSelectedId(id); setRoute('doctor-edit') }}><Icon name="edit" size={14} /></button>
+                        <button className="act danger" title="Delete" onClick={() => handleDelete(id)}><Icon name="trash" size={14} /></button>
                       </div>
-                    </div>
-                  </td>
-                  <td style={{ fontSize: 13 }}>{doc.spec || '—'}</td>
-                  <td style={{ fontSize: 13 }}>{doc.qual || '—'}</td>
-                  <td style={{ fontSize: 13 }}>{doc.exp ? `${doc.exp} yr` : '—'}</td>
-                  <td style={{ fontSize: 13 }}>{doc.fee ? `₹${doc.fee}` : '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{doc.room || '—'}</td>
-                  <td>
-                    {doc.status === 'on'    && <Badge variant="success" dot>On duty</Badge>}
-                    {doc.status === 'busy'  && <Badge variant="warning" dot>In room</Badge>}
-                    {doc.status === 'leave' && <Badge variant="gray"    dot>On leave</Badge>}
-                    {!doc.status            && <Badge variant="gray"    dot>—</Badge>}
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="act" title="View" onClick={() => { setSelectedId(doc._id || doc.id); setRoute('doctor-view') }}><Icon name="eye" size={14} /></button>
-                      <button className="act" title="Edit" onClick={() => { setSelectedId(doc._id || doc.id); setRoute('doctor-edit') }}><Icon name="edit" size={14} /></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(doc._id || doc.id)}><Icon name="trash" size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                )
+              })
             )}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--fg-muted)' }}>No doctors found</td></tr>
+              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--fg-muted)' }}>No doctors found</td></tr>
             )}
           </tbody>
         </table>
