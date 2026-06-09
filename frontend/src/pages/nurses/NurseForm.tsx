@@ -4,8 +4,79 @@ import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import { UserStatusBadge } from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { nursesService } from '@/services/nurses.service'
 import { toast } from '@/store/toast'
+
+function nurseToForm(n: any): any {
+  const split = (full?: string) => {
+    if (!full) return { firstName: '', lastName: '' }
+    const parts = full.trim().split(/\s+/)
+    return { firstName: parts[0] || '', lastName: parts.slice(1).join(' ') }
+  }
+  const fn = n.firstName ?? split(n.name).firstName
+  const ln = n.lastName  ?? split(n.name).lastName
+  const dob    = n.dob      ? new Date(n.dob).toISOString().slice(0, 10) : ''
+  const joined = n.joinedAt ? new Date(n.joinedAt).toISOString().slice(0, 10) : ''
+  return {
+    firstName: fn, lastName: ln, gender: n.gender || 'F', dob,
+    bg:        n.bloodGroup || 'O+',
+    exp:       n.experience != null ? String(n.experience) : '',
+    empId:     n.employeeId || '',
+    regNum:    n.registrationNumber || '',
+    joined,
+    role:      n.role || 'Staff nurse',
+    clinic:    n.clinicId?._id || n.clinicId || '',
+    status:    n.status || 'active',
+    ward:      n.ward || '',
+    startTime: n.startTime || '07:00',
+    endTime:   n.endTime   || '15:00',
+    breakStart:n.breakStart|| '12:00',
+    breakEnd:  n.breakEnd  || '13:00',
+    mobile:    n.phone     || '',
+    altPhone:  n.altPhone  || '',
+    email:     n.email     || '',
+    address:   n.address   || '',
+    emgName:   n.emergencyContact?.name     || '',
+    emgRel:    n.emergencyContact?.relation || '',
+    emgPhone:  n.emergencyContact?.phone    || '',
+    username:  n.username  || '',
+    password:  '',
+    notes:     n.notes     || '',
+  }
+}
+
+function formToNursePayload(data: any, extras: { gender: string; status: string; shiftType: string; deptSel: string[]; daysSel: string[]; certSel: string[]; rotational: boolean; onCall: boolean; clinicId?: string }) {
+  const start = Number((data.startTime || '').slice(0, 2)) || 0
+  const shift: 'morning' | 'evening' | 'night' = start < 12 ? 'morning' : start < 17 ? 'evening' : 'night'
+  const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim()
+  return {
+    name:        fullName || data.firstName || 'Unnamed Nurse',
+    firstName:   data.firstName, lastName: data.lastName,
+    gender:      extras.gender, dob: data.dob || undefined,
+    bloodGroup:  data.bg,
+    email:       data.email, phone: data.mobile, altPhone: data.altPhone, address: data.address,
+    qualification: data.regNum || 'B.Sc Nursing',
+    experience:    data.exp ? Number(data.exp) : undefined,
+    employeeId:    data.empId, registrationNumber: data.regNum,
+    joinedAt:      data.joined || undefined,
+    role:          data.role,
+    shift,
+    shiftType:     extras.shiftType,
+    departments:   extras.deptSel,
+    availableDays: extras.daysSel,
+    startTime:     data.startTime, endTime: data.endTime,
+    breakStart:    data.breakStart, breakEnd: data.breakEnd,
+    rotational:    extras.rotational, onCall: extras.onCall,
+    certifications:extras.certSel,
+    ward:          data.ward,
+    emergencyContact: { name: data.emgName, relation: data.emgRel, phone: data.emgPhone },
+    username:      data.username,
+    notes:         data.notes,
+    status:        extras.status,
+    ...(extras.clinicId ? { clinicId: extras.clinicId } : {}),
+  }
+}
 
 type FormData = {
   firstName: string; lastName: string; gender: string; dob: string
@@ -17,7 +88,7 @@ type FormData = {
   username: string; password: string; notes: string
 }
 
-interface Props { id?: string; onClose?: () => void }
+interface Props { id?: string; viewOnly?: boolean; onClose?: () => void }
 
 const ROLES   = ['Trainee','Staff nurse','Senior nurse','Charge nurse','Head nurse','Nurse manager']
 const DEPTS   = ['ICU','ER','Surgery','Pediatrics','Maternity','Cardiology','OPD','General','Oncology','Admin']
@@ -78,9 +149,11 @@ const TABS = [
   { label: 'Skills',       sub: 'Certs, access & notes',    icon: 'activity' },
 ]
 
-export default function NurseForm({ id, onClose }: Props) {
+export default function NurseForm({ id, viewOnly = false, onClose }: Props) {
   const { setRoute } = useAppStore()
-  const isEdit = Boolean(id)
+  const user = useAuthStore((s) => s.user)
+  const isEdit = Boolean(id) && !viewOnly
+  const isView = viewOnly
 
   const [tab, setTab]           = useState(0)
   const [gender, setGender]     = useState('F')
@@ -111,22 +184,21 @@ export default function NurseForm({ id, onClose }: Props) {
   const av   = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   useEffect(() => {
-    if (isEdit && id) {
-      nursesService.get(id)
-        .then(data => {
-          reset(data)
-          if (data.gender)    setGender(data.gender)
-          if (data.status)    setStatus(data.status)
-          if (data.shiftType) setShiftType(data.shiftType)
-          if (data.deptSel)   setDeptSel(data.deptSel)
-          if (data.daysSel)   setDaysSel(data.daysSel)
-          if (data.certSel)   setCertSel(data.certSel)
-          if (data.rotational !== undefined) setRotational(data.rotational)
-          if (data.onCall !== undefined)     setOnCall(data.onCall)
-        })
-        .catch(() => { setServerError('Failed to load nurse data'); toast.error('Failed to load record') })
-    }
-  }, [id])
+    if (!id) return
+    nursesService.get(id)
+      .then((data: any) => {
+        reset(nurseToForm(data) as FormData)
+        if (data.gender)                       setGender(data.gender)
+        if (data.status)                       setStatus(data.status)
+        if (data.shiftType)                    setShiftType(data.shiftType)
+        if (Array.isArray(data.departments))   setDeptSel(data.departments)
+        if (Array.isArray(data.availableDays)) setDaysSel(data.availableDays)
+        if (Array.isArray(data.certifications))setCertSel(data.certifications)
+        if (data.rotational !== undefined)     setRotational(Boolean(data.rotational))
+        if (data.onCall !== undefined)         setOnCall(Boolean(data.onCall))
+      })
+      .catch(() => { setServerError('Failed to load nurse data'); toast.error('Failed to load record') })
+  }, [id, reset])
 
   const toggleDept = (v: string) => setDeptSel(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v])
   const toggleDay  = (v: string) => setDaysSel(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v])
@@ -135,9 +207,16 @@ export default function NurseForm({ id, onClose }: Props) {
   const onSubmit = async (data: FormData) => {
     try {
       setServerError(null)
-      const payload = { ...data, gender, status, shiftType, deptSel, daysSel, certSel, rotational, onCall }
-      if (isEdit) { await nursesService.update(id!, payload); toast.success('Updated successfully') }
-      else        { await nursesService.create(payload);      toast.success('Nurse created successfully') }
+      const payload = formToNursePayload(data, {
+        gender, status, shiftType, deptSel, daysSel, certSel, rotational, onCall,
+        clinicId: isEdit ? undefined : user?.clinicId,
+      })
+      if (isEdit) {
+        await nursesService.update(id!, payload); toast.success('Nurse updated successfully')
+      } else {
+        if (!payload.clinicId) { toast.error('No clinic on session — cannot create nurse'); return }
+        await nursesService.create(payload);      toast.success('Nurse created successfully')
+      }
       if (onClose) onClose(); else setRoute('nurses')
     } catch (err: any) {
       setServerError(err.response?.data?.message || 'Save failed')
@@ -150,8 +229,8 @@ export default function NurseForm({ id, onClose }: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <Header
-        title={isEdit ? `Editing ${name}` : 'Create nurse'}
-        crumbs={isEdit ? `Nurses · ${name}` : 'Nurses · New nurse'}
+        title={isView ? `Viewing ${name}` : isEdit ? `Editing ${name}` : 'Create nurse'}
+        crumbs={isView ? `Nurses · ${name} · View` : isEdit ? `Nurses · ${name}` : 'Nurses · New nurse'}
       />
 
       <div className="main">
@@ -168,10 +247,18 @@ export default function NurseForm({ id, onClose }: Props) {
                 <Icon name="alert" size={13} /> {serverError}
               </span>
             )}
-            <button type="button" className="btn btn-secondary btn-sm" onClick={goBack}>Cancel</button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
-              <Icon name="check" size={13} /> {isSubmitting ? 'Saving…' : isEdit ? 'Update nurse' : 'Create nurse'}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={goBack}>
+              {isView ? 'Close' : 'Cancel'}
             </button>
+            {isView ? (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setRoute('nurse-edit')}>
+                <Icon name="edit" size={13} /> Edit nurse
+              </button>
+            ) : (
+              <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
+                <Icon name="check" size={13} /> {isSubmitting ? 'Saving…' : isEdit ? 'Update nurse' : 'Create nurse'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -202,7 +289,7 @@ export default function NurseForm({ id, onClose }: Props) {
           })}
         </div>
 
-        <div>
+        <fieldset disabled={isView} style={{ border: 'none', padding: 0, margin: 0, opacity: 1 }}>
 
           {/* ─── Profile ─── */}
           {tab === 0 && (
@@ -513,7 +600,7 @@ export default function NurseForm({ id, onClose }: Props) {
             </div>
           )}
 
-        </div>
+        </fieldset>
       </div>
     </form>
   )

@@ -153,7 +153,7 @@ export default function App() {
     case 'doctors':         screen = <DoctorList />; break
     case 'doctor-new':      screen = <DoctorForm id={undefined} onClose={() => { setSelectedId(null); setRoute('doctors') }} />; break
     case 'doctor-edit':     screen = <DoctorForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('doctors') }} />; break
-    case 'doctor-view':     screen = <DoctorForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('doctors') }} />; break
+    case 'doctor-view':     screen = <DoctorForm id={selectedId ?? undefined} viewOnly onClose={() => { setSelectedId(null); setRoute('doctors') }} />; break
 
     case 'patients':        screen = <PatientList />; break
     case 'patient-new':     screen = <PatientForm id={undefined} onClose={() => { setSelectedId(null); setRoute('patients') }} />; break
@@ -168,12 +168,12 @@ export default function App() {
     case 'frontdesk':       screen = <FrontDeskList />; break
     case 'fd-new':          screen = <FrontDeskForm id={undefined} onClose={() => { setSelectedId(null); setRoute('frontdesk') }} />; break
     case 'fd-edit':         screen = <FrontDeskForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('frontdesk') }} />; break
-    case 'fd-view':         screen = <FrontDeskForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('frontdesk') }} />; break
+    case 'fd-view':         screen = <FrontDeskForm id={selectedId ?? undefined} viewOnly onClose={() => { setSelectedId(null); setRoute('frontdesk') }} />; break
 
     case 'nurses':          screen = <NurseList />; break
     case 'nurse-new':       screen = <NurseForm id={undefined} onClose={() => { setSelectedId(null); setRoute('nurses') }} />; break
     case 'nurse-edit':      screen = <NurseForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('nurses') }} />; break
-    case 'nurse-view':      screen = <NurseForm id={selectedId ?? undefined} onClose={() => { setSelectedId(null); setRoute('nurses') }} />; break
+    case 'nurse-view':      screen = <NurseForm id={selectedId ?? undefined} viewOnly onClose={() => { setSelectedId(null); setRoute('nurses') }} />; break
 
     case 'admin-users':     screen = <AdminUserList />; break
     case 'admin-new':       screen = <AdminUserForm id={undefined} onClose={() => { setSelectedId(null); setRoute('admin-users') }} />; break

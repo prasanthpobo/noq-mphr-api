@@ -4,8 +4,66 @@ import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import { UserStatusBadge } from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { frontdeskService } from '@/services/frontdesk.service'
 import { toast } from '@/store/toast'
+
+function fdToForm(f: any): any {
+  const split = (full?: string) => {
+    if (!full) return { firstName: '', lastName: '' }
+    const parts = full.trim().split(/\s+/)
+    return { firstName: parts[0] || '', lastName: parts.slice(1).join(' ') }
+  }
+  const fn = f.firstName ?? split(f.name).firstName
+  const ln = f.lastName  ?? split(f.name).lastName
+  const dob    = f.dob      ? new Date(f.dob).toISOString().slice(0, 10) : ''
+  const joined = f.joinedAt ? new Date(f.joinedAt).toISOString().slice(0, 10) : ''
+  return {
+    firstName: fn, lastName: ln, gender: f.gender || 'F', dob,
+    empId:     f.employeeId || '',
+    joined,
+    role:      f.designation || 'Receptionist',
+    clinic:    f.clinicId?._id || f.clinicId || '',
+    status:    f.status || 'active',
+    startTime: f.startTime || '09:00',
+    endTime:   f.endTime   || '18:00',
+    breakStart:f.breakStart|| '13:00',
+    breakEnd:  f.breakEnd  || '14:00',
+    mobile:    f.phone     || '',
+    altPhone:  f.altPhone  || '',
+    email:     f.email     || '',
+    address:   f.address   || '',
+    emgName:   f.emergencyContact?.name     || '',
+    emgRel:    f.emergencyContact?.relation || '',
+    emgPhone:  f.emergencyContact?.phone    || '',
+    username:  f.username  || '',
+    password:  '',
+    notes:     f.notes     || '',
+  }
+}
+
+function formToFdPayload(data: any, extras: { gender: string; status: string; shiftType: string; daysSel: string[]; clinicId?: string }) {
+  const start = Number((data.startTime || '').slice(0, 2)) || 0
+  const shift: 'morning' | 'evening' | 'night' = start < 12 ? 'morning' : start < 17 ? 'evening' : 'night'
+  const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim()
+  return {
+    name:        fullName || data.firstName || 'Unnamed Staff',
+    firstName:   data.firstName, lastName: data.lastName,
+    gender:      extras.gender, dob: data.dob || undefined,
+    email:       data.email, phone: data.mobile, altPhone: data.altPhone, address: data.address,
+    designation: data.role, employeeId: data.empId,
+    joinedAt:    data.joined || undefined,
+    shift,
+    startTime:   data.startTime, endTime: data.endTime,
+    breakStart:  data.breakStart, breakEnd: data.breakEnd,
+    availableDays: extras.daysSel,
+    emergencyContact: { name: data.emgName, relation: data.emgRel, phone: data.emgPhone },
+    username:    data.username,
+    notes:       data.notes,
+    status:      extras.status,
+    ...(extras.clinicId ? { clinicId: extras.clinicId } : {}),
+  }
+}
 
 type FormData = {
   firstName: string; lastName: string; gender: string; dob: string
@@ -16,7 +74,7 @@ type FormData = {
   username: string; password: string; notes: string
 }
 
-interface Props { id?: string; onClose?: () => void }
+interface Props { id?: string; viewOnly?: boolean; onClose?: () => void }
 
 const ROLES   = ['Trainee','Receptionist','Senior receptionist','Lead receptionist','Front desk admin']
 const SHIFTS  = ['Morning','Afternoon','Evening','Night','Split']
@@ -63,9 +121,11 @@ const TABS = [
   { label: 'Access',  sub: 'Permissions & system',    icon: 'shield'   },
 ]
 
-export default function FrontDeskForm({ id, onClose }: Props) {
+export default function FrontDeskForm({ id, viewOnly = false, onClose }: Props) {
   const { setRoute } = useAppStore()
-  const isEdit = Boolean(id)
+  const user = useAuthStore((s) => s.user)
+  const isEdit = Boolean(id) && !viewOnly
+  const isView = viewOnly
 
   const [tab, setTab]             = useState(0)
   const [gender, setGender]       = useState('F')
@@ -93,20 +153,17 @@ export default function FrontDeskForm({ id, onClose }: Props) {
   const av   = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   useEffect(() => {
-    if (isEdit && id) {
-      frontdeskService.get(id)
-        .then(data => {
-          reset(data)
-          if (data.gender)              setGender(data.gender)
-          if (data.status)              setStatus(data.status)
-          if (data.shiftType)           setShiftType(data.shiftType)
-          if (data.daysSel)             setDaysSel(data.daysSel)
-          if (data.modSel)              setModSel(data.modSel)
-          if (data.twoFA !== undefined) setTwoFA(data.twoFA)
-        })
-        .catch(() => { setServerError('Failed to load staff data'); toast.error('Failed to load record') })
-    }
-  }, [id])
+    if (!id) return
+    frontdeskService.get(id)
+      .then((data: any) => {
+        reset(fdToForm(data) as FormData)
+        if (data.gender)                       setGender(data.gender)
+        if (data.status)                       setStatus(data.status)
+        if (data.shiftType)                    setShiftType(data.shiftType)
+        if (Array.isArray(data.availableDays)) setDaysSel(data.availableDays)
+      })
+      .catch(() => { setServerError('Failed to load staff data'); toast.error('Failed to load record') })
+  }, [id, reset])
 
   const toggleDay = (v: string) => setDaysSel(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v])
   const toggleMod = (v: string) => setModSel(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v])
@@ -114,9 +171,16 @@ export default function FrontDeskForm({ id, onClose }: Props) {
   const onSubmit = async (data: FormData) => {
     try {
       setServerError(null)
-      const payload = { ...data, gender, status, shiftType, daysSel, modSel, twoFA }
-      if (isEdit) { await frontdeskService.update(id!, payload); toast.success('Updated successfully') }
-      else        { await frontdeskService.create(payload);      toast.success('Staff created successfully') }
+      const payload = formToFdPayload(data, {
+        gender, status, shiftType, daysSel,
+        clinicId: isEdit ? undefined : user?.clinicId,
+      })
+      if (isEdit) {
+        await frontdeskService.update(id!, payload); toast.success('Staff updated successfully')
+      } else {
+        if (!payload.clinicId) { toast.error('No clinic on session — cannot create staff'); return }
+        await frontdeskService.create(payload);      toast.success('Staff created successfully')
+      }
       if (onClose) onClose(); else setRoute('frontdesk')
     } catch (err: any) {
       setServerError(err.response?.data?.message || 'Save failed')
@@ -129,8 +193,8 @@ export default function FrontDeskForm({ id, onClose }: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <Header
-        title={isEdit ? `Editing ${name}` : 'Create staff'}
-        crumbs={isEdit ? `Front desk · ${name}` : 'Front desk · New staff'}
+        title={isView ? `Viewing ${name}` : isEdit ? `Editing ${name}` : 'Create staff'}
+        crumbs={isView ? `Front desk · ${name} · View` : isEdit ? `Front desk · ${name}` : 'Front desk · New staff'}
       />
 
       <div className="main">
@@ -147,10 +211,18 @@ export default function FrontDeskForm({ id, onClose }: Props) {
                 <Icon name="alert" size={13} /> {serverError}
               </span>
             )}
-            <button type="button" className="btn btn-secondary btn-sm" onClick={goBack}>Cancel</button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
-              <Icon name="check" size={13} /> {isSubmitting ? 'Saving…' : isEdit ? 'Update staff' : 'Create staff'}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={goBack}>
+              {isView ? 'Close' : 'Cancel'}
             </button>
+            {isView ? (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setRoute('fd-edit')}>
+                <Icon name="edit" size={13} /> Edit staff
+              </button>
+            ) : (
+              <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
+                <Icon name="check" size={13} /> {isSubmitting ? 'Saving…' : isEdit ? 'Update staff' : 'Create staff'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -181,7 +253,7 @@ export default function FrontDeskForm({ id, onClose }: Props) {
           })}
         </div>
 
-        <div>
+        <fieldset disabled={isView} style={{ border: 'none', padding: 0, margin: 0, opacity: 1 }}>
 
           {/* ─── Profile ─── */}
           {tab === 0 && (
@@ -470,7 +542,7 @@ export default function FrontDeskForm({ id, onClose }: Props) {
             </div>
           )}
 
-        </div>
+        </fieldset>
       </div>
     </form>
   )

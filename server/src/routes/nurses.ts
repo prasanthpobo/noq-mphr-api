@@ -65,26 +65,19 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
 // POST /api/nurses
 router.post('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, email, phone, qualification, shift, status, clinicId, ward, experience } = req.body
-
+    const { name, email, phone, qualification, shift, clinicId } = req.body
     if (!name || !email || !phone || !qualification || !shift || !clinicId) {
       res.status(400).json({
         success: false,
-        message: 'Name, email, phone, qualification, shift, and clinicId are required'
+        message: 'Name, email, phone, qualification, shift, and clinicId are required',
       })
       return
     }
-
     if (!mongoose.Types.ObjectId.isValid(clinicId)) {
       res.status(400).json({ success: false, message: 'Invalid clinic ID' })
       return
     }
-
-    const nurse = await Nurse.create({
-      name, email, phone, qualification,
-      shift, status: status || 'active',
-      clinicId, ward, experience
-    })
+    const nurse = await Nurse.create({ ...req.body, status: req.body.status || 'active' })
 
     const populated = await nurse.populate('clinicId', 'name code city')
 

@@ -64,26 +64,19 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
 // POST /api/frontdesk
 router.post('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, email, phone, shift, status, clinicId, designation, experience } = req.body
-
+    const { name, email, phone, shift, clinicId } = req.body
     if (!name || !email || !phone || !shift || !clinicId) {
       res.status(400).json({
         success: false,
-        message: 'Name, email, phone, shift, and clinicId are required'
+        message: 'Name, email, phone, shift, and clinicId are required',
       })
       return
     }
-
     if (!mongoose.Types.ObjectId.isValid(clinicId)) {
       res.status(400).json({ success: false, message: 'Invalid clinic ID' })
       return
     }
-
-    const staff = await FrontDesk.create({
-      name, email, phone, shift,
-      status: status || 'active',
-      clinicId, designation, experience
-    })
+    const staff = await FrontDesk.create({ ...req.body, status: req.body.status || 'active' })
 
     const populated = await staff.populate('clinicId', 'name code city')
 

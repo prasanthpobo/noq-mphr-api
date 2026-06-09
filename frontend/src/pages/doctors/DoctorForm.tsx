@@ -4,8 +4,76 @@ import Header from '@/components/layout/Header'
 import Icon from '@/components/ui/Icon'
 import Badge from '@/components/ui/Badge'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { doctorsService } from '@/services/doctors.service'
 import { toast } from '@/store/toast'
+
+/** Doctor record → flat form data. */
+function doctorToForm(d: any): any {
+  const split = (full?: string) => {
+    if (!full) return { firstName: '', lastName: '' }
+    const parts = full.trim().split(/\s+/)
+    return { firstName: parts[0] || '', lastName: parts.slice(1).join(' ') }
+  }
+  const fn = d.firstName ?? split(d.name).firstName
+  const ln = d.lastName  ?? split(d.name).lastName
+  const wh = d.workingHours?.[0] ?? {}
+  const pad = (n?: number) => n != null ? String(n).padStart(2, '0') + ':00' : ''
+  const dob = d.dob ? new Date(d.dob).toISOString().slice(0, 10) : ''
+  return {
+    firstName: fn, lastName: ln, gender: d.gender || 'F', dob,
+    qual:       d.qualification    || '',
+    exp:        d.experience != null ? String(d.experience) : '',
+    consultFee: d.consultationFee != null ? String(d.consultationFee) : '',
+    followFee:  d.followUpFee     != null ? String(d.followUpFee) : '',
+    mobile:     d.phone    || '',
+    email:      d.email    || '',
+    clinic:     d.clinicId?._id   || d.clinicId || '',
+    address:    d.address  || '',
+    bio:        d.bio      || '',
+    achieve:    d.achievements || '',
+    notes:      d.notes    || '',
+    startTime:  pad(wh.start) || '09:00',
+    endTime:    pad(wh.end)   || '18:00',
+    slotDur:    d.slotDuration != null ? String(d.slotDuration) : '15',
+    maxTokens:  d.maxTokens != null ? String(d.maxTokens) : '30',
+    breakStart: d.breakStart || '13:00',
+    breakEnd:   d.breakEnd   || '14:00',
+  }
+}
+
+/** Form data + tab-local state → server payload. */
+function formToDoctorPayload(data: any, extras: { gender: string; specSel: string[]; langSel: string[]; daysSel: string[]; schedActive: boolean; clinicId?: string }) {
+  const hr = (t: string) => Number((t || '').slice(0, 2)) || 0
+  const start = hr(data.startTime)
+  const end   = hr(data.endTime)
+  const shift: 'morning' | 'evening' | 'night' =
+    start < 12 ? 'morning' : start < 17 ? 'evening' : 'night'
+  const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim()
+  return {
+    name:       fullName || data.firstName || data.lastName || 'Unnamed Doctor',
+    firstName:  data.firstName, lastName: data.lastName,
+    gender:     extras.gender, dob: data.dob || undefined,
+    email:      data.email, phone: data.mobile, address: data.address,
+    specialization:  extras.specSel[0] || 'General medicine',
+    specializations: extras.specSel,
+    qualification:   data.qual,
+    experience:      data.exp ? Number(data.exp) : undefined,
+    consultationFee: data.consultFee ? Number(data.consultFee) : undefined,
+    followUpFee:     data.followFee ? Number(data.followFee) : undefined,
+    languages:       extras.langSel,
+    availableDays:   extras.daysSel,
+    shift,
+    workingHours:    end > start ? [{ start, end }] : undefined,
+    slotDuration:    data.slotDur   ? Number(data.slotDur)   : undefined,
+    maxTokens:       data.maxTokens ? Number(data.maxTokens) : undefined,
+    breakStart:      data.breakStart, breakEnd: data.breakEnd,
+    scheduleActive:  extras.schedActive,
+    bio:             data.bio, achievements: data.achieve, notes: data.notes,
+    status:          extras.schedActive ? 'active' : 'inactive',
+    ...(extras.clinicId ? { clinicId: extras.clinicId } : {}),
+  }
+}
 
 type FormData = {
   firstName: string; lastName: string; gender: string; dob: string
@@ -16,7 +84,7 @@ type FormData = {
   maxTokens: string; breakStart: string; breakEnd: string
 }
 
-interface Props { id?: string; onClose?: () => void }
+interface Props { id?: string; viewOnly?: boolean; onClose?: () => void }
 
 const SPECS = ['General medicine','Cardiology','Dermatology','Pediatrics','Gynecology','Orthopedics','Neurology','Psychiatry','ENT','Ophthalmology','Dentistry','Oncology']
 const LANGS = ['English','Hindi','Tamil','Telugu','Kannada','Malayalam','Bengali']
@@ -63,9 +131,11 @@ const TABS = [
   { label: 'About',        sub: 'Bio, achievements & notes',  icon: 'edit'     },
 ]
 
-export default function DoctorForm({ id, onClose }: Props) {
+export default function DoctorForm({ id, viewOnly = false, onClose }: Props) {
   const { setRoute } = useAppStore()
-  const isEdit = Boolean(id)
+  const user = useAuthStore((s) => s.user)
+  const isEdit = Boolean(id) && !viewOnly
+  const isView = viewOnly
 
   const [tab, setTab]               = useState(0)
   const [gender, setGender]         = useState('F')
@@ -93,18 +163,20 @@ export default function DoctorForm({ id, onClose }: Props) {
   const av   = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   useEffect(() => {
-    if (isEdit && id) {
-      doctorsService.get(id)
-        .then(data => {
-          reset(data)
-          if (data.specSel) setSpecSel(data.specSel)
-          if (data.langSel) setLangSel(data.langSel)
-          if (data.daysSel) setDaysSel(data.daysSel)
-          if (data.gender)  setGender(data.gender)
-        })
-        .catch(() => { setServerError('Failed to load doctor data'); toast.error('Failed to load record') })
-    }
-  }, [id])
+    if (!id) return
+    doctorsService.get(id)
+      .then((data: any) => {
+        reset(doctorToForm(data) as FormData)
+        if (data.gender)          setGender(data.gender)
+        if (Array.isArray(data.specializations) && data.specializations.length) setSpecSel(data.specializations)
+        else if (data.specialization)                                            setSpecSel([data.specialization])
+        if (Array.isArray(data.languages))     setLangSel(data.languages)
+        if (Array.isArray(data.availableDays)) setDaysSel(data.availableDays)
+        if (data.scheduleActive !== undefined) setSchedActive(Boolean(data.scheduleActive))
+        if (data.slotDuration) setSlotDur(String(data.slotDuration))
+      })
+      .catch(() => { setServerError('Failed to load doctor data'); toast.error('Failed to load record') })
+  }, [id, reset])
 
   const toggleSpec = (v: string) => setSpecSel(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v])
   const toggleLang = (v: string) => setLangSel(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v])
@@ -113,9 +185,16 @@ export default function DoctorForm({ id, onClose }: Props) {
   const onSubmit = async (data: FormData) => {
     try {
       setServerError(null)
-      const payload = { ...data, gender, specSel, langSel, daysSel, schedActive }
-      if (isEdit) { await doctorsService.update(id!, payload); toast.success('Updated successfully') }
-      else        { await doctorsService.create(payload);      toast.success('Doctor created successfully') }
+      const payload = formToDoctorPayload(data, {
+        gender, specSel, langSel, daysSel, schedActive,
+        clinicId: isEdit ? undefined : user?.clinicId,
+      })
+      if (isEdit) {
+        await doctorsService.update(id!, payload); toast.success('Doctor updated successfully')
+      } else {
+        if (!payload.clinicId) { toast.error('No clinic on session — cannot create doctor'); return }
+        await doctorsService.create(payload);     toast.success('Doctor created successfully')
+      }
       if (onClose) onClose(); else setRoute('doctors')
     } catch (err: any) {
       setServerError(err.response?.data?.message || 'Save failed')
@@ -128,8 +207,8 @@ export default function DoctorForm({ id, onClose }: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <Header
-        title={isEdit ? `Editing Dr. ${name}` : 'Create doctor'}
-        crumbs={isEdit ? `Doctors · Dr. ${name}` : 'Doctors · New doctor'}
+        title={isView ? `Viewing Dr. ${name}` : isEdit ? `Editing Dr. ${name}` : 'Create doctor'}
+        crumbs={isView ? `Doctors · Dr. ${name} · View` : isEdit ? `Doctors · Dr. ${name}` : 'Doctors · New doctor'}
       />
 
       <div className="main">
@@ -139,6 +218,7 @@ export default function DoctorForm({ id, onClose }: Props) {
           <button type="button" className="btn btn-secondary btn-sm" onClick={goBack}>
             <Icon name="chevL" size={13} /> Back
           </button>
+          {isView && <Badge variant="blue" dot>View only</Badge>}
           {isEdit && <Badge variant="warning" dot>Editing</Badge>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
             {serverError && (
@@ -146,10 +226,18 @@ export default function DoctorForm({ id, onClose }: Props) {
                 <Icon name="alert" size={13} /> {serverError}
               </span>
             )}
-            <button type="button" className="btn btn-secondary btn-sm" onClick={goBack}>Cancel</button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
-              <Icon name="check" size={13} /> {isSubmitting ? 'Saving…' : isEdit ? 'Update doctor' : 'Create doctor'}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={goBack}>
+              {isView ? 'Close' : 'Cancel'}
             </button>
+            {isView ? (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setRoute('doctor-edit')}>
+                <Icon name="edit" size={13} /> Edit doctor
+              </button>
+            ) : (
+              <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
+                <Icon name="check" size={13} /> {isSubmitting ? 'Saving…' : isEdit ? 'Update doctor' : 'Create doctor'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -180,7 +268,7 @@ export default function DoctorForm({ id, onClose }: Props) {
           })}
         </div>
 
-        <div>
+        <fieldset disabled={isView} style={{ border: 'none', padding: 0, margin: 0, opacity: 1 }}>
 
           {/* ─── Profile ─── */}
           {tab === 0 && (
@@ -470,7 +558,7 @@ export default function DoctorForm({ id, onClose }: Props) {
             </div>
           )}
 
-        </div>
+        </fieldset>
       </div>
     </form>
   )
