@@ -74,7 +74,7 @@ export default function FrontDeskList() {
   const total   = items.length
   const active  = items.filter(fd => fd.status === 'active').length
   const onLeave = items.filter(fd => fd.status === 'on-leave').length
-  const clinics = new Set(items.map(fd => fd.clinic)).size
+  const clinics = new Set(items.map(fd => fd.clinicId?._id || fd.clinicId).filter(Boolean)).size
 
   return (
     <>
@@ -114,50 +114,52 @@ export default function FrontDeskList() {
           <thead>
             <tr>
               <th>Staff</th>
-              <th>ID</th>
-              <th>Role</th>
+              <th>Employee ID</th>
+              <th>Designation</th>
               <th>Clinic</th>
               <th>Shift</th>
               <th>Phone</th>
               <th>Status</th>
-              <th></th>
+              <th style={{textAlign:'right'}}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <LoadingSkeleton />
             ) : (
-              filtered.map(fd=>(
-                <tr key={fd._id || fd.id}>
-                  <td>
-                    <div className="cell-person">
-                      <div
-                        className={`av ${fd.tone || 'blue'}`}
-                        style={{ borderRadius: '50%', flexShrink: 0 }}
-                      >
-                        {fd.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'FD'}
+              filtered.map(fd=>{
+                const id          = fd._id || fd.id
+                const initials    = (fd.name || '').split(/\s+/).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'FD'
+                const designation = fd.designation || 'Receptionist'
+                const clinic      = fd.clinicId?.name || '—'
+                const empId       = fd.employeeId || String(id).slice(-6).toUpperCase()
+                return (
+                  <tr key={id}>
+                    <td>
+                      <div className="cell-person">
+                        <div className={`av ${fd.tone || 'blue'}`} style={{ borderRadius: '50%', flexShrink: 0 }}>{initials}</div>
+                        <div className="info">
+                          <div className="n">{fd.name || '—'}</div>
+                          <div className="s">{fd.email || '—'}</div>
+                        </div>
                       </div>
-                      <div className="info">
-                        <div className="n">{fd.name?.split(' ')[0] || '—'}</div>
-                        <div className="s">{fd.name?.split(' ').slice(1).join(' ') || fd.email}</div>
+                    </td>
+                    <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{empId}</td>
+                    <td><Badge variant={(ROLE_VARIANTS[designation]??'muted') as any}>{designation}</Badge></td>
+                    <td style={{fontSize:12}}>{clinic}</td>
+                    <td style={{fontSize:12, textTransform:'capitalize'}}>{fd.shift || '—'}</td>
+                    <td style={{fontSize:12, fontFamily:'var(--font-mono)'}}>{fd.phone || '—'}</td>
+                    <td><UserStatusBadge status={fd.status || 'active'}/></td>
+                    <td>
+                      <div className="row-actions" style={{justifyContent:'flex-end'}}>
+                        <button className="act" title="View" onClick={()=>{ setSelectedId(id); setRoute('fd-view') }}><Icon name="eye" size={14}/></button>
+                        <button className="act" title="Edit" onClick={()=>{ setSelectedId(id); setRoute('fd-edit') }}><Icon name="edit" size={14}/></button>
+                        <button className="act danger" title="Delete" onClick={() => handleDelete(id)}><Icon name="trash" size={14}/></button>
                       </div>
-                    </div>
-                  </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{fd._id || fd.id}</td>
-                  <td><Badge variant={(ROLE_VARIANTS[fd.role]??'muted') as any}>{fd.role}</Badge></td>
-                  <td style={{fontSize:12}}>{fd.clinic}</td>
-                  <td style={{fontSize:12}}>{fd.shift}</td>
-                  <td style={{fontSize:12}}>{fd.phone}</td>
-                  <td><UserStatusBadge status={fd.status}/></td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>{ setSelectedId(fd._id || fd.id); setRoute('fd-view') }}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(fd._id || fd.id); setRoute('fd-edit') }}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(fd._id || fd.id)}><Icon name="trash" size={14}/></button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                )
+              })
             )}
             {!loading && filtered.length===0 && (
               <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No staff found</td></tr>

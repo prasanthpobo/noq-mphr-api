@@ -74,7 +74,7 @@ export default function NurseList() {
   const total   = items.length
   const active  = items.filter(n => n.status === 'active').length
   const onLeave = items.filter(n => n.status === 'on-leave').length
-  const depts   = new Set(items.map(n => n.dept)).size
+  const depts   = new Set(items.flatMap(n => n.departments ?? []).filter(Boolean)).size
 
   return (
     <>
@@ -114,52 +114,55 @@ export default function NurseList() {
           <thead>
             <tr>
               <th>Nurse</th>
-              <th>ID</th>
+              <th>Employee ID</th>
               <th>Role</th>
               <th>Department</th>
               <th>Ward</th>
               <th>Clinic</th>
               <th>Shift</th>
               <th>Status</th>
-              <th></th>
+              <th style={{textAlign:'right'}}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <LoadingSkeleton />
             ) : (
-              filtered.map(n=>(
-                <tr key={n._id || n.id}>
-                  <td>
-                    <div className="cell-person">
-                      <div
-                        className={`av ${n.tone || 'pink'}`}
-                        style={{ borderRadius: '50%', flexShrink: 0 }}
-                      >
-                        {n.name?.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'NR'}
+              filtered.map(n=>{
+                const id       = n._id || n.id
+                const initials = (n.name || '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'NR'
+                const role     = n.role || 'Staff nurse'
+                const depts    = Array.isArray(n.departments) ? n.departments.join(', ') : '—'
+                const clinic   = n.clinicId?.name || '—'
+                const empId    = n.employeeId || String(id).slice(-6).toUpperCase()
+                return (
+                  <tr key={id}>
+                    <td>
+                      <div className="cell-person">
+                        <div className={`av ${n.tone || 'pink'}`} style={{ borderRadius: '50%', flexShrink: 0 }}>{initials}</div>
+                        <div className="info">
+                          <div className="n">{n.name || '—'}</div>
+                          <div className="s">{n.email || n.phone || '—'}</div>
+                        </div>
                       </div>
-                      <div className="info">
-                        <div className="n">{n.name?.split(' ')[0] || '—'}</div>
-                        <div className="s">{n.name?.split(' ').slice(1).join(' ') || n.email}</div>
+                    </td>
+                    <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{empId}</td>
+                    <td><Badge variant={(ROLE_VARIANTS[role]??'muted') as any}>{role}</Badge></td>
+                    <td style={{fontSize:12}}>{depts}</td>
+                    <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.ward || '—'}</td>
+                    <td style={{fontSize:12}}>{clinic}</td>
+                    <td style={{fontSize:12, textTransform:'capitalize'}}>{n.shift || '—'}</td>
+                    <td><UserStatusBadge status={n.status || 'active'}/></td>
+                    <td>
+                      <div className="row-actions" style={{justifyContent:'flex-end'}}>
+                        <button className="act" title="View" onClick={()=>{ setSelectedId(id); setRoute('nurse-view') }}><Icon name="eye" size={14}/></button>
+                        <button className="act" title="Edit" onClick={()=>{ setSelectedId(id); setRoute('nurse-edit') }}><Icon name="edit" size={14}/></button>
+                        <button className="act danger" title="Delete" onClick={() => handleDelete(id)}><Icon name="trash" size={14}/></button>
                       </div>
-                    </div>
-                  </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n._id || n.id}</td>
-                  <td><Badge variant={(ROLE_VARIANTS[n.role]??'muted') as any}>{n.role}</Badge></td>
-                  <td style={{fontSize:12}}>{n.dept}</td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{n.ward}</td>
-                  <td style={{fontSize:12}}>{n.clinic}</td>
-                  <td style={{fontSize:12}}>{n.shift}</td>
-                  <td><UserStatusBadge status={n.status}/></td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>{ setSelectedId(n._id || n.id); setRoute('nurse-view') }}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(n._id || n.id); setRoute('nurse-edit') }}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(n._id || n.id)}><Icon name="trash" size={14}/></button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                )
+              })
             )}
             {!loading && filtered.length===0 && (
               <tr><td colSpan={9} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No nurses found</td></tr>

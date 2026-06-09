@@ -8,9 +8,26 @@ import { adminusersService } from '@/services/adminusers.service'
 import { toast } from '@/store/toast'
 
 const ROLE_VARIANTS: Record<string,string> = {
-  'Super admin':'danger','Clinic admin':'blue','Billing admin':'amber',
-  Operations:'mint','Compliance':'indigo','Reports analyst':'plum',
-  'Support admin':'brand','Read-only':'gray'
+  super_admin:  'danger',
+  clinic_admin: 'blue',
+  doctor:       'indigo',
+  nurse:        'pink',
+  frontdesk:    'amber',
+  pharmacist:   'mint',
+  lab_tech:     'plum',
+  patient:      'gray',
+  user:         'gray',
+}
+const ROLE_LABEL: Record<string,string> = {
+  super_admin:  'Super admin',
+  clinic_admin: 'Clinic admin',
+  doctor:       'Doctor',
+  nurse:        'Nurse',
+  frontdesk:    'Front desk',
+  pharmacist:   'Pharmacist',
+  lab_tech:     'Lab tech',
+  patient:      'Patient',
+  user:         'User',
 }
 
 function LoadingSkeleton() {
@@ -74,8 +91,8 @@ export default function AdminUserList() {
   const filtered = items
   const total   = items.length
   const active  = items.filter(u => u.status === 'active').length
-  const with2FA = items.filter(u => u.twoFactor).length
-  const roles   = new Set(items.map(u => u.role)).size
+  const admins  = items.filter(u => u.role === 'super_admin' || u.role === 'clinic_admin').length
+  const roles   = new Set(items.map(u => u.role).filter(Boolean)).size
 
   return (
     <>
@@ -88,7 +105,7 @@ export default function AdminUserList() {
       <div className="stats-grid">
         <StatCard ic="shield"   tone="blue"   label="Total users"  value={String(total)}   foot="Admin accounts" />
         <StatCard ic="check"    tone="green"  label="Active"       value={String(active)}  foot="Currently active" accent />
-        <StatCard ic="lock"     tone="indigo" label="2FA enabled"  value={String(with2FA)} foot="Secured accounts" />
+        <StatCard ic="shield"   tone="indigo" label="Admins"       value={String(admins)}  foot="Super + clinic admins" />
         <StatCard ic="users"    tone="purple" label="Roles"        value={String(roles)}   foot="Distinct roles" />
       </div>
 
@@ -115,58 +132,53 @@ export default function AdminUserList() {
           <thead>
             <tr>
               <th>User</th>
-              <th>ID</th>
+              <th>Phone</th>
               <th>Role</th>
-              <th>Scope</th>
-              <th>Last login</th>
-              <th>2FA</th>
+              <th>Clinic</th>
+              <th>Joined</th>
               <th>Status</th>
-              <th></th>
+              <th style={{textAlign:'right'}}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <LoadingSkeleton />
             ) : (
-              filtered.map(u=>(
-                <tr key={u._id || u.id}>
-                  <td>
-                    <div className="cell-person">
-                      <div
-                        className={`av ${u.tone || 'blue'}`}
-                        style={{ borderRadius: '50%', flexShrink: 0 }}
-                      >
-                        {u.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+              filtered.map(u=>{
+                const id       = u._id || u.id
+                const initials = (u.name || '').split(/\s+/).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'U'
+                const clinic   = u.clinicId?.name || '—'
+                const joined   = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+                const roleLabel = ROLE_LABEL[u.role] ?? u.role ?? '—'
+                return (
+                  <tr key={id}>
+                    <td>
+                      <div className="cell-person">
+                        <div className={`av ${u.tone || 'blue'}`} style={{ borderRadius: '50%', flexShrink: 0 }}>{initials}</div>
+                        <div className="info">
+                          <div className="n">{u.name || '—'}</div>
+                          <div className="s">{u.email || '—'}</div>
+                        </div>
                       </div>
-                      <div className="info">
-                        <div className="n">{u.name?.split(' ')[0] || '—'}</div>
-                        <div className="s">{u.name?.split(' ').slice(1).join(' ') || u.email}</div>
+                    </td>
+                    <td style={{fontSize:12, fontFamily:'var(--font-mono)'}}>{u.phone || '—'}</td>
+                    <td><Badge variant={(ROLE_VARIANTS[u.role]??'muted') as any}>{roleLabel}</Badge></td>
+                    <td style={{fontSize:12}}>{clinic}</td>
+                    <td style={{fontSize:12}}>{joined}</td>
+                    <td><UserStatusBadge status={u.status || 'active'}/></td>
+                    <td>
+                      <div className="row-actions" style={{justifyContent:'flex-end'}}>
+                        <button className="act" title="View" onClick={()=>{ setSelectedId(id); setRoute('admin-view') }}><Icon name="eye" size={14}/></button>
+                        <button className="act" title="Edit" onClick={()=>{ setSelectedId(id); setRoute('admin-edit') }}><Icon name="edit" size={14}/></button>
+                        <button className="act danger" title="Delete" onClick={() => handleDelete(id)}><Icon name="trash" size={14}/></button>
                       </div>
-                    </div>
-                  </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{u._id || u.id}</td>
-                  <td><Badge variant={(ROLE_VARIANTS[u.role]??'muted') as any}>{u.role}</Badge></td>
-                  <td style={{fontSize:12}}>{u.scope}</td>
-                  <td style={{fontSize:12}}>{u.lastLogin}</td>
-                  <td>
-                    {u.twoFactor
-                      ? <Badge variant="success" dot>On</Badge>
-                      : <Badge variant="gray" dot>Off</Badge>
-                    }
-                  </td>
-                  <td><UserStatusBadge status={u.status}/></td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>{ setSelectedId(u._id || u.id); setRoute('admin-view') }}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(u._id || u.id); setRoute('admin-edit') }}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(u._id || u.id)}><Icon name="trash" size={14}/></button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                )
+              })
             )}
             {!loading && filtered.length===0 && (
-              <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No users found</td></tr>
+              <tr><td colSpan={7} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No users found</td></tr>
             )}
           </tbody>
         </table>

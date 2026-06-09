@@ -82,7 +82,7 @@ export default function ClinicList() {
   const total     = items.length
   const active    = items.filter(c => c.status === 'active').length
   const pending   = items.filter(c => c.status === 'pending').length
-  const enrolled  = items.reduce((sum: number, c: any) => sum + (c.doctors || 0), 0)
+  const cities    = new Set(items.map(c => c.city).filter(Boolean)).size
   const countOf   = (s: string) => items.filter(c => c.status === s).length
 
   return (
@@ -97,7 +97,7 @@ export default function ClinicList() {
         <StatCard ic="building"    tone="blue"  label="Total clinics"     value={String(total)}    foot="All registered" />
         <StatCard ic="check"       tone="green" label="Active"            value={String(active)}   foot="Operational" accent />
         <StatCard ic="hourglass"   tone="amber" label="Pending"           value={String(pending)}  foot="Awaiting approval" />
-        <StatCard ic="stethoscope" tone="indigo" label="Doctors enrolled" value={String(enrolled)} foot="Across all clinics" />
+        <StatCard ic="building" tone="indigo" label="Cities"           value={String(cities)}   foot="Across all clinics" />
       </div>
 
       <div className="table-card">
@@ -131,55 +131,54 @@ export default function ClinicList() {
           <thead>
             <tr>
               <th>Clinic</th>
-              <th>ID</th>
+              <th>Code</th>
               <th>Type</th>
               <th>Location</th>
-              <th>Doctors</th>
-              <th>Rooms</th>
-              <th>Hours</th>
+              <th>Phone</th>
+              <th>Email</th>
               <th>Status</th>
-              <th></th>
+              <th style={{textAlign:'right'}}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <LoadingSkeleton />
             ) : (
-              filtered.map(c=>(
-                <tr key={c._id || c.id}>
-                  <td>
-                    <div className="cell-person">
-                      <div
-                        className={`av ${c.tone || 'blue'}`}
-                        style={{ borderRadius: '50%', flexShrink: 0 }}
-                      >
-                        {c.name?.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'CL'}
+              filtered.map(c=>{
+                const id       = c._id || c.id
+                const initials = (c.name || '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || 'CL'
+                const type     = c.type || 'general'
+                const location = [c.city, c.state].filter(Boolean).join(', ') || '—'
+                return (
+                  <tr key={id}>
+                    <td>
+                      <div className="cell-person">
+                        <div className={`av ${c.tone || 'blue'}`} style={{ borderRadius: '50%', flexShrink: 0 }}>{initials}</div>
+                        <div className="info">
+                          <div className="n">{c.name || '—'}</div>
+                          <div className="s">{c.address || '—'}</div>
+                        </div>
                       </div>
-                      <div className="info">
-                        <div className="n">{c.name?.split(' ')[0] || '—'}</div>
-                        <div className="s">{c.name?.split(' ').slice(1).join(' ') || `★ ${c.rating} · Est. ${c.established}`}</div>
+                    </td>
+                    <td style={{fontFamily:'var(--font-mono)',fontSize:12,fontWeight:600}}>{c.code || '—'}</td>
+                    <td><Badge variant={(TYPE_VARIANTS[type]??'muted') as any} className="capitalize">{type}</Badge></td>
+                    <td style={{fontSize:12}}>{location}</td>
+                    <td style={{fontSize:12, fontFamily:'var(--font-mono)'}}>{c.phone || '—'}</td>
+                    <td style={{fontSize:12, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{c.email || '—'}</td>
+                    <td><UserStatusBadge status={c.status || 'active'}/></td>
+                    <td>
+                      <div className="row-actions" style={{justifyContent:'flex-end'}}>
+                        <button className="act" title="View" onClick={()=>{ setSelectedId(id); setRoute('clinic-view') }}><Icon name="eye" size={14}/></button>
+                        <button className="act" title="Edit" onClick={()=>{ setSelectedId(id); setRoute('clinic-edit') }}><Icon name="edit" size={14}/></button>
+                        <button className="act danger" title="Delete" onClick={() => handleDelete(id)}><Icon name="trash" size={14}/></button>
                       </div>
-                    </div>
-                  </td>
-                  <td style={{fontFamily:'var(--font-mono)',fontSize:12}}>{c._id || c.id}</td>
-                  <td><Badge variant={(TYPE_VARIANTS[c.type]??'muted') as any}>{c.type}</Badge></td>
-                  <td style={{fontSize:12}}>{c.area}, {c.city}</td>
-                  <td>{c.doctors}</td>
-                  <td>{c.rooms}</td>
-                  <td style={{fontSize:12,maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.hours}</td>
-                  <td><UserStatusBadge status={c.status}/></td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="act" title="View" onClick={()=>{ setSelectedId(c._id || c.id); setRoute('clinic-view') }}><Icon name="eye" size={14}/></button>
-                      <button className="act" title="Edit" onClick={()=>{ setSelectedId(c._id || c.id); setRoute('clinic-edit') }}><Icon name="edit" size={14}/></button>
-                      <button className="act danger" title="Delete" onClick={() => handleDelete(c._id || c.id)}><Icon name="trash" size={14}/></button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                )
+              })
             )}
             {!loading && filtered.length===0 && (
-              <tr><td colSpan={9} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No clinics found</td></tr>
+              <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'var(--fg-muted)'}}>No clinics found</td></tr>
             )}
           </tbody>
         </table>
