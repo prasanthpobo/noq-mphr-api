@@ -415,11 +415,14 @@ function emptyTest(name = '', code = '', category = '', rate = 0): LabTestItem {
 /* ── Test combobox ───────────────────────────────────────────────────────── */
 function TestCombobox({ onSelect, selectedNames }: { onSelect: (t: any) => void; selectedNames: string[] }) {
   const [q,        setQ]        = useState('')
-  const [allTests, setAllTests] = useState<any[]>([])
+  const [allTests, setAllTests] = useState<any[]>([])  // initial full-load snapshot
+  const [results,  setResults]  = useState<any[]>([])  // server-side hits when searching
   const [open,     setOpen]     = useState(false)
   const [loading,  setLoading]  = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const debRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // First load: show everything for browse mode (no query).
   useEffect(() => {
     setLoading(true)
     masterdataService.list({ category: 'test' })
@@ -427,6 +430,19 @@ function TestCombobox({ onSelect, selectedNames }: { onSelect: (t: any) => void;
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  // Debounced server search — covers LOINC/category/sample/short-code too.
+  useEffect(() => {
+    if (!q.trim()) { setResults([]); return }
+    if (debRef.current) clearTimeout(debRef.current)
+    debRef.current = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const res = await masterdataService.list({ category: 'test', search: q.trim() })
+        setResults(res.data ?? [])
+      } finally { setLoading(false) }
+    }, 220)
+  }, [q])
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -436,11 +452,7 @@ function TestCombobox({ onSelect, selectedNames }: { onSelect: (t: any) => void;
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  const filtered = allTests.filter(t => {
-    if (selectedNames.includes(t.label)) return false
-    if (!q.trim()) return true
-    return t.label.toLowerCase().includes(q.toLowerCase())
-  })
+  const filtered = (q.trim() ? results : allTests).filter(t => !selectedNames.includes(t.label))
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', flex: 1 }}>
@@ -466,26 +478,47 @@ function TestCombobox({ onSelect, selectedNames }: { onSelect: (t: any) => void;
           borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
           zIndex: 200, maxHeight: 220, overflowY: 'auto',
         }}>
-          {filtered.map((t, i) => (
-            <button
-              key={t._id}
-              type="button"
-              onMouseDown={() => { onSelect(t); setQ(''); setOpen(false) }}
-              style={{
-                display: 'flex', justifyContent: 'space-between', width: '100%',
-                padding: '9px 14px', border: 'none', background: 'transparent',
-                fontSize: 13, cursor: 'pointer', color: 'var(--fg-primary)', textAlign: 'left',
-                borderBottom: i < filtered.length - 1 ? '1px solid var(--border-light)' : 'none',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-section)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span style={{ fontWeight: 600 }}>{t.label}</span>
-              {t.metadata?.category && (
-                <span style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>{t.metadata.category}</span>
-              )}
-            </button>
-          ))}
+          {filtered.map((t, i) => {
+            const m = t.metadata || {}
+            return (
+              <button
+                key={t._id}
+                type="button"
+                onMouseDown={() => { onSelect(t); setQ(''); setOpen(false) }}
+                style={{
+                  display: 'block', width: '100%',
+                  padding: '10px 14px', border: 'none', background: 'transparent',
+                  fontSize: 13, cursor: 'pointer', color: 'var(--fg-primary)', textAlign: 'left',
+                  borderBottom: i < filtered.length - 1 ? '1px solid var(--border-light)' : 'none',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-section)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 700, flex: 1 }}>{t.label}</span>
+                  {m.shortCode && (
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 800, color: '#1E4FA3',
+                      background: '#EBF2FF', border: '1px solid #DBE7F8',
+                      padding: '2px 6px', borderRadius: 999, fontFamily: 'var(--font-mono)',
+                    }}>{m.shortCode}</span>
+                  )}
+                  {m.price != null && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#15803D', whiteSpace: 'nowrap' }}>
+                      ₹{m.price}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 4, fontSize: 11.5, color: 'var(--fg-muted)' }}>
+                  {m.category && <span><b style={{ color: 'var(--fg-secondary)' }}>{m.category}</b></span>}
+                  {m.sample   && <span>· {m.sample}</span>}
+                  {m.tat      && <span>· TAT {m.tat}</span>}
+                  {m.fasting  ? <span>· Fasting {m.fasting}h</span> : null}
+                  {m.loinc    && <span style={{ fontFamily: 'var(--font-mono)' }}>· LOINC {m.loinc}</span>}
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
       {open && !loading && q.trim().length > 0 && filtered.length === 0 && (

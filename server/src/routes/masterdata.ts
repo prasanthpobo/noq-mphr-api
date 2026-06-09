@@ -109,8 +109,9 @@ router.get('/', protect, async (req: Request, res: Response, next: NextFunction)
     if (isActive !== undefined) filter.isActive = isActive === 'true'
     if (search) {
       const re = { $regex: String(search).trim(), $options: 'i' }
-      // Search the label first, plus medication-specific metadata fields so
-      // doctors can find a drug by ICD-10, brand, or generic name too.
+      // Search the label first, plus per-category metadata so doctors can find:
+      //   medicine: by ICD-10, brand, or generic name
+      //   test:     by LOINC code, category (e.g. 'Hematology'), or sample type
       filter.$or = [
         { label: re },
         { value: re },
@@ -118,6 +119,10 @@ router.get('/', protect, async (req: Request, res: Response, next: NextFunction)
         { 'metadata.genericName':  re },
         { 'metadata.icd10':        re },
         { 'metadata.manufacturer': re },
+        { 'metadata.loinc':        re },
+        { 'metadata.category':     re },
+        { 'metadata.sample':       re },
+        { 'metadata.shortCode':    re },
       ]
     }
 
