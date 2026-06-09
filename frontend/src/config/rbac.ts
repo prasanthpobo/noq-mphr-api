@@ -23,6 +23,10 @@ export type Permission =
   | 'dashboard:doctor'
   | 'dashboard:nurse'
   | 'dashboard:frontdesk'
+  | 'dashboard:patient'
+  // Patient self-service
+  | 'patient:appointments'
+  | 'patient:records'
   // Clinic operations
   | 'clinic:appointments'
   | 'clinic:live-tokens'
@@ -116,6 +120,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 
   /** Patient self-service portal */
   patient: [
+    'dashboard:patient',
+    'patient:appointments', 'patient:records',
     'account:profile', 'account:support', 'account:settings',
   ],
 
@@ -134,7 +140,7 @@ export const DEFAULT_ROUTE: Record<Role, string> = {
   frontdesk:    'dash-frontdesk',
   pharmacist:   'pharmacy',
   lab_tech:     'lab',
-  patient:      'support',
+  patient:      'dash-patient',
   user:         'support',
 }
 
@@ -146,6 +152,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   'dash-doctor':      'dashboard:doctor',
   'dash-nurse':       'dashboard:nurse',
   'dash-frontdesk':   'dashboard:frontdesk',
+  'dash-patient':     'dashboard:patient',
+  'my-appointments':  'patient:appointments',
+  'my-records':       'patient:records',
   // Clinic
   'appointments':     'clinic:appointments',
   'appt-view':        'clinic:appointments',

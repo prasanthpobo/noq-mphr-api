@@ -16,6 +16,9 @@ const ClinicDashboard   = lazy(() => import('@/pages/dashboard/ClinicDashboard')
 const DoctorDashboard   = lazy(() => import('@/pages/dashboard/DoctorDashboard'))
 const NurseDashboard    = lazy(() => import('@/pages/dashboard/NurseDashboard'))
 const FrontDeskDashboard= lazy(() => import('@/pages/dashboard/FrontDeskDashboard'))
+const PatientDashboard  = lazy(() => import('@/pages/dashboard/PatientDashboard'))
+const MyAppointments    = lazy(() => import('@/pages/patients/MyAppointments'))
+const MyRecords         = lazy(() => import('@/pages/patients/MyRecords'))
 
 const Appointments      = lazy(() => import('@/pages/appointments/Appointments'))
 const AppointmentDetail = lazy(() => import('@/pages/appointments/AppointmentDetail'))
@@ -141,6 +144,9 @@ export default function App() {
     case 'dash-doctor':     screen = <DoctorDashboard />; break
     case 'dash-nurse':      screen = <NurseDashboard />; break
     case 'dash-frontdesk':  screen = <FrontDeskDashboard />; break
+    case 'dash-patient':    screen = <PatientDashboard />; break
+    case 'my-appointments': screen = <MyAppointments />; break
+    case 'my-records':      screen = <MyRecords />; break
 
     case 'appointments':    screen = <Appointments />; break
     case 'appt-view':       screen = <AppointmentDetail mode="view" />; break

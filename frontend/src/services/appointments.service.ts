@@ -5,6 +5,9 @@ const base = '/appointments'
 export const appointmentsService = {
   list: (params?: Record<string, string>) =>
     api.get(base, { params }).then(r => r.data),
+  /** Patient self-service — appointments belonging to the logged-in user. */
+  mine: (params?: Record<string, string>) =>
+    api.get(`${base}/mine`, { params }).then(r => r.data),
   get: (id: string) =>
     api.get(`${base}/${id}`).then(r => r.data.data),
   create: (data: unknown) =>

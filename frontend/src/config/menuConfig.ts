@@ -59,6 +59,31 @@ export const MENU_CONFIG: MenuGroup[] = [
         icon: 'user',
         permission: 'dashboard:frontdesk',
       },
+      {
+        key: 'dash-patient',
+        label: 'My dashboard',
+        icon: 'heart',
+        permission: 'dashboard:patient',
+      },
+    ],
+  },
+
+  // ── My Health (patient self-service) ─────────────────────────────────────
+  {
+    group: 'My Health',
+    items: [
+      {
+        key: 'my-appointments',
+        label: 'My appointments',
+        icon: 'calendar',
+        permission: 'patient:appointments',
+      },
+      {
+        key: 'my-records',
+        label: 'Medical records',
+        icon: 'folder',
+        permission: 'patient:records',
+      },
     ],
   },
 
